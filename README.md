@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # FrontWing 🏎️
 
 FrontWing is a production-grade, AI-powered Formula 1 intelligence platform. It processes real-time timing data, historical statistics, and high-density vehicle telemetry to deliver corner-by-corner analysis, predictive "What-If" pit stop simulations, and conversational telemetry diagnostics.
@@ -129,3 +130,5 @@ Simulate strategy deviations in real-time (e.g., *"What if Ferrari pitted Lecler
 - **Milestone 3**: Gemini 2.5 Flash Ghost Battle telemetry narration logic.
 - **Milestone 4**: Interactive strategy "What-If" simulator interface.
 - **Milestone 5**: Production deployment & Live session streaming.
+=======
+>>>>>>> 95d245af243d7d5e946299f0cf2b41f8a10a9527
