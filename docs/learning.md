@@ -115,6 +115,30 @@ graph TD
 * **Question**: How do you simulate a "What-if" pit stop event on a specific lap?
 * **Answer**: We compute the remaining laps $N$ and calculate the simulated race time. We apply a pit lane loss penalty ($T_{\text{loss}}$) on the pit lap, reset tire age to 0, and project new compound degradation rates. Crucially, we apply a **Traffic Bottleneck Constraint**: if the driver exits within 1.0 second of a rival, their simulated pace is capped to the rival's pace unless the pace differential exceeds the circuit's Overtake Difficulty Index ($OD$).
 
+* **Question**: Describe the exact step-by-step logic of the spatial Traffic Bottleneck algorithm.
+* **Answer**: 
+  1. At each lap $k$, we locate the driver immediately ahead on track by looking for the rival with the largest cumulative actual race time $T_{\text{rival}}(k-1)$ that is less than the driver's simulated cumulative time $T_{\text{driver\_sim}}(k-1)$.
+  2. The gap to this rival is $\text{Gap} = T_{\text{driver\_sim}}(k-1) - T_{\text{rival}}(k-1)$.
+  3. If $\text{Gap} \le 1.0$ second, the driver is in dirty air. If their projected natural pace is faster than the rival ($L_{\text{natural}} < L_{\text{rival\_actual}}$), we check if the delta $\Delta = L_{\text{rival\_actual}} - L_{\text{natural}} > OD$ (Overtake Difficulty).
+  4. If $\Delta > OD$, they run $L_{\text{natural}}$ and overtake. Otherwise, they are stuck, and their cumulative time at the end of the lap is capped to the rival's time plus a follow gap ($T_{\text{driver\_sim}}(k) = T_{\text{rival\_actual}}(k) + 0.6$ seconds).
+  5. If $\text{Gap} > 1.0$ second, they run in clean air, but we check if they caught up during the lap. If $T_{\text{driver\_sim}}(k) < T_{\text{rival\_actual}}(k)$, we cap their cumulative time at the end of the lap to the rival's time plus $0.6$ seconds.
+
+* **Question**: Why is a full-grid multi-agent model (V2) required instead of simulating a single modified driver against static rivals (V1)?
+* **Answer**: Simulating a single driver against static actual timelines ignores second-order race effects. For example, if we pit Leclerc on lap 20 instead of 25, he might exit behind a slower driver who had already pitted. Leclerc gets held up in traffic, which modifies his pace. Simultaneously, the driver Leclerc exits behind is now under pressure, altering their defensive lines, and the drivers behind Leclerc are released from his traffic, letting them push in clean air. A full-grid model re-sorts and updates the dirty air states of all 20 drivers dynamically on every lap, modeling realistic grid interactions.
+
+* **Question**: How does the V2 engine model the tradeoff between an undercut and an overcut?
+* **Answer**: The V2 engine simulates the physical and thermodynamic trade-offs:
+  - **Undercut**: A driver pits early to mount fresh tires (resetting degradation age). This is penalized by the pit lane loss ($T_{\text{loss}}$) and a thermal warmup delay ($\theta_{\text{warmup}}$) on the out-lap (Soft = 0.3s, Medium = 0.6s, Hard = 1.2s). If they clear traffic, they gain massive lap time delta.
+  - **Overcut**: The rival stays out on old tires. If the pitting driver exits into traffic (dirty air), their pace is capped to the traffic queue speed. The rival staying out in clean air runs faster than the traffic-stuck driver, successfully executing the overcut when they pit later.
+
+* **Question**: Explain how DRS availability and overtake difficulty are modeled mathematically in the V2 engine.
+* **Answer**: 
+  - **DRS**: We check the gap $G_i(k-1)$ at the end of the previous lap. If $G_i(k-1) \le 1.0\text{s}$, the chasing driver receives a DRS pace boost of $\delta_{\text{DRS}} = 0.4$ seconds (representing the drag reduction advantage on straights) on the next lap: $L_{i,\text{DRS}}(k) = L_{i,\text{natural}}(k) - \delta_{\text{DRS}}$.
+  - **Overtake Probability**: We use a sigmoidal logistic regression model:
+    $$P_{\text{overtake}} = \frac{1}{1 + e^{-k_{\text{sens}} \cdot (\Delta_{\text{pace}} + \delta_{\text{DRS}} - OD)}}$$
+    where $\Delta_{\text{pace}} = L_{i-1,\text{natural}} - L_{i,\text{natural}}$ is the pace advantage, and $OD$ is the circuit-specific overtake difficulty threshold. In deterministic mode, the overtake succeeds if $P_{\text{overtake}} \ge 0.5$ (meaning total pace advantage $\ge OD$). In Monte Carlo mode, we sample from a uniform distribution to determine success, allowing realistic stochastic race order shuffles.
+
+
 ### Product Performance Metrics (Engagement & Retention)
 * **Question**: How would you define key success metrics for an F1 analytical platform like FrontWing?
 * **Answer**: 

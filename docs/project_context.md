@@ -209,6 +209,207 @@ $$S_{\text{exec}} = \min\left(100, \max\left(0, 80 - 15 \cdot N_{\text{penalties
 
 ---
 
+## 6. Strategy Simulation Engine: Refined Deterministic & Multi-Agent Models
+
+### 1) Scope Division: V1 vs. V2
+
+| Feature | V1 (Current Implementation) | V2 (Proposed Design Upgrade) |
+| :--- | :--- | :--- |
+| **Simulated Target** | Single driver only | Full grid (all 20 drivers simulated simultaneously) |
+| **Rival Timelines** | Static actual timelines | Dynamic multi-agent timelines |
+| **Overtake Check** | Simple binary pace difference | Logistic probability model with DRS |
+| **DRS Modeling** | None | Dynamic delta reduction and detection rules |
+| **Tire Warmup** | None | Compound-dependent out-lap thermal penalties |
+| **Simulation Mode** | Deterministic only | Deterministic + Monte Carlo Stochastic |
+
+---
+
+### 2) V2 Simulation Architecture
+
+The V2 Multi-Agent Simulation Engine coordinates data loading, tire wear modeling, state propagation, traffic detection, and stochastic overtake checks:
+
+```mermaid
+graph TD
+    Config[Race & Strategy Config] --> Engine[V2 Simulation Engine]
+    History[Historical Lap Timing & Wear Data] --> ModelFitting[Tire Degradation Fitting Module]
+    
+    subgraph V2 State Engine Loop (Lap 1 to N)
+        InitState[Initialize Grid State Vector] --> ProjectPace[Project Natural Pace for All Drivers]
+        ProjectPace --> SortTimes[Sort Cumulative Race Times]
+        SortTimes --> UpdateGaps[Recompute Gaps & Positions]
+        UpdateGaps --> PitCheck[Check Pit Stop Decisions]
+        
+        PitCheck -->|Pits| PitLoss[Apply Pit Loss & Tire Warmup Penalties]
+        PitCheck -->|Stays Out| WearProj[Apply Linear Tire Wear & Fuel Burn]
+        
+        PitLoss --> TrafficCheck[Check Traffic & DRS Detection]
+        WearProj --> TrafficCheck
+        
+        TrafficCheck --> OvertakeCalc[Calculate Overtake Probabilities]
+        OvertakeCalc --> OvertakeResolve[Resolve Overtakes & Capping Logic]
+        OvertakeResolve --> UpdateState[Update Race State Vector]
+    end
+    
+    UpdateState --> Output[Simulated Timelines & Position Logs]
+```
+
+- **Race Config Loader**: Reads the target session parameters, starting grid order, tyre specifications, pit lane loss ($T_{\text{loss}}$), and circuit difficulty index ($OD$).
+- **Tire Degradation Fitting Module**: Performs linear regressions on historical stint data to calculate base paces ($\alpha$) and wear slopes ($\beta$) for all driver-compound pairs.
+- **Multi-Agent State Manager**: Main loop driver tracking the cumulative race times and positions of all 20 cars.
+- **Traffic & DRS Resolver**: Evaluates spacing between cars at the end of each lap to update dirty air and DRS activation state.
+- **Overtake Probability Engine**: Computes sigmoidal overtaking chances and resolves grid swapping.
+- **Monte Carlo Orchestrator**: Aggregates statistical outcomes over $R$ runs for the stochastic simulation mode.
+
+---
+
+### 3) V2 Mathematical Design
+
+#### A. Race State Engine
+The state of the race at the end of lap $k$ is represented by the set of driver state vectors:
+$$\mathbf{X}(k) = \{ \mathbf{s}_i(k) \}_{i=1}^{M}$$
+where each driver's state vector $\mathbf{s}_i(k)$ contains:
+1. $T_i(k)$: Cumulative race time (seconds) at the completion of lap $k$.
+2. $P_i(k)$: Track position rank ($1 \dots M$).
+3. $C_i(k)$: Active tire compound (Soft, Medium, Hard).
+4. $t_i(k)$: Tire age (laps run on current set).
+5. $G_i(k)$: Gap to the car immediately ahead (seconds):
+   $$G_i(k) = T_i(k) - T_{\text{rival\_ahead}}(k)$$
+   (For the leader, $G_{\text{leader}}(k) = 0$).
+6. $W_i(k)$: Pit exit window (seconds). The projected cumulative time if pitting on lap $k$:
+   $$W_i(k) = T_i(k) + T_{\text{loss}}(C_{\text{new}})$$
+7. $\text{Traffic}_i(k)$: Traffic congestion status:
+   $$\text{Traffic}_i(k) = \begin{cases} \text{Dirty Air} & \text{if } G_i(k) \le 1.5\text{s} \\ \text{Clean Air} & \text{otherwise} \end{cases}$$
+8. $Status_i(k)$: Driver status ('Active', 'DNF', 'Pit').
+
+#### B. Dynamic Position & Traffic Updates
+When a driver changes strategy (e.g., pitting early or extending a stint), positions and traffic must be dynamically recomputed for the whole grid:
+1. **Recompute Cumulative Times**:
+   For driver $i$ pitting on lap $k$:
+   $$T_i(k) = T_i(k-1) + L_{i,\text{natural}}(1, C_{\text{new}}) + T_{\text{loss}} + \theta_{\text{warmup}}(C_{\text{new}})$$
+   For driver $j$ staying out:
+   $$T_j(k) = T_j(k-1) + L_{j,\text{actual}}(k)$$
+2. **Re-sort Grid Positions**:
+   Sort the array of cumulative times $\{T_1(k), T_2(k), \dots, T_M(k)\}$ in ascending order:
+   $$T_{\pi(1)}(k) < T_{\pi(2)}(k) < \dots < T_{\pi(M)}(k)$$
+   where $\pi(r)$ is the driver occupying position rank $r$.
+3. **Update Gaps & Traffic States**:
+   For each position rank $r \in [2, M]$:
+   $$G_{\pi(r)}(k) = T_{\pi(r)}(k) - T_{\pi(r-1)}(k)$$
+   If $G_{\pi(r)}(k) \le 1.5\text{s}$, the traffic status of driver $\pi(r)$ is marked as `Dirty Air`.
+4. **Recompute Clean Air Windows**:
+   - If driver $\pi(r-1)$ pits, driver $\pi(r)$ is released from their dirty air. Their gap to the new leading car $\pi(r-2)$ is evaluated. If $T_{\pi(r)}(k-1) - T_{\pi(r-2)}(k-1) > 1.5$ seconds, their clean air window opens, allowing them to run at their natural pace $L_{\pi(r),\text{natural}}(k)$ on the following lap.
+
+#### C. Undercut/Overcut & Warmup Logic
+- **Tire Warmup Penalty ($\theta_{\text{warmup}}$)**:
+  Out-laps on fresh tires suffer a thermal lag penalty before reaching optimal working temperature. This delay is compound-dependent:
+  - Soft: $\theta_{\text{warmup}} = 0.3\text{s}$
+  - Medium: $\theta_{\text{warmup}} = 0.6\text{s}$
+  - Hard: $\theta_{\text{warmup}} = 1.2\text{s}$
+- **Undercut Mechanics**:
+  Driver $i$ pits on lap $k$ to mount fresh tires, resetting $t_i(k) = 0$. On lap $k+1$, they exploit fresh-rubber pace $L_{i,\text{natural}}(1, C_{\text{new}})$. If their fresh tire pace outweighs the worn-tire pace of rival $j$ who stayed out, driver $i$ jumps ahead when driver $j$ pits on lap $k+d$.
+- **Overcut Mechanics**:
+  Driver $j$ stays out on worn tires. If driver $i$ exits the pit lane and lands in a traffic bottleneck ($\text{Traffic}_i(k) = \text{Dirty Air}$), their fresh-rubber pace is capped:
+  $$L_i(m) = L_{\text{traffic}}(m)$$
+  This neutralizes the undercut advantage. Since driver $j$ continues in clean air, they successfully overcut driver $i$ when pitting later.
+- **Success Criteria**:
+  An undercut/overcut attempt by driver $i$ (pitting at $k$) against rival $j$ (pitting at $k+d$) is successful if:
+  $$T_i(k+d) < T_j(k+d)$$
+
+#### D. Overtake Probability Model
+Overtaking is modeled probabilistically when a following driver is within the DRS detection zone ($G_i(k-1) \le 1.0\text{s}$).
+- **DRS Pace Boost ($\delta_{\text{DRS}}$)**:
+  If the gap at the end of the previous lap was $\le 1.0$ second, the chasing driver receives a DRS boost of $\delta_{\text{DRS}} = 0.4$ seconds on the subsequent lap:
+  $$L_{i,\text{DRS}}(k) = L_{i,\text{natural}}(k) - \delta_{\text{DRS}}$$
+- **Probability Formulation**:
+  We calculate the overtake probability:
+  $$P_{\text{overtake}} = \frac{1}{1 + e^{-k_{\text{sens}} \cdot (\Delta_{\text{pace}} + \delta_{\text{DRS}} - OD)}}$$
+  where:
+  - $\Delta_{\text{pace}} = L_{i-1,\text{natural}} - L_{i,\text{natural}}$ is the clean-air pace difference.
+  - $OD$ is the circuit's Overtake Difficulty Index (e.g. Monaco = 2.0s, Singapore = 1.5s, Monza = 0.5s, Austria = 0.4s).
+  - $k_{\text{sens}} = 5.0$ represents the curve sensitivity.
+- **Resolution Modes**:
+  - **Deterministic**: An overtake succeeds if $P_{\text{overtake}} \ge 0.5$ (equivalent to $\Delta_{\text{pace}} + \delta_{\text{DRS}} \ge OD$).
+  - **Stochastic (Monte Carlo)**: Sample $r \sim \text{Uniform}(0, 1)$. The overtake succeeds if $r < P_{\text{overtake}}$.
+  - If successful, the chaser moves ahead: $T_i(k) = T_{i-1}(k) + 0.3$s, and the overtaken driver drops back.
+  - If failed, the chaser is held up in dirty air: $T_i(k) = \max\left(T_i(k), T_{i-1}(k) + 0.6\text{s}\right)$.
+
+---
+
+### 4) Computational Complexity Estimation
+
+For a grid of $M$ drivers and a race of $N$ laps:
+- **Per Lap**: Sorting $M$ drivers takes $O(M \log M)$. Updating gaps and resolving traffic bottlenecks takes $O(M)$.
+- **Total Race**: Running a single grid simulation takes $O(N \cdot M \log M)$ operations.
+- **Numeric Verification**:
+  - For $N = 70$ laps, $M = 20$ drivers:
+    $$70 \times 20 \log_2(20) \approx 70 \times 20 \times 4.32 \approx 6,050 \text{ operations}$$
+    A single deterministic run executes in **< 1 millisecond** in Python.
+  - **Monte Carlo Performance**:
+    Running $R = 1,000$ simulation trials requires $O(R \cdot N \cdot M \log M) \approx 6 \times 10^6$ operations.
+    Using vectorized operations (e.g. NumPy arrays), sorting and state transitions can be evaluated in parallel across trials, completing in **< 0.5 seconds**. This allows real-time interactive strategy projection.
+
+---
+
+### 5) V1 API Response Structure
+The FastAPI route (`POST /simulate`) returns the following structured JSON output:
+```json
+{
+  "status": "success",
+  "results": {
+    "session_id": "2024_austria_gp_race",
+    "driver_id": "sainz",
+    "simulated_pit_lap": 19,
+    "actual_pit_lap": 22,
+    "target_compound": "HARD",
+    "actual_finishing_position": 3,
+    "projected_finishing_position": 3,
+    "position_change": 0,
+    "actual_total_time_seconds": 4985.2,
+    "projected_total_time_seconds": 4983.8,
+    "simulated_net_time_gain_ms": 1400,
+    "simulated_lap_times": [71.2, 70.8, ...],
+    "run_parameters": {
+      "pit_loss": 22.0,
+      "overtake_difficulty": 0.4,
+      "stints": [...]
+    }
+  }
+}
+```
+
+---** in Python using NumPy vectors.
+
+---
+
+### 4) V1 API Response Structure
+The FastAPI route (`POST /simulate`) returns the following structured JSON output:
+```json
+{
+  "status": "success",
+  "results": {
+    "session_id": "2024_austria_gp_race",
+    "driver_id": "sainz",
+    "simulated_pit_lap": 19,
+    "actual_pit_lap": 22,
+    "target_compound": "HARD",
+    "actual_finishing_position": 3,
+    "projected_finishing_position": 3,
+    "position_change": 0,
+    "actual_total_time_seconds": 4985.2,
+    "projected_total_time_seconds": 4983.8,
+    "simulated_net_time_gain_ms": 1400,
+    "simulated_lap_times": [71.2, 70.8, ...],
+    "run_parameters": {
+      "pit_loss": 22.0,
+      "overtake_difficulty": 0.4,
+      "stints": [...]
+    }
+  }
+}
+```
+
+---
+
 ## 9. 2024 Austrian GP Refined Worked Calculations
 
 - **Race Metrics Setup**: Total Laps $N = 71$. Safety Car / VSC laps $N_{\text{SC}} = 4$. Net Racing Laps = 67.
@@ -389,9 +590,11 @@ If constrained to a 7-day timeline, the product will be stripped to its absolute
 - [x] Configure unit tests validation suite against mock 2024 Austrian GP data and resolve assertions.
 - [x] Prepare repository for version control: configure gitignore, README, CONTRIBUTING, and RELEASE_NOTES.
 
+- [x] Configure Python environment and initialize FastAPI server routes.
+- [x] Implement FrontWing Strategy Simulation Engine V1 and associated unit tests.
+
 ### Pending Tasks
 - [ ] Execute Express server setup and connect WebSocket handlers.
-- [ ] Configure Python environment and initialize FastAPI server routes.
 - [ ] Integrate FastF1 plotting visualizer services.
 - [ ] Build core multi-agent state machines in LangGraph using Gemini 2.5 Flash.
 - [ ] Develop dashboard UI components using React, Tailwind, and ShadCN.
