@@ -9,18 +9,18 @@ FrontWing is a production-grade, AI-powered Formula 1 intelligence platform. It 
 The platform uses a decoupled microservices design to balance performance (Node.js I/O and WebSockets) with data analysis/AI capabilities (Python and scientific libraries). V1 operates completely without RAG and vector databases, eliminating vector index overheads.
 
 ```text
-┌─────────────────┐       HTTP / WS       ┌─────────────────────┐
-│  React Frontend │ <───────────────────> │ Node.js API Gateway │
-└─────────────────┘                       └──────────┬──────────┘
-                                                     │
-                                            Redis    │ HTTP / RPC
-                                           Pub/Sub   │
-                                                     ▼
-┌─────────────────┐                       ┌─────────────────────┐
-│                 │ <───────────────────> │ AI Python Service   │
-│   PostgreSQL    │                       │  (LangGraph/FastF1) │
-│                 │                       │  Gemini 2.5 Flash   │
-└─────────────────┘                       └─────────────────────┘
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ       HTTP / WS       Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+Ã¢ÂÂ  React Frontend Ã¢ÂÂ <Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ> Ã¢ÂÂ Node.js API Gateway Ã¢ÂÂ
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ                       Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ¬Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+                                                     Ã¢ÂÂ
+                                            Redis    Ã¢ÂÂ HTTP / RPC
+                                           Pub/Sub   Ã¢ÂÂ
+                                                     Ã¢ÂÂ¼
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ                       Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+Ã¢ÂÂ                 Ã¢ÂÂ <Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ> Ã¢ÂÂ AI Python Service   Ã¢ÂÂ
+Ã¢ÂÂ   PostgreSQL    Ã¢ÂÂ                       Ã¢ÂÂ  (LangGraph/FastF1) Ã¢ÂÂ
+Ã¢ÂÂ                 Ã¢ÂÂ                       Ã¢ÂÂ  Gemini 2.5 Flash   Ã¢ÂÂ
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ                       Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 ```
 
 - **Frontend**: React (TypeScript) dashboard styled with TailwindCSS and ShadCN UI components, communicating via REST and WebSockets.
@@ -39,43 +39,45 @@ The platform uses a decoupled microservices design to balance performance (Node.
 
 ```text
 FrontWing/
-├── ai_services/                # Python LangGraph/FastF1 microservice
-│   ├── app/
-│   │   ├── agents/             # LangGraph state machines & routers
-│   │   ├── tools/              # Custom F1 tools (FastF1 analytics, scoring)
-│   │   ├── core/               # Configuration, logging, DB setups
-│   │   └── main.py             # FastAPI Entrypoint
-│   ├── requirements.txt
-│   └── README.md
-├── backend/                    # Node.js + Express API Gateway
-│   ├── src/
-│   │   ├── config/             # PG, Redis, OpenF1 client configs
-│   │   ├── controllers/        # Express handlers (auth, telemetry, chat)
-│   │   ├── middleware/         # Auth, rate limiting, error catching
-│   │   ├── routes/             # REST endpoints (V1)
-│   │   ├── services/           # Live feeds, WS managers, DB layer
-│   │   └── index.ts            # Express Entrypoint
-│   ├── package.json
-│   └── tsconfig.json
-├── database/                   # Database schemas & migrations
-│   ├── migrations/             # PostgreSQL DDL scripts
-│   │   ├── 01_init_schema.sql  # Core schemas
-│   │   └── 02_intelligence_tables.sql # Scoring, sim, and insights tables
-│   ├── seeds/                  # Baseline F1 seed data (teams, circuits)
-│   └── schema.sql              # Master database schema layout
-├── docs/                       # Project Documentation
-│   ├── learning.md             # Active learning log & system design insights
-│   └── project_context.md      # Persistent project memory (APIs, schemas)
-└── frontend/                   # React + TypeScript SPA dashboard
-    ├── src/
-    │   ├── components/         # Shared & ShadCN UI components
-    │   ├── hooks/              # Custom React hooks (WS sub, telemetry)
-    │   ├── pages/              # Main routes (Dashboard, Telemetry, AI Chat)
-    │   ├── services/           # API services & WebSockets
-    │   └── App.tsx             # React Entrypoint
-    ├── tailwind.config.js
-    ├── package.json
-    └── tsconfig.json
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ ai_services/                # Python LangGraph/FastF1 microservice
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ app/
+Ã¢ÂÂ   Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ agents/             # LangGraph state machines & routers
+Ã¢ÂÂ   Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ tools/              # Custom F1 tools (FastF1 analytics, scoring)
+Ã¢ÂÂ   Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ core/               # Configuration, logging, DB setups
+Ã¢ÂÂ   Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ main.py             # FastAPI Entrypoint
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ requirements.txt
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ README.md
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ backend/                    # Node.js + Express API Gateway
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ src/
+Ã¢ÂÂ   Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ config/             # PG, Redis, OpenF1 client configs
+Ã¢ÂÂ   Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ controllers/        # Express handlers (auth, telemetry, chat)
+Ã¢ÂÂ   Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ middleware/         # Auth, rate limiting, error catching
+Ã¢ÂÂ   Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ routes/             # REST endpoints (V1)
+Ã¢ÂÂ   Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ services/           # Live feeds, WS managers, DB layer
+Ã¢ÂÂ   Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ index.ts            # Express Entrypoint
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ package.json
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ tsconfig.json
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ database/                   # Database schemas & migrations
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ migrations/             # PostgreSQL DDL scripts
+Ã¢ÂÂ   Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ 01_init_schema.sql  # Core schemas
+Ã¢ÂÂ   Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ 02_intelligence_tables.sql # Scoring, sim, and insights tables
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ seeds/                  # Baseline F1 seed data (teams, circuits)
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ schema.sql              # Master database schema layout
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ docs/                       # Project Documentation
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ design_system.md        # Single source of truth for UI/UX Design System
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ design_system.md        # Single source of truth for UI/UX Design System
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ learning.md             # Active learning log & system design insights
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ project_context.md      # Persistent project memory (APIs, schemas)
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ frontend/                   # React + TypeScript SPA dashboard
+    Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ src/
+    Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ components/         # Shared & ShadCN UI components
+    Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ hooks/              # Custom React hooks (WS sub, telemetry)
+    Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ pages/              # Main routes (Dashboard, Telemetry, AI Chat)
+    Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ services/           # API services & WebSockets
+    Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ App.tsx             # React Entrypoint
+    Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ tailwind.config.js
+    Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ package.json
+    Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ tsconfig.json
 ```
 
 ---
@@ -506,63 +508,310 @@ The FastAPI route (`POST /simulate`) returns the following structured JSON outpu
 
 ---
 
-## 10. Product Retention & Strategic Design
+## 10. Product Redesign: FrontWing as the World's Best AI Race Engineer
 
-### A) Why Users Return Every Race Weekend
-Formula 1 matches occur on fixed 3-day weekend cycles. FrontWing establishes active hooks for each phase:
-- **Live-Race Companion**: During the session, fans query the "What-If" simulator in real-time (*"Did Ferrari just throw away the win by staying out?"*) to get instant coordinate-based traffic projections.
-- **Post-Race Debates (The Verification Hook)**: Immediately after the chequered flag, fans argue on social channels (Reddit, Twitter/X) about driver performance. FrontWing provides immediate, deterministic **Intelligence Scorecards** and **Ghost Battle Dialogues** that act as quantitative backup evidence for their debates.
+> **Date**: 2026-06-28
+> **Author**: Head of Product Design & UX
+> **Status**: All prior UI work (Design Bible, wireframes, Landing.tsx, AppShell, ui_architecture.md) is classified as **failed experiments**. See [learning.md](file:///c:/VS-Code_C_drive/Projects/FrontWing/docs/learning.md) Section 10 for the full post-mortem. This section defines the complete product experience from zero.
 
-### B) Core Product Value Anchors
-1. **Most Valuable Feature**: **"What-If" Pit Stop Simulation Engine**. It democratizes race strategy. Fans no longer accept commentator speculations; they run their own deterministic simulations showing exact exit coordinates and traffic bottleneck impacts.
-2. **Most Addictive Feature**: **Driver Performance Scorecards**. Because the scores are derived strictly from raw telemetry (linear wear rates, brake lockup indicators, clean air ratios) rather than subjective human grading, fans trust them as absolute metrics to rank driver efficiency.
-3. **Most Shareable Feature**: **Ghost Battle Cards**. A high-contrast comparative speed-trace infographic detailing exactly which corner, braking point, and apex speed separated two drivers, designed to be exported and posted to social platforms.
-4. **The Irreplaceable Moat**: **Telemetry-Driven Ghost Battle Dialogue**. F1 TV offers video, FastF1 offers scripts, and Reddit offers opinions. FrontWing is the only platform where a fan can talk to an AI that is actively reading, aligning, and explaining F1 micro-telemetry deltas.
+### The Product Vision
 
-### C) Landing Page User Flow
-- **The First Sight (The Visual Hook)**: A premium dark mode landing dashboard with neon trace indicators. A side-by-side active "Ghost Speed Trace Overlay" comparison card displays two driver lines crossing.
-- **The First Action**: A large search query bar in the center of the hero section:
-  > **"Pick two drivers or ask about a strategy..."** (with suggestions like *"Simulate Leclerc pitting on Lap 20 at Spa"* or *"Compare Verstappen vs. Hamilton's sector 2 timings"*).
-- **The Conversion Hook**: Upon typing a query, a dynamic telemetry console rolls open, loading the downsampled telemetry file and printing the AI engineer's corner-by-corner braking breakdown within 2 seconds.
+FrontWing is **not** an F1 dashboard.
+
+FrontWing is the world's best **AI Race Engineer**. Users feel like they are investigating a race with an AI engineer sitting beside them. Every interaction begins with a **question**. The AI investigates. The AI explains. Then it shows evidence. Then simulations. Then raw telemetry.
+
+The user is never alone with raw data. The AI is always present, always narrating, always connecting insights to stories.
+
+### Core Product Principles
+
+1. **Question-First Architecture**: Every feature, every page, every component begins with a question a real F1 fan would ask. "Could Ferrari have won Austria?" "Why was Norris slower?" "Where did Verstappen gain time?"
+2. **AI as Narrator, Not Widget**: The AI is not a chatbot in a sidebar. It is the primary interface. It explains, it reveals, it guides. Evidence (charts, simulations, telemetry) appears because the AI summoned it to support an argument.
+3. **Progressive Disclosure**: Information is layered. First: the verdict. Second: the explanation. Third: the evidence. Fourth: the simulation. Fifth: the raw data. Users peel back layers at their own pace.
+4. **Conversation, Not Navigation**: There is no sidebar with five page links. Users navigate by asking questions, following threads, and exploring branches. The product grows organically around the investigation.
+5. **Emotional Design**: F1 is sport. FrontWing must feel the dramaâ€”the tension of a late pit stop, the anguish of a wrong strategy call, the triumph of a perfect undercut. The AI should have voice, personality, and conviction.
 
 ---
 
-## 11. Feature Hierarchy & 7-Day MVP Scope
+## 11. Product Experience Architecture
+
+### The Investigation Thread Model
+
+The core UI primitive is an **Investigation Thread**â€”a vertically scrolling conversation between the user and the AI Race Engineer, punctuated by inline evidence cards (charts, simulations, comparisons) that the AI reveals as it builds its argument.
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│                       CORE FEATURE                          │
-│  - Telemetry-Driven Ghost Battle Dialogue (AI narration)    │
-│  - Intelligence Scoring Engine (5 Deterministic Scores)      │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    SUPPORTING FEATURE                       │
-│  - Telemetry Graph Visualizer (Speed, Throttle, Brake)      │
-│  - "What-If" Pit Stop Strategy Simulator                    │
-│  - Stint and Tire Wear Regression Tables                    │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    NICE-TO-HAVE FEATURE                     │
-│  - Live Coordinate SVG Map Track                            │
-│  - Weather Snapshot Tracker                                 │
-│  - Team Radio Transcript Tagging                            │
-└─────────────────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” 
+â”‚                                                                     â”‚
+â”‚  [User Question]                                                    â”‚
+â”‚  "Could Ferrari have won the Austrian GP?"                          â”‚
+â”‚                                                                     â”‚
+â”—â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                                   │
+                                   ▼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” 
+â”‚  [AI Verdict â€” Layer 1: The Answer]                                 â”‚
+â”‚  "Almost certainly yes. Sainz finished P3, 6.8 seconds behind      â”‚
+â”‚   Piastri. But Ferrari's strategy cost them approximately 4.2       â”‚
+â”‚   seconds through a poorly-timed first pit stop..."                 â”‚
+â”—â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+                                   │
+                                   ▼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” 
+â”‚  [AI Evidence â€” Layer 2: The Explanation]                           â”‚
+â”‚  "The critical moment was Lap 22. Ferrari pitted Sainz one lap     â”‚
+â”‚   after the optimal window. By Lap 21, Hamilton had already        â”‚
+â”‚   passed the pit exit point, meaning Sainz exited into clean air   â”‚
+â”‚   on Lap 20 but hit traffic on Lap 22..."                          â”‚
+â”‚                                                                     â”‚
+â”‚  â”Œâ”€ Inline Evidence Card: Strategy Timeline Comparison ──────────â”  â”‚
+â”‚  â”‚ [Actual vs. Optimal Pit Windows - Visual Gantt + Gap Chart]    â”‚ â”‚
+â”‚  â”‚ Tap to expand full simulation                                  â”‚ â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
+â”—â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+                                   │
+                                   ▼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” 
+â”‚  [AI Simulation â€” Layer 3: What-If]                                │
+â”‚  "If Sainz pitted on Lap 20 instead of 22, he'd have exited       â”‚
+â”‚   with +2.1s of clean air to Piastri. Running the simulation..."   â”‚
+â”‚                                                                     â”‚
+â”‚  â”Œâ”€ Inline Simulation Card: What-If Result ──────────────────────â”  â”‚
+â”‚  â”‚ Simulated Finish: P2 (+1 position gained)                      â”‚ â”‚
+â”‚  â”‚ Net Time Gain: +1.400s                                         â”‚ â”‚
+â”‚  â”‚ [Expand to see lap-by-lap projections]                         â”‚ â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
+â”—â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+                                   │
+                                   ▼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” 
+â”‚  [AI Raw Evidence â€” Layer 4: Telemetry]                            â”‚
+â”‚  "For the deeper detail: here's Sainz's sector-by-sector pace     â”‚
+â”‚   on his out-lap compared to Piastri's. Notice the 0.4s loss      â”‚
+â”‚   in Sector 2 from dirty air behind Albon..."                      â”‚
+â”‚                                                                     â”‚
+â”‚  â”Œâ”€ Inline Telemetry Card: Speed Trace Overlay ──────────────────â”  â”‚
+â”‚  â”‚ [Canvas: SAI vs PIA lap overlay, distance-aligned]             â”‚ â”‚
+â”‚  â”‚ Hover for corner-by-corner breakdown                           â”‚ â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
+â”—â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
 ```
 
-### 7-Day MVP Survival Scope
-If constrained to a 7-day timeline, the product will be stripped to its absolute, highest-value coordinates to ensure successful delivery:
-1. **FastF1 Data core & Downsampler**: We must be able to load historical timing logs and compress coordinates.
-2. **Gemini 2.5 Flash Ghost Battle Dialogue**: The core conversational comparative engineer.
-3. **Intelligence Scorecards**: The 5-metric scorecards providing immediate value for post-race debates.
-- *Dropped for V1 MVP*: The "What-If" strategy simulation engine (deferred to V2), live 2D track coordinates maps, weather logs, and team radio metadata indices.
+### Information Layers (Progressive Disclosure)
+
+Every AI response follows this layering:
+
+| Layer | What | Format | When Visible |
+| :--- | :--- | :--- | :--- |
+| **1. Verdict** | The direct answer in plain language | Text paragraph | Always (immediately) |
+| **2. Explanation** | Why the verdict is true, with key metrics cited inline | Text with highlighted data callouts | Always (follows verdict) |
+| **3. Evidence** | Supporting visual proof (charts, timelines, comparisons) | Inline expandable cards | Collapsed by default; one-tap expand |
+| **4. Simulation** | What-if projections, Monte Carlo distributions | Interactive inline cards | Collapsed; expand reveals slider controls |
+| **5. Raw Data** | Full telemetry traces, lap-by-lap tables, wear regressions | Canvas/table views | Hidden; "Show raw data" link at bottom |
 
 ---
 
-## 12. Project Progress Tracker
+## 12. Complete Page Definitions
+
+All 5 core views conform to the visual style guidelines and interaction principles defined in [design_system.md](file:///c:/VS-Code_C_drive/Projects/FrontWing/docs/design_system.md).
+
+### PAGE 1: The Briefing Room (Home / Entry Point)
+- **Why the user opens it**: Curious about race dynamics, strategy calls, or driver performance debates.
+- **What they first see**: A single, prominent question: *"Could Ferrari have won the Austrian Grand Prix?"* and a query bar.
+- **Their first 5 seconds**: Realize this is a tool for active investigation. See trending loops and recent queries.
+- **The AI workflow**: Maps queries to fast deterministic scoring, strategy simulations, and telemetry overlays.
+- **Progressive disclosure**: Starts with a large query box, transitions to a live streaming narrative, then reveals collapsed cards.
+- **Beginner experience**: Conversations avoid engineering abbreviations; hovering shows plain English tooltips.
+- **Intermediate experience**: Interactive strategy sliders to manipulate variables.
+- **Advanced experience**: Monospace delta margins, Monte Carlo toggles, CSV data exports.
+- **Emotional moments**: AI reveals unexpected design floor cracks or strategy bottlenecks that were invisible on live TV.
+- **Delight moments**: Cards slide in as if laid on a desk; team-colored tags pulse during mentions.
+- **Empty states**: Looping racetrack outline with query suggestions.
+- **Loading states**: Streaming block cursor, skeleton progress lines.
+- **Error states**: Clean fallback to lap sheets with error code callouts if telemetry collector drops.
+- **Sharing opportunities**: Export formatted verdict quotes and thread URLs.
+
+### PAGE 2: The Investigation Thread (The Core Experience)
+- **Why the user opens it**: Seeking answers to a specific tactical question.
+- **What they first see**: The prompt followed by a streaming AI narrative.
+- **Their first 5 seconds**: Follow the word-by-word explanation, watching inline cards appear.
+- **The AI workflow**: State stategraph parses intents, queries FastF1, processes mathematical models, and generates verdicts.
+- **Progressive disclosure**: Text stream -> Collapsed card -> Interactive slider panel -> Deep-dive data table.
+- **Beginner experience**: Direct summaries; tooltips for tyre degradation slopes and clean air ratios.
+- **Intermediate experience**: Expand and hover over canvas speed traces.
+- **Advanced experience**: Distance alignment comparison sheets.
+- **Emotional moments**: The AI shifts narrative direction dynamically based on tire regression results.
+- **Delight moments**: Auto-aligning speed indicators trace corner entries.
+- **Empty states**: Skeletal framework while calculating physics.
+- **Loading states**: Monospace shimmering symbols `░░ ░░░ ░░`.
+- **Error states**: Explicit notification of missing telemetry nodes with partial analysis.
+- **Sharing opportunities**: Direct link sharing, X/Reddit formatted debate cards.
+
+### PAGE 3: The Race Briefing (Race-Level Overview)
+- **Why the user opens it**: Get the ultimate debrief of a completed GP weekend.
+- **What they first see**: Circuit parameters and the AI Race Narrative block.
+- **Their first 5 seconds**: Read the overall story arc (decisive moments, strategy shifts).
+- **The AI workflow**: Aggregates grid scores, identifies critical stint phases, and flags anomalies.
+- **Progressive disclosure**: Summary debrief -> AI score index -> Interactive session phases.
+- **Beginner experience**: High-level story; simple color-coded performance bars.
+- **Intermediate experience**: Tap bars to open 5-axis radial radars.
+- **Advanced experience**: Track temperature timelines and pitstop Lane Factor charts.
+- **Emotional moments**: Highly rated drivers finishing low due to unpenalized traffic delays.
+- **Delight moments**: Micro-icons for safety cars and tyre replacements.
+- **Empty states**: "GP is currently live" countdown timer.
+- **Loading states**: Grid score bars fill from left to right.
+- **Error states**: Missing wear indexes default to 4-factor radar plots.
+- **Sharing opportunities**: Grid score comparison banners.
+
+### PAGE 4: The Strategy Playground (Interactive What-If)
+- **Why the user opens it**: Validate an alternative tyre stint plan or pitstop window.
+- **What they first see**: Target driver state, compound configs, and the interactive slider.
+- **Their first 5 seconds**: Drag the slider, watching exit margins update.
+- **The AI workflow**: Calls V2 simulation engine on slider release to update dirty air state vector.
+- **Progressive disclosure**: Slider interface -> Projected re-entry lane map -> Lap-by-lap timing sheet.
+- **Beginner experience**: Interactive boundaries labeled "Early Window" / "Optimal" / "Late".
+- **Intermediate experience**: Detailed traffic map displaying rival car spacing.
+- **Advanced experience**: Multi-agent stochastic projections showing finishing distributions.
+- **Emotional moments**: Uncovering double-stack pitstop traps that ruin both cars.
+- **Delight moments**: Car nodes glide on track map dynamically.
+- **Empty states**: Prompt to move slider.
+- **Loading states**: Stints segments shimmer while calculating.
+- **Error states**: Single-driver fallback mode with delta indicators.
+- **Sharing opportunities**: Custom what-if results cards.
+
+### PAGE 5: The Ghost Battle (Driver vs. Driver Telemetry)
+- **Why the user opens it**: Compare corner-by-corner speed traces between two drivers.
+- **What they first see**: Narration log detailing apex differences.
+- **Their first 5 seconds**: Review turn-by-turn brakings, watching trace highlights.
+- **The AI workflow**: Aligns coordinates by distance bins, computes delta profiles, and generates logs.
+- **Progressive disclosure**: Corner log -> Synchronized speed traces -> Multi-graph telemetry panels.
+- **Beginner experience**: plain text comparisons (braked later, carried more speed).
+- **Intermediate experience**: Crosshair cursors tracking distance meters.
+- **Advanced experience**: Separate Throttle, Brake (bar), and Gear overlays.
+- **Emotional moments**: Spotting micro throttle adjustments that reveal aerodynamic balance differences.
+- **Delight moments**: Speed trace line draws itself matching the narration stream.
+- **Empty states**: Lap selector grid.
+- **Loading states**: Progress lines across traces.
+- **Error states**: Solo driver trace overlay if telemetry is missing.
+- **Sharing opportunities**: High-contrast printable Ghost Battle Cards.
+
+---
+
+## 13. Design Language for the Redesign
+
+> **Important**: The complete design language, visual specifications, spacing, typography, component behaviors, loading states, and telemetry rules are documented in the centralized [design_system.md](file:///c:/VS-Code_C_drive/Projects/FrontWing/docs/design_system.md). This file acts as the single source of truth for every future UI. The redesign changes the **component vocabulary**, the **information architecture**, and the **interaction model** to align with the new question-first AI Race Engineer paradigm.
+
+### New Component Vocabulary
+
+| Old Component | New Component | Why |
+| :--- | :--- | :--- |
+| `AppShell` (sidebar + content) | `InvestigationCanvas` (full-screen thread) | Navigation is conversation, not sidebar links |
+| `TimingGrid` (tabular data) | `EvidenceCard` (contextual inline proof) | Data appears when the AI references it, not in a grid |
+| `DataBadge` (isolated metric) | `InlineCallout` (AI-highlighted metric within text) | Metrics are part of sentences, not standalone widgets |
+| `ConsoleInput` (terminal aesthetic) | `QuestionBar` (natural language input) | Users ask questions, not type commands |
+| `Header` (static navigation) | `BriefingHeader` (contextual race/investigation header) | Header changes based on what you're investigating |
+| N/A | `VerdictBlock` (AI answer with confidence) | The AI's primary output unit |
+| N/A | `FollowUpSuggestion` (contextual next question) | AI-generated investigation branches |
+| N/A | `NarrativeStream` (progressive text rendering) | Word-by-word AI response rendering |
+| N/A | `StrategySlider` (interactive what-if control) | Direct manipulation of simulation parameters |
+| N/A | `GhostBattleNarration` (corner-by-corner AI text) | The AI's telemetry storytelling format |
+
+### New Information Architecture
+
+```text
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” 
+â”‚                        FrontWing                                    â”‚
+â”‚                                                                     â”‚
+â”‚  Briefing Room (Home)                                               â”‚
+â”‚  â”œâ”€â”€ Featured Investigation (pre-loaded)                            â”‚
+â”‚  â”œâ”€â”€ Recent Investigations                                          â”‚
+â”‚  â”œâ”€â”€ Trending Topics                                                â”‚
+â”‚  â” â”€â”€ Ask Your Own Question                                          â”‚
+â”‚                                                                     â”‚
+â”‚  Investigation Thread (Core Experience)                             â”‚
+â”‚  â”œâ”€â”€ AI Verdict (Layer 1)                                           â”‚
+â”‚  â”œâ”€â”€ AI Explanation (Layer 2)                                       â”‚
+â”‚  â”œâ”€â”€ Evidence Cards (Layer 3, expandable)                           â”‚
+â”‚  â”‚   â”œâ”€â”€ Strategy Timeline Comparison                               â”‚
+â”‚  â”│   â”œâ”€â”€ Performance Radar                                          â”‚
+â”‚  â”│   â”œâ”€â”€ Telemetry Overlay                                          â”‚
+â”‚  â”│   â”˜â”€â”€ Simulation Result                                          â”‚
+â”‚  â”œâ”€â”€ Simulation Playground (Layer 4, expandable)                    â”‚
+â”‚  â”œâ”€â”€ Raw Data (Layer 5, hidden by default)                          â”‚
+â”‚  â”˜â”€â”€ Follow-Up Questions                                            â”‚
+â”‚                                                                     â”‚
+â”‚  Race Briefing (Race Overview)                                      â”‚
+â”‚  â”œâ”€â”€ AI Race Narrative                                              â”‚
+â”‚  â”œâ”€â”€ Key Investigation Questions                                    â”‚
+â”‚  â”œâ”€â”€ Performance Rankings (AI-Scored)                               â”‚
+â”‚  â”˜â”€â”€ Race Timeline (tappable phases)                                â”‚
+â”‚                                                                     â”‚
+â”‚  Strategy Playground (What-If)                                      â”‚
+â”‚  â”œâ”€â”€ AI Context + Slider                                            â”‚
+â”‚  â”œâ”€â”€ AI Narrated Result                                             â”‚
+â”‚  â”œâ”€â”€ Stint Timeline + Exit Traffic Map                              â”‚
+â”‚  â”˜â”€â”€ Follow-Up Scenarios                                            â”‚
+â”‚                                                                     â”‚
+â”‚  Ghost Battle (Driver Comparison)                                   â”‚
+â”‚  â”œâ”€â”€ AI Corner-by-Corner Narration                                  â”‚
+â”‚  â”œâ”€â”€ Speed Trace Overlay (synced to narration)                      â”‚
+â”‚  â”œâ”€â”€ Micro-Delta Summary                                            â”‚
+â”‚  â”˜â”€â”€ Ghost Battle Card (export)                                     â”‚
+â”‚                                                                     â”
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+```
+
+### Navigation Model
+
+There is **no persistent sidebar**. Navigation flows through:
+1. **Questions**: User types or taps a question â†’ investigation thread opens.
+2. **Inline links**: AI references another driver, race, or scenario â†’ tappable link opens a new investigation or branches the current one.
+3. **Follow-up suggestions**: At the end of every AI response â†’ 3 contextual next steps.
+4. **Breadcrumb trail**: A minimal breadcrumb at the top shows: `Home â†’ Austrian GP â†’ Sainz Strategy â†’ What-If Lap 20`. Tapping any segment returns to that context.
+5. **Global search**: Always available via `Cmd/Ctrl+K` shortcut or the question bar at the top.
+
+### Interaction Principles
+
+1. **The AI talks first, then shows**: Text narration always precedes visual evidence. Charts never appear without context.
+2. **Cards expand, not navigate**: Evidence appears inline in the thread. Users don't leave the page to see a chart.
+3. **Every interaction is reversible**: The breadcrumb trail and thread history let users backtrack freely.
+4. **The product remembers context**: Follow-up questions carry the full investigation context. The AI knows what it already told you.
+5. **Three taps to raw data**: Verdict â†’ Evidence Card â†’ Expand â†’ Raw Data. Never more than 3 interactions deep.
+
+---
+
+## 14. Retention & Engagement Design
+
+### Why Users Return Every Race Weekend
+
+| Timing | Hook | User Motivation |
+| :--- | :--- | :--- |
+| **Friday (Practice)** | AI generates pace predictions from FP data | "Who's actually fast this weekend?" |
+| **Saturday (Qualifying)** | Lap-by-lap qualifying analysis | "Where did Leclerc lose pole?" |
+| **Sunday (Race)** | Live investigation during the race | "Did Ferrari just throw the race?" |
+| **Monday (Post-Race)** | Full race briefing + trending investigations | "Prove to Reddit that Sainz was robbed" |
+| **Mid-Week** | Shared investigation links circulating on social | "Look at this FrontWing analysis" |
+
+### The Debate Loop (Core Retention Mechanism)
+
+1. **Race happens** â†’ User has a strong opinion.
+2. **User opens FrontWing** â†’ Asks their question.
+3. **AI provides a backed verdict** â†’ Confirms or challenges the opinion.
+4. **User shares the verdict** â†’ Exports a Ghost Battle Card or investigation link.
+5. **Friend/follower clicks the link** â†’ Becomes a new user.
+6. **New user asks their own question** â†’ Cycle repeats.
+
+### Shareability Architecture
+
+| Shareable Unit | Format | Target Platform |
+| :--- | :--- | :--- |
+| AI Verdict Quote | Formatted text with citation link | Reddit, X, Discord |
+| Ghost Battle Card | Image (speed trace + headline finding) | X, Instagram, Reddit |
+| Investigation Thread | URL (full interactive thread) | Any platform |
+| Performance Ranking | Image (composite score bar chart) | Reddit, X |
+| What-If Result | Image (scenario card with key metric) | X, Discord |
+
+---
+
+## 15. Project Progress Tracker
 
 ### Completed Tasks
 - [x] Create project foundation folder layout.
@@ -589,17 +838,32 @@ If constrained to a 7-day timeline, the product will be stripped to its absolute
 - [x] Refine scoring engine mathematical formulas to eliminate compression and front-runner bias, and isolate strategy gains.
 - [x] Configure unit tests validation suite against mock 2024 Austrian GP data and resolve assertions.
 - [x] Prepare repository for version control: configure gitignore, README, CONTRIBUTING, and RELEASE_NOTES.
-
 - [x] Configure Python environment and initialize FastAPI server routes.
 - [x] Implement FrontWing Strategy Simulation Engine V1 and associated unit tests.
+- [x] Design FrontWing complete visual language and UI/UX Design Bible (V1 â€” now deprecated).
+- [x] Define colors, typography, spacing, border, and shadow systems.
+- [x] Create detailed markdown wireframes for Landing, Driver, Team, Simulation, and Ghost Battle pages (V1 â€” now deprecated).
+- [x] Build and compile Frontend V1 baseline and interactive Landing Page (V1 â€” classified as failed experiment).
+- [x] **Conduct full product design post-mortem and document all UI failures in `learning.md`.**
+- [x] **Redesign FrontWing from zero as an AI Race Engineer with question-first architecture.**
+- [x] **Define complete product experience for all 5 pages with progressive disclosure, beginner/intermediate/advanced flows, emotional moments, empty/loading/error states, and sharing opportunities.**
+- [x] **Create unified, single source of truth UI/UX Design System in `docs/design_system.md`.**
 
 ### Pending Tasks
 - [ ] Execute Express server setup and connect WebSocket handlers.
 - [ ] Integrate FastF1 plotting visualizer services.
 - [ ] Build core multi-agent state machines in LangGraph using Gemini 2.5 Flash.
-- [ ] Develop dashboard UI components using React, Tailwind, and ShadCN.
+- [ ] **Implement the Briefing Room (Home) page with featured investigation and question input.**
+- [ ] **Implement the Investigation Thread with AI streaming, inline evidence cards, and progressive disclosure.**
+- [ ] **Implement the Race Briefing page with AI narrative, rankings, and race timeline.**
+- [ ] **Implement the Strategy Playground with AI-narrated simulation and interactive slider.**
+- [ ] **Implement the Ghost Battle page with AI corner-by-corner narration synced to telemetry overlay.**
+- [ ] **Build the sharing/export system for Ghost Battle Cards, verdicts, and investigation links.**
 
 ---
 
-## 13. Known Issues
-- *None recorded currently since core test suites are fully green.*
+## 16. Known Issues
+- Frontend V1 code (`Landing.tsx`, `Shell.tsx`, `Header.tsx`, `TimingGrid.tsx`, `DataBadge.tsx`, `ConsoleInput.tsx`) remains in the repository but is classified as deprecated. It must not be referenced in the redesign.
+- `docs/ui_architecture.md` documents the old Jotai atom/widget architecture. This file remains for reference but the new investigation-thread architecture supersedes it entirely.
+
+---

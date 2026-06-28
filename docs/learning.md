@@ -129,7 +129,7 @@ graph TD
 * **Question**: How does the V2 engine model the tradeoff between an undercut and an overcut?
 * **Answer**: The V2 engine simulates the physical and thermodynamic trade-offs:
   - **Undercut**: A driver pits early to mount fresh tires (resetting degradation age). This is penalized by the pit lane loss ($T_{\text{loss}}$) and a thermal warmup delay ($\theta_{\text{warmup}}$) on the out-lap (Soft = 0.3s, Medium = 0.6s, Hard = 1.2s). If they clear traffic, they gain massive lap time delta.
-  - **Overcut**: The rival stays out on old tires. If the pitting driver exits into traffic (dirty air), their pace is capped to the traffic queue speed. The rival staying out in clean air runs faster than the traffic-stuck driver, successfully executing the overcut when they pit later.
+  - **Overcut**: The rival stays out on worn tires. If the pitting driver exits into traffic (dirty air), their pace is capped to the traffic queue speed. The rival staying out in clean air runs faster than the traffic-stuck driver, successfully executing the overcut when they pit later.
 
 * **Question**: Explain how DRS availability and overtake difficulty are modeled mathematically in the V2 engine.
 * **Answer**: 
@@ -145,6 +145,19 @@ graph TD
   1. **Weekly Active Users / Monthly Active Users (WAU/MAU)**: Expected to spike during Grand Prix weekends (Friday-Sunday). We monitor active sessions specifically on race Sundays and the immediate 24 hours post-race (Monday).
   2. **Feature Adoption Rate**: Track query volumes on the "What-If Strategy Simulator" and "Ghost Battle Dialogue".
   3. **Viral Share Quotient**: The percentage of users clicking "Export Ghost Card" and sharing it to external links (Reddit, X, Discord).
+
+### Premium UI & Telemetry Performance Optimization
+* **Question**: How do you optimize telemetry graph rendering to handle massive streaming timing charts (e.g. Speed, Throttle, Brake coordinates) at 60 FPS without dropping frames?
+* **Answer**: We employ three key optimizations:
+  1. **Canvas-Based Rendering**: Instead of rendering SVG nodes for thousands of points, which bloats the DOM, we paint directly to an HTML5 `<canvas>` element using CPU/GPU-accelerated context drawing.
+  2. **Downsampling (LTTB)**: We run the LTTB algorithm on the Python microservice to limit coordinates to a maximum of 1,000 values, which represents the visual limit of most displays.
+  3. **Offscreen Canvas & requestAnimationFrame**: For drag-and-drop actions on sliders, we render calculations to an `OffscreenCanvas` in a Web Worker, and only sync the drawing coordinates to the primary canvas on the next browser redraw using `requestAnimationFrame`.
+
+* **Question**: How do you avoid state synchronization bottlenecks when drag-and-drop slider adjustments on the Strategy timeline dynamically trigger full-grid multi-agent updates?
+* **Answer**: We use a split-state atomic architecture powered by `Jotai`:
+  1. **Transient State**: The slider value itself is tracked in a fast, localized react state or custom ref (`useRef`) to enable smooth 60 FPS drag visual feedback.
+  2. **Debounced Computation**: We debounce the actual simulation trigger (e.g., 50ms pause) before calling the background engine to re-run projections. This prevents overloading the Python FastAPI service with overlapping HTTP requests on every single pixel movement.
+  3. **Atomic Selection**: Leading and trailing timing views subscribe only to specific atomic subsets of the grid times, avoiding full-page re-renders.
 
 ---
 
@@ -172,4 +185,167 @@ During the final pre-production git audit, several standard version control prot
 2. **Node Modules (`node_modules`)**: Standard Javascript exclusion. Both frontend and backend directories maintain independent package trees.
 3. **F1 Caches (FastF1 & Telemetry)**: FastF1 downloads hundreds of megabytes of raw timing arrays per session. Excluding these directories (`fastf1_cache/`, `telemetry_cache/`) keeps the repository lean and prevents hitting system quotas.
 4. **Environment Secrets (`.env`)**: Standard precaution ensuring API keys (Gemini, database credentials) are never pushed to remote remotes.
+
+---
+
+## 8. Frontend Engineering & Telemetry UI Insights
+
+During the construction of FrontWing Frontend V1, several engineering practices were established:
+
+### Vite Entrypoint Integration
+* **HTML Asset Resolution**: Standard Vite projects require `index.html` at the workspace root to serve as the compiler's dependency graph starting point. Stylesheets and TSX entrypoints must be explicitly linked within it to allow Vite's bundler to perform tree-shaking and asset optimizations.
+
+### Strict TypeScript Quality Enforcements
+* **Unused Declarations**: FrontWing uses strict compiler guidelines (`noUnusedLocals`, `noUnusedParameters`). Declarations that are left unused (such as unused icons or variables mapped from HSL structures) trigger compilation breaks to prevent build bloating. Clean, strict imports are maintained proactively.
+
+### CSS Custom Variables Mapping
+* **Dynamic Utility Classes**: Mapping CSS variables (e.g. `--color-tire-soft`) inside `tailwind.config.js` allows developers to combine Vanilla CSS token definitions with Tailwind's utility class mapping (e.g., `text-tire-soft` or `border-tire-soft/30`), maintaining a single source of truth for the color tokens.
+
+### Editorial Layout & Visual Storytelling
+* **Media-Driven Editorial Context**: Premium visual interfaces (like Apple TV or F1 TV) use full-bleed track graphic overlays or high-impact imagery behind narrative titles. This provides immediate context and converts the landing page from a sterile timing grid into an active story gateway.
+* **Component De-tabulation**: Transitioning list structures into styled car rows and progress indicators (e.g., in the Exit Traffic visualizer) improves accessibility and prevents the site from looking like an administrative dashboard.
+
+---
+
+## 9. Premium Creative Redesign & Interactive Storytelling Insights
+
+Following the directives of UI Creative Director Mode, the landing page was completely re-engineered from a simple Timing Grid list into an immersive, narrative-driven motorsport intelligence experience.
+
+### A) Design Decisions & Motion System
+1. **High-Frequency Telemetry loops**: Rather than displaying static visual components, the hero contains an active, loops-driven SVG vector map of the Spielberg circuit. Two colored nodes (Red Bull - Cyan, Ferrari - Red) loop continuously. It is accompanied by a live telemetry dashboard reading active speed, throttle/brake overlays, and G-force calculations updating every 450ms, giving immediate visual credibility.
+2. **Interactive Slider Strategy Sandbox**: The "What-If" Strategy Playground allows the user to drag a pit stop slider from Lap 15 to 30. Doing so recalculates and animates:
+   - Relative exit coordinates of Sainz on track between Piastri and Hamilton.
+   - Projected time deltas (+1.400s to -3.200s) and finishing ranks.
+   - Horizontal stint timeline bars resizing their color segments dynamically.
+3. **Tabbed Formula Scorecards**: Exact LaTeX equations used by the scoring engine are rendered alongside real rankings of the top 3 drivers of the Austrian GP. This validates the deterministic nature of the backend scores and builds trust with engineers and F1 fans.
+4. **Motion System**: Smooth CSS spring dynamics (`framer-motion`) are used to glide elements (e.g., the exit location car pill) when state boundaries change, ensuring the transitions feel tactile and fast.
+
+### B) Inspiration Sources
+- **McLaren Racing & F1 TV**: High-contrast dark asphalt canvas background (`#090A0C`), titanium grey panel outlines, bold neon F1 Red (`#FF1801`) brake triggers, and DRS Cyan (`#00E5FF`) speed highlights. The layout copies the aesthetics of a team pit wall.
+- **Stripe & Linear**: Smooth hover border-glow gradients, grid layouts with subtle micro-borders, clean typography scales (Outfit / Inter / JetBrains Mono), and fully interactive play sandboxes that show product utility without requiring a user login.
+- **Porsche & Rivian**: High-impact editorial headings, large cinematic text layouts, and prioritizing aesthetic pacing/depth over high data density.
+
+### C) Section-by-Section Roles
+1. **Section 1: Hero Story**: Establishes immediate brand validation. Demonstrates the core thesis that "Winning is a calculation" via the looping Spielberg map and real-time telemetry feed before the user even scrolls.
+2. **Section 2: Capabilities Matrix**: Illustrates the three main platform tools (Strategy Simulator, Ghost Battle, Race Intelligence) with compact visual previews, prompting exploration.
+3. **Section 3: Interactive Sandbox**: Drives engagement. Allows the user to touch the strategy variables immediately and see how an undercut alters race coordinates in real-time.
+4. **Section 4: Scoring Index Deck**: Explains the math. Tabulates the 5 deterministic scores (Strategy, Tire, Pace, Pit, Execution) and presents the actual equations to prove it is a scientific tool rather than a generic SaaS mock.
+5. **Section 5: Pit Wall Terminal (CTA)**: Re-engages the user with a scrolling system log of active processes and provides the gateway launch button.
+
+---
+
+## 10. Product Design Post-Mortem: Why Every Prior UI Decision Failed
+
+> **Date**: 2026-06-28
+> **Author**: Head of Product Design & UX
+> **Verdict**: All prior frontend work (Landing page, AppShell, Design Bible, wireframes, ui_architecture.md) is classified as **failed experiments**. The code remains in the repository for reference but must not be reused in the redesign.
+
+### The Core Failure
+
+We built an **F1 dashboard**. We should have built an **AI Race Engineer**.
+
+Every design decision flowed from the wrong starting question. We asked *"What data should we show?"* instead of *"What question is the user trying to answer?"*. The result was a technically impressive but emotionally hollow product that no casual fan would ever return to and no expert would prefer over a Python script.
+
+### Failure 1: Dashboard-First Thinking Instead of Experience-First Thinking
+
+The entire product was structured around a traditional SaaS information architecture: Sidebar → Pages → Panels → Cards → Data. This is how you design Jira. This is not how you design a product that makes someone feel like they're investigating a race.
+
+**Evidence**: The `AppShell` component (`Shell.tsx`) implemented a fixed sidebar with navigation items (Drivers, Teams, Simulate, Battle). The routing (`App.tsx`) mapped five static page routes. Every page was a container waiting to be filled with widgets. The product felt like an empty office building.
+
+**What we should have done**: Start from a single, powerful interaction—asking a question—and let the interface grow organically around the answer.
+
+### Failure 2: Showing Telemetry Before Telling a Story
+
+The landing page (`Landing.tsx`, 787 lines) opened with a looping telemetry animation cycling through hardcoded speed/throttle/brake values every 450ms. It was technically impressive and absolutely meaningless to anyone who wasn't already an engineer. No user arriving at FrontWing for the first time could answer the question: *"What is this product for?"*
+
+The telemetry stream (`TELEMETRY_STREAM` array) had no context. Speed: 285. Throttle: 100. Brake: 0. So what? Why does this matter? Who cares? There was no race, no story, no question, no stakes.
+
+**What we should have done**: Open with a question. *"Could Ferrari have won Austria?"* That's a hook. That's a story. Telemetry should only appear when it's evidence supporting an answer the AI just gave.
+
+### Failure 3: Generic SaaS Layouts
+
+Despite documenting an entire "Design Bible" with F1-specific aesthetics (Section 14 of `project_context.md`), the actual component hierarchy was fundamentally generic:
+
+```
+App Shell → Sidebar Navigation → Content Area → Cards → Data Tables
+```
+
+This is the layout of every Notion clone, every analytics dashboard, every admin panel. Swapping the F1 colors for blue and the font to Inter creates a B2B SaaS product. The component names revealed this: `TimingGrid`, `DataBadge`, `ConsoleInput`, `Shell`, `Header`. These are generic widget names.
+
+**What we should have done**: Design components around F1 concepts and user intents. `InvestigationThread`. `EvidenceCard`. `StrategyTimeline`. `AIVerdict`. `WhatIfPlayground`. The component names themselves should tell a story.
+
+### Failure 4: Too Much Empty Space and Placeholder Pages
+
+Four of five routes were placeholder divs: "DEFERRED TO V2 IMPLEMENTATION". This means the product shipped with 80% of its navigation leading to dead ends. The only functional page was the 787-line Landing page that tried to do everything.
+
+Worse, those placeholder pages demonstrated the wrong product philosophy: pages that exist to house future data. A page should only exist because a user has a reason to navigate to it. "Driver Analytics Index" is not a reason. *"Why was Norris slower than Piastri in Austria?"* is a reason.
+
+### Failure 5: AI-Generated Looking Sections
+
+The landing page had five rigid sections: Hero → Capabilities Matrix → Interactive Sandbox → Scoring Index Deck → Pit Wall Terminal. Each section was a self-contained visual block with its own heading, its own card layout, its own color treatment. The result looked like five separate components stitched together—because that's exactly what it was.
+
+Real product experiences flow. One section leads naturally to the next. The user's curiosity should drive navigation, not a scrollable stack of disconnected feature advertisements.
+
+### Failure 6: Components Without Narrative
+
+Every component existed to display a metric. `TimingGrid` displayed lap positions. `DataBadge` displayed numbers with labels. The strategy slider computed values. None of them told a story.
+
+A component without narrative is a spreadsheet cell with CSS. The tire degradation chart showed a slope—but never explained what that slope *meant*. The strategy simulation showed a time delta—but never explained *why* pitting on lap 20 was optimal. The AI was relegated to a separate "chat" page instead of being the narrator that ties every component together.
+
+### Failure 7: No Onboarding for Beginners
+
+A new user landing on FrontWing V1 was immediately confronted with: an SVG track map with animated car nodes, a live telemetry ticker cycling through RPM/DRS/G-force values, a strategy simulation slider, and LaTeX scoring equations. There was no explanation of what FrontWing is, what it does, or how to use it.
+
+The Design Bible (Section 14) explicitly prohibited "admin dashboard" patterns but replaced them with "pit wall" patterns that are equally opaque to anyone who isn't an F1 engineer.
+
+### Failure 8: No Progressive Disclosure
+
+Every piece of information was visible simultaneously. The landing page dumped strategy simulations, scoring equations, telemetry traces, and system terminals onto the screen in one scroll. There was no layering: no "here's the answer → here's the evidence → here's the raw data" flow.
+
+Progressive disclosure isn't just a UX pattern. It's the difference between a Wikipedia article (all information at once) and a detective story (information revealed as you investigate).
+
+### Failure 9: Too Many Graphs Immediately
+
+The wireframes (`project_context.md`, Section 15) planned for: radar charts, bar charts, regression line charts, Gantt timelines, traffic pocket visualizations, speed trace overlays, and braking indicator graphs—all visible on their respective pages without any gating or context. The design assumed every user wanted to see every graph at all times.
+
+A graph without context is noise. A graph that appears after the AI explains *"Sainz lost 0.8 seconds in the final sector because of tire degradation—here's the evidence"* is compelling proof.
+
+### Failure 10: Users Forced to Interpret Data Themselves
+
+The most critical failure. FrontWing V1 computed deterministic scores, ran strategy simulations, and aligned telemetry data—then presented raw numbers and expected the user to understand them.
+
+- Strategy Score: 67.32. What does this mean? Good? Bad? Why?
+- Simulated Net Time Gain: +1.400s. Is that a lot? What caused it? Was it the undercut or the clean air?
+- Tire Wear Slope: 0.085 s/lap. Is Piastri managing tires well or poorly?
+
+The AI was the answer. It should have said: *"Sainz's strategy was mediocre because his team pitted him one lap too late into traffic. If they'd pitted on Lap 20 instead of 22, he'd have exited in clean air and gained 1.4 seconds. Here's the simulation."*
+
+Instead, we built the simulation, showed the numbers, and left the user alone.
+
+### Failure 11: Wrong Product Identity
+
+We called FrontWing a "Deterministic Motorsport Intelligence Platform." We designed it as a "pit wall workspace." We built wireframes for a "Dashboard." We created a "Design Bible" for a "technical intelligence platform."
+
+None of these are products people fall in love with.
+
+People fall in love with investigators, storytellers, and companions. FrontWing should have been an AI Race Engineer who investigates races with you. Not a dashboard that shows you data about races.
+
+### Summary: The Redesign Mandate
+
+| Old Philosophy | New Philosophy |
+| :--- | :--- |
+| Dashboard-first | Question-first |
+| Show data | Tell stories, then show evidence |
+| SaaS layout (sidebar + pages) | Conversational investigation flow |
+| Users interpret data | AI interprets, users explore |
+| Telemetry as decoration | Telemetry as evidence |
+| All information at once | Progressive disclosure |
+| Five static pages | Dynamic investigation threads |
+| Beginners excluded | Beginners guided |
+| Feature-oriented navigation | Question-oriented navigation |
+| Pit wall aesthetics | AI companion aesthetics |
+
+> **The previous code is not deleted.** It stays in the repository as a permanent record of what happens when you build a product around data instead of around questions. To resolve these failures systematically, a unified, single source of truth has been established in [design_system.md](file:///c:/VS-Code_C_drive/Projects/FrontWing/docs/design_system.md) to define all layout principles, spacing rules, typography, responsive systems, loading animations, data visual guidelines, and interaction parameters.
+
+---
 

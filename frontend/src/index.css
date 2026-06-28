@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Design Bible Core Colors */
+    --canvas-bg: 220 18% 5%;          /* #090A0C */
+    --panel-bg: 220 15% 8%;           /* #0E1013 */
+    --backing-elevated: 220 12% 12%;  /* #16191E */
+    --border-titanium: 220 10% 60% / 0.15;
+    
+    --text-white: 210 20% 98%;        /* #F3F5F7 */
+    --text-muted: 215 12% 60%;        /* #8B95A5 */
+    
+    /* F1 Accent Signals */
+    --color-red-neon: 6 100% 50%;     /* #FF1801 */
+    --color-cyan-drs: 180 100% 45%;   /* #00E5FF */
+    
+    /* Tire Compound Codes */
+    --color-tire-soft: 354 95% 55%;   /* #FF2B49 */
+    --color-tire-medium: 48 100% 50%; /* #FFD600 */
+    --color-tire-hard: 210 10% 90%;   /* #E5E7EB */
+    --color-wet-inter: 120 75% 45%;   /* #1BC944 */
+    --color-wet-full: 210 100% 50%;   /* #0D6EFD` */
+
+    /* Tailwind / ShadCN Default Theme Mappings */
+    --border: 220 10% 60% / 0.15;
+    --input: 220 10% 60% / 0.15;
+    --ring: 180 100% 45%;
+    --background: 220 18% 5%;
+    --foreground: 210 20% 98%;
+    --primary: 6 100% 50%;
+    --primary-foreground: 210 20% 98%;
+  }
+
+  body {
+    background-color: hsl(var(--canvas-bg));
+    color: hsl(var(--text-muted));
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  /* Typography Weight Rules */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', sans-serif;
+    color: hsl(var(--text-white));
+  }
+}
+
+/* Custom Micro-Scrollbar Override */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--panel-bg));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--backing-elevated));
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsla(180, 100%, 45%, 0.4); /* DRS cyan indicator on hover */
+}
+
+/* Tabular Timing Classes */
+.font-timing {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* F1 Telemetry Custom Glows */
+.drs-glow {
+  box-shadow: 0 0 10px hsla(180, 100%, 45%, 0.15);
+  border-color: hsla(180, 100%, 45%, 0.3) !important;
+}
+
+.alert-glow {
+  box-shadow: 0 0 10px hsla(6, 100%, 50%, 0.15);
+  border-color: hsla(6, 100%, 50%, 0.3) !important;
+}
+
+/* Glassmorphism panel override */
+.glass-panel {
+  background: hsla(220, 15%, 8%, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid hsla(220, 10%, 60%, 0.1);
+}
+
+/* Precision border rules */
+.precision-card {
+  background-color: hsl(var(--panel-bg));
+  border: 1px solid hsla(220, 10%, 60%, 0.1);
+  border-radius: 4px;
+}
+
+/* Custom Infinite Loading bar animation */
+@keyframes infinite-loading {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.animate-infinite-loading {
+  animation: infinite-loading 1.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+}

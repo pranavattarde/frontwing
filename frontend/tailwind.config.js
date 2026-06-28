@@ -51,6 +51,18 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        /* F1 Design Bible Colors */
+        canvas: "hsl(var(--canvas-bg))",
+        panel: "hsl(var(--panel-bg))",
+        backing: "hsl(var(--backing-elevated))",
+        titanium: "hsla(var(--border-titanium))",
+        f1red: "hsl(var(--color-red-neon))",
+        "cyan-drs": "hsl(var(--color-cyan-drs))",
+        "tire-soft": "hsl(var(--color-tire-soft))",
+        "tire-medium": "hsl(var(--color-tire-medium))",
+        "tire-hard": "hsl(var(--color-tire-hard))",
+        "wet-inter": "hsl(var(--color-wet-inter))",
+        "wet-full": "hsl(var(--color-wet-full))",
       },
       borderRadius: {
         lg: "var(--radius)",
