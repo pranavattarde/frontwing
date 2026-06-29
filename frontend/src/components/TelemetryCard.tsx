@@ -11,6 +11,7 @@ interface TelemetryCardProps {
   variant?: 'collapsed' | 'expanded' | 'deepDive';
   onHover?: (distanceM: number) => void;
   onExpand?: () => void;
+  hoverDist?: number | null;
 }
 
 export function TelemetryCard({
@@ -23,11 +24,14 @@ export function TelemetryCard({
   variant = 'collapsed',
   onHover,
   onExpand,
+  hoverDist,
 }: TelemetryCardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [hoverDist, setHoverDist] = useState<number | null>(null);
+  const [localHoverDist, setLocalHoverDist] = useState<number | null>(null);
   const [dimensions, setDimensions] = useState({ width: 600, height: 120 });
+
+  const activeHoverDist = hoverDist !== undefined ? hoverDist : localHoverDist;
 
   const isCollapsed = variant === 'collapsed';
   const height = isCollapsed ? 120 : variant === 'deepDive' ? 400 : 280;
@@ -154,12 +158,12 @@ export function TelemetryCard({
     const x = e.clientX - rect.left;
     const distanceM = Math.round((x / dimensions.width) * totalDistance);
     const clampedDist = Math.max(0, Math.min(totalDistance, distanceM));
-    setHoverDist(clampedDist);
+    setLocalHoverDist(clampedDist);
     onHover?.(clampedDist);
   };
 
   const handleMouseLeave = () => {
-    setHoverDist(null);
+    setLocalHoverDist(null);
   };
 
   // Find data point at active distance
@@ -170,8 +174,8 @@ export function TelemetryCard({
     );
   };
 
-  const ptA = hoverDist !== null ? getPointAtDist(driverA.data, hoverDist) : null;
-  const ptB = hoverDist !== null && driverB ? getPointAtDist(driverB.data, hoverDist) : null;
+  const ptA = activeHoverDist !== null ? getPointAtDist(driverA.data, activeHoverDist) : null;
+  const ptB = activeHoverDist !== null && driverB ? getPointAtDist(driverB.data, activeHoverDist) : null;
 
   return (
     <div
@@ -215,23 +219,23 @@ export function TelemetryCard({
         <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
 
         {/* Hover Crosshair Overlay */}
-        {hoverDist !== null && !isCollapsed && (
+        {activeHoverDist !== null && !isCollapsed && (
           <>
             {/* Vertical crosshair line */}
             <div
               className="absolute top-0 bottom-0 w-px border-l border-dashed border-text-muted/50 pointer-events-none"
-              style={{ left: `${(hoverDist / totalDistance) * dimensions.width}px` }}
+              style={{ left: `${(activeHoverDist / totalDistance) * dimensions.width}px` }}
             />
 
             {/* Hover Tooltip Overlay */}
             <div
               className="absolute top-2 bg-panel border border-fw-border-active rounded-card p-2 text-mono-meta font-mono pointer-events-none z-10 flex flex-col gap-1 shadow-xl"
               style={{
-                left: `${(hoverDist / totalDistance) * dimensions.width + 12}px`,
-                transform: (hoverDist / totalDistance) * dimensions.width > dimensions.width - 150 ? 'translateX(-110%)' : 'none',
+                left: `${(activeHoverDist / totalDistance) * dimensions.width + 12}px`,
+                transform: (activeHoverDist / totalDistance) * dimensions.width > dimensions.width - 150 ? 'translateX(-110%)' : 'none',
               }}
             >
-              <div className="text-text-primary font-semibold">DIST: {hoverDist}m</div>
+              <div className="text-text-primary font-semibold">DIST: {activeHoverDist}m</div>
               <div className="flex items-center gap-1.5" style={{ color: '#00E5FF' }}>
                 <span>{driverA.code}:</span>
                 <span>{ptA ? `${ptA[metric].toFixed(0)}` : 'N/A'}</span>
