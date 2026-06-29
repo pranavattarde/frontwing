@@ -854,12 +854,12 @@ There is **no persistent sidebar**. Navigation flows through:
 - [ ] Execute Express server setup and connect WebSocket handlers.
 - [ ] Integrate FastF1 plotting visualizer services.
 - [ ] Build core multi-agent state machines in LangGraph using Gemini 2.5 Flash.
-- [ ] **Implement the Briefing Room (Home) page with featured investigation and question input.**
-- [ ] **Implement the Investigation Thread with AI streaming, inline evidence cards, and progressive disclosure.**
-- [ ] **Implement the Race Briefing page with AI narrative, rankings, and race timeline.**
-- [ ] **Implement the Strategy Playground with AI-narrated simulation and interactive slider.**
-- [ ] **Implement the Ghost Battle page with AI corner-by-corner narration synced to telemetry overlay.**
-- [ ] **Build the sharing/export system for Ghost Battle Cards, verdicts, and investigation links.**
+- [x] **Implement the Briefing Room (Home) page with featured investigation and question input.**
+- [x] **Implement the Investigation Thread with AI streaming, inline evidence cards, and progressive disclosure.**
+- [x] **Implement the Race Briefing page with AI narrative, rankings, and race timeline.**
+- [x] **Implement the Strategy Playground with AI-narrated simulation and interactive slider.**
+- [x] **Implement the Ghost Battle page with AI corner-by-corner narration synced to telemetry overlay.**
+- [x] **Build the sharing/export system for Ghost Battle Cards, verdicts, and investigation links.**
 
 ---
 
