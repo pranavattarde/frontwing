@@ -2,112 +2,163 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    /* Design Bible Core Colors */
-    --canvas-bg: 220 18% 5%;          /* #090A0C */
-    --panel-bg: 220 15% 8%;           /* #0E1013 */
-    --backing-elevated: 220 12% 12%;  /* #16191E */
-    --border-titanium: 220 10% 60% / 0.15;
-    
-    --text-white: 210 20% 98%;        /* #F3F5F7 */
-    --text-muted: 215 12% 60%;        /* #8B95A5 */
-    
-    /* F1 Accent Signals */
-    --color-red-neon: 6 100% 50%;     /* #FF1801 */
-    --color-cyan-drs: 180 100% 45%;   /* #00E5FF */
-    
-    /* Tire Compound Codes */
-    --color-tire-soft: 354 95% 55%;   /* #FF2B49 */
-    --color-tire-medium: 48 100% 50%; /* #FFD600 */
-    --color-tire-hard: 210 10% 90%;   /* #E5E7EB */
-    --color-wet-inter: 120 75% 45%;   /* #1BC944 */
-    --color-wet-full: 210 100% 50%;   /* #0D6EFD` */
+/* ============================================
+   FrontWing Design System — CSS Custom Properties
+   design_system.md §4, §5
+   ============================================ */
 
-    /* Tailwind / ShadCN Default Theme Mappings */
-    --border: 220 10% 60% / 0.15;
-    --input: 220 10% 60% / 0.15;
-    --ring: 180 100% 45%;
-    --background: 220 18% 5%;
-    --foreground: 210 20% 98%;
-    --primary: 6 100% 50%;
-    --primary-foreground: 210 20% 98%;
+:root {
+  /* Canvas & Surfaces */
+  --color-bg: #090A0C;
+  --color-panel: #0E1013;
+  --color-elevated: #16191E;
+  --color-border: hsla(220, 10%, 60%, 0.15);
+  --color-border-active: hsla(220, 10%, 80%, 0.25);
+
+  /* Typography */
+  --color-text-primary: #F3F5F7;
+  --color-text-secondary: #8B95A5;
+  --color-text-muted: #5C6470;
+
+  /* Accents */
+  --color-f1-red: #FF1801;
+  --color-drs-cyan: #00E5FF;
+  --color-teammate-yellow: #FFD600;
+
+  /* Tire Compounds */
+  --color-tire-soft: #FF2B49;
+  --color-tire-medium: #FFD600;
+  --color-tire-hard: #E5E7EB;
+  --color-tire-inter: #1BC944;
+  --color-tire-wet: #0D6EFD;
+
+  /* Fonts */
+  --font-sans: 'Outfit', 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Roboto Mono', monospace;
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-fast-out: cubic-bezier(0.4, 0, 1, 1);
+  --duration-micro: 80ms;
+  --duration-fast: 150ms;
+  --duration-narrative: 30ms;
+  --duration-sim: 300ms;
+}
+
+/* ============================================
+   Base Layer
+   ============================================ */
+
+@layer base {
+  * {
+    border-color: var(--color-border);
   }
 
   body {
-    background-color: hsl(var(--canvas-bg));
-    color: hsl(var(--text-muted));
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--color-bg);
+    color: var(--color-text-secondary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Typography Weight Rules */
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Outfit', sans-serif;
-    color: hsl(var(--text-white));
+  /* Scrollbar — slim, dark, functional */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
   }
-}
-
-/* Custom Micro-Scrollbar Override */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: hsl(var(--panel-bg));
-}
-
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--backing-elevated));
-  border-radius: 2px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: hsla(180, 100%, 45%, 0.4); /* DRS cyan indicator on hover */
-}
-
-/* Tabular Timing Classes */
-.font-timing {
-  font-family: 'JetBrains Mono', monospace;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-}
-
-/* F1 Telemetry Custom Glows */
-.drs-glow {
-  box-shadow: 0 0 10px hsla(180, 100%, 45%, 0.15);
-  border-color: hsla(180, 100%, 45%, 0.3) !important;
-}
-
-.alert-glow {
-  box-shadow: 0 0 10px hsla(6, 100%, 50%, 0.15);
-  border-color: hsla(6, 100%, 50%, 0.3) !important;
-}
-
-/* Glassmorphism panel override */
-.glass-panel {
-  background: hsla(220, 15%, 8%, 0.85);
-  backdrop-filter: blur(8px);
-  border: 1px solid hsla(220, 10%, 60%, 0.1);
-}
-
-/* Precision border rules */
-.precision-card {
-  background-color: hsl(var(--panel-bg));
-  border: 1px solid hsla(220, 10%, 60%, 0.1);
-  border-radius: 4px;
-}
-
-/* Custom Infinite Loading bar animation */
-@keyframes infinite-loading {
-  0% {
-    transform: translateX(-100%);
+  ::-webkit-scrollbar-track {
+    background: transparent;
   }
-  100% {
-    transform: translateX(300%);
+  ::-webkit-scrollbar-thumb {
+    background: hsla(220, 10%, 60%, 0.2);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsla(220, 10%, 60%, 0.4);
+  }
+
+  /* Focus visible ring — DRS Cyan at 0.3 opacity */
+  :focus-visible {
+    outline: 2px solid rgba(0, 229, 255, 0.3);
+    outline-offset: 2px;
+  }
+
+  /* Selection */
+  ::selection {
+    background: rgba(0, 229, 255, 0.2);
+    color: #00E5FF;
   }
 }
 
-.animate-infinite-loading {
-  animation: infinite-loading 1.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+/* ============================================
+   Component Layer
+   ============================================ */
+
+@layer components {
+  /* Skeleton shimmer base */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      #16191E 0%,
+      #1C2025 40%,
+      #16191E 80%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s linear infinite;
+    border-radius: 4px;
+  }
+
+  /* Inline callout pill — design_system.md §6.2.3 */
+  .callout-pill {
+    @apply font-mono text-xs font-medium px-1.5 py-0.5 rounded-sm border;
+  }
+
+  .callout-pill-cyan {
+    @apply callout-pill bg-drs-cyan/10 text-drs-cyan border-drs-cyan/20;
+  }
+
+  .callout-pill-red {
+    @apply callout-pill bg-f1-red/10 text-f1-red border-f1-red/20;
+  }
+
+  .callout-pill-yellow {
+    @apply callout-pill bg-teammate-yellow/10 text-teammate-yellow border-teammate-yellow/20;
+  }
+
+  /* Evidence card base */
+  .evidence-card {
+    @apply border border-fw-border rounded-card bg-panel;
+  }
+
+  /* Error state left border */
+  .error-border {
+    @apply border-l-2 border-l-f1-red;
+  }
+}
+
+/* ============================================
+   Utility Layer
+   ============================================ */
+
+@layer utilities {
+  /* Mono data formatting */
+  .font-data {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  /* Thread max width */
+  .thread-width {
+    @apply max-w-thread mx-auto w-full px-4;
+  }
+
+  /* Hover lift — design_system.md shared behaviors */
+  .hover-lift {
+    @apply transition-transform duration-[80ms] ease-fw;
+  }
+  .hover-lift:hover {
+    transform: translateY(-1px);
+  }
 }

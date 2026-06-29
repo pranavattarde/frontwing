@@ -1,59 +1,20 @@
-import { Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import AppShell from './components/layout/Shell';
-import LandingPage from './pages/Landing';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BriefingRoom } from './pages/BriefingRoom';
+import { InvestigationThread } from './pages/InvestigationThread';
+import { RaceBriefing } from './pages/RaceBriefing';
+import { StrategyPlayground } from './pages/StrategyPlayground';
+import { GhostBattle } from './pages/GhostBattle';
 
-// Feature placeholders to satisfy routing
-const DriverPlaceholder = () => (
-  <div className="flex flex-col items-center justify-center h-[60vh] border border-[#1C2025] bg-[#0E1013] rounded p-8">
-    <h2 className="text-xl mb-2">Driver Analytics Index</h2>
-    <p className="text-sm text-[#8B95A5] font-mono">Status: DEFERRED TO V2 IMPLEMENTATION</p>
-  </div>
-);
-
-const TeamPlaceholder = () => (
-  <div className="flex flex-col items-center justify-center h-[60vh] border border-[#1C2025] bg-[#0E1013] rounded p-8">
-    <h2 className="text-xl mb-2">Constructor Performance Index</h2>
-    <p className="text-sm text-[#8B95A5] font-mono">Status: DEFERRED TO V2 IMPLEMENTATION</p>
-  </div>
-);
-
-const SimulatePlaceholder = () => (
-  <div className="flex flex-col items-center justify-center h-[60vh] border border-[#1C2025] bg-[#0E1013] rounded p-8">
-    <h2 className="text-xl mb-2">What-If Strategy Simulator</h2>
-    <p className="text-sm text-[#8B95A5] font-mono">Status: DEFERRED TO V2 IMPLEMENTATION</p>
-  </div>
-);
-
-const BattlePlaceholder = () => (
-  <div className="flex flex-col items-center justify-center h-[60vh] border border-[#1C2025] bg-[#0E1013] rounded p-8">
-    <h2 className="text-xl mb-2">Ghost Telemetry Battle Console</h2>
-    <p className="text-sm text-[#8B95A5] font-mono">Status: DEFERRED TO V2 IMPLEMENTATION</p>
-  </div>
-);
-
-function App() {
+export default function App() {
   return (
-    <Router>
-      <AppShell>
-        <Suspense fallback={
-          <div className="flex items-center justify-center h-[50vh]">
-            <div className="h-1 w-48 bg-[#16191E] overflow-hidden relative rounded">
-              <div className="h-full bg-[#00E5FF] animate-pulse w-full"></div>
-            </div>
-          </div>
-        }>
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/driver" element={<DriverPlaceholder />} />
-            <Route path="/team" element={<TeamPlaceholder />} />
-            <Route path="/simulate" element={<SimulatePlaceholder />} />
-            <Route path="/battle" element={<BattlePlaceholder />} />
-          </Routes>
-        </Suspense>
-      </AppShell>
-    </Router>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<BriefingRoom />} />
+        <Route path="/investigate/:id" element={<InvestigationThread />} />
+        <Route path="/race/:raceId" element={<RaceBriefing />} />
+        <Route path="/strategy/:raceId" element={<StrategyPlayground />} />
+        <Route path="/ghost-battle/:raceId" element={<GhostBattle />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
-
-export default App;
