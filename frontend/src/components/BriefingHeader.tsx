@@ -103,7 +103,7 @@ export const BriefingHeader = memo(function BriefingHeader({
 
         {/* Search Trigger */}
         <button
-          onClick={onSearchTrigger}
+          onClick={onSearchTrigger || (() => window.dispatchEvent(new CustomEvent('toggle-search-overlay')))}
           className="flex items-center gap-2 px-3 py-1.5 rounded-card border border-fw-border bg-panel hover:bg-elevated hover:border-fw-border-active transition-all duration-[80ms] group"
           aria-label="Open search (Cmd+K)"
         >
