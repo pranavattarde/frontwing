@@ -345,7 +345,44 @@ People fall in love with investigators, storytellers, and companions. FrontWing 
 | Feature-oriented navigation | Question-oriented navigation |
 | Pit wall aesthetics | AI companion aesthetics |
 
-> **The previous code is not deleted.** It stays in the repository as a permanent record of what happens when you build a product around data instead of around questions. To resolve these failures systematically, a unified, single source of truth has been established in [design_system.md](file:///c:/VS-Code_C_drive/Projects/FrontWing/docs/design_system.md) to define all layout principles, spacing rules, typography, responsive systems, loading animations, data visual guidelines, and interaction parameters.
+> **The previous code is not deleted.** It stays in the repository as a permanent record of what happens when you build a product around data instead of around questions. To resolve these failures systematically, a unified, single source of truth has been established in [design_system.md](file:///c:/VS-Code_C_drive/Projects/FrontWing/docs/design_system.md) to define all layout principles, spacing rules, typography, responsive systems, loading animations, data visual guidelines, and interaction parameters. The complete component architecture is specified in [component_library.md](file:///c:/VS-Code_C_drive/Projects/FrontWing/docs/component_library.md).
 
 ---
 
+## 11. Component Architecture: Why Contracts Before Code
+
+> **Date**: 2026-06-29
+> **Author**: Staff Frontend Architect
+> **Key Learning**: Define every component's inputs, outputs, states, and failure modes *before* writing a single line of implementation code.
+
+### The V1 Component Failure Pattern
+
+In V1, components were built bottom-up: someone needed a "timing grid," so they built `TimingGrid`. Someone needed a "data badge," so they built `DataBadge`. Each component was a visual widget with no defined contract — no input specification, no failure states, no accessibility requirements, and no loading behavior. The result was:
+
+1. **Components couldn't compose.** `TimingGrid` had no `onRowClick` output. `DataBadge` had no `loading` state. They were visual-only, not interactive.
+2. **Components couldn't fail gracefully.** When FastF1 returned an error, the entire page crashed because `TelemetryTrace` had no error boundary.
+3. **Components couldn't be reused.** `ConsoleInput` was hardcoded for the terminal aesthetic. It couldn't be used as a search bar or a question input.
+4. **Components had no accessibility.** No `aria-labels`, no keyboard navigation, no focus management.
+
+### The V2 Contract-First Approach
+
+Every component in V2 is defined as a **contract** before implementation:
+
+| Dimension | V1 Reality | V2 Requirement |
+| :--- | :--- | :--- |
+| Inputs | Ad-hoc props, often undocumented | Typed inputs with defaults and validation |
+| Outputs | Missing or inconsistent callbacks | Every user action has a named output event |
+| States | Only "rendered" | Idle, loading, streaming, error, empty, disabled |
+| Failure | Page crash | Graceful degradation with fallback content |
+| Skeleton | None (blank screen) | Component-shaped shimmer matching final layout |
+| Loading | Spinner or nothing | Contextual progress (trace draws, counters animate) |
+| Error | Red text or nothing | Red left border + monospace error + recovery action |
+| Accessibility | None | ARIA roles, keyboard nav, screen reader support, focus management |
+| Animation | None or CSS transitions without purpose | Intentional motion with defined easing, duration, and trigger |
+| Reuse | Single location | Multiple contexts with variant props |
+
+### Why This Matters
+
+When five different frontend engineers implement from `component_library.md`, they produce nearly identical components — because the contract specifies the *behavior*, not just the *appearance*. Appearance is handled by `design_system.md`. Behavior is handled by `component_library.md`. Together they eliminate ambiguity.
+
+---

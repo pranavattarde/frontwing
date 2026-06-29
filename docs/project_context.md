@@ -64,7 +64,7 @@ FrontWing/
 Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ seeds/                  # Baseline F1 seed data (teams, circuits)
 Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ schema.sql              # Master database schema layout
 Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ docs/                       # Project Documentation
-Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ design_system.md        # Single source of truth for UI/UX Design System
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ component_library.md     # Complete component architecture specification
 Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ design_system.md        # Single source of truth for UI/UX Design System
 Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ learning.md             # Active learning log & system design insights
 Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ project_context.md      # Persistent project memory (APIs, schemas)
@@ -697,7 +697,7 @@ All 5 core views conform to the visual style guidelines and interaction principl
 
 ## 13. Design Language for the Redesign
 
-> **Important**: The complete design language, visual specifications, spacing, typography, component behaviors, loading states, and telemetry rules are documented in the centralized [design_system.md](file:///c:/VS-Code_C_drive/Projects/FrontWing/docs/design_system.md). This file acts as the single source of truth for every future UI. The redesign changes the **component vocabulary**, the **information architecture**, and the **interaction model** to align with the new question-first AI Race Engineer paradigm.
+> **Important**: The complete design language, visual specifications, spacing, typography, component behaviors, loading states, and telemetry rules are documented in the centralized [design_system.md](file:///c:/VS-Code_C_drive/Projects/FrontWing/docs/design_system.md). This file acts as the single source of truth for every future UI. The complete component architecture, inputs/outputs, states, interactions, and accessibility specifications are defined in [component_library.md](file:///c:/VS-Code_C_drive/Projects/FrontWing/docs/component_library.md). The redesign changes the **component vocabulary**, the **information architecture**, and the **interaction model** to align with the new question-first AI Race Engineer paradigm.
 
 ### New Component Vocabulary
 
@@ -848,6 +848,7 @@ There is **no persistent sidebar**. Navigation flows through:
 - [x] **Redesign FrontWing from zero as an AI Race Engineer with question-first architecture.**
 - [x] **Define complete product experience for all 5 pages with progressive disclosure, beginner/intermediate/advanced flows, emotional moments, empty/loading/error states, and sharing opportunities.**
 - [x] **Create unified, single source of truth UI/UX Design System in `docs/design_system.md`.**
+- [x] **Create complete component architecture specification in `docs/component_library.md` (28 components x 15 dimensions).**
 
 ### Pending Tasks
 - [ ] Execute Express server setup and connect WebSocket handlers.
@@ -863,6 +864,7 @@ There is **no persistent sidebar**. Navigation flows through:
 ---
 
 ## 16. Known Issues
+- `docs/component_library.md` defines the full component API surface. Frontend implementation must conform to this specification exactly.
 - Frontend V1 code (`Landing.tsx`, `Shell.tsx`, `Header.tsx`, `TimingGrid.tsx`, `DataBadge.tsx`, `ConsoleInput.tsx`) remains in the repository but is classified as deprecated. It must not be referenced in the redesign.
 - `docs/ui_architecture.md` documents the old Jotai atom/widget architecture. This file remains for reference but the new investigation-thread architecture supersedes it entirely.
 
