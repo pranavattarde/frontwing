@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional, List
 from app.scoring.aggregator import calculate_race_scores
 from app.simulation.simulation_engine import run_strategy_simulation
 from app.agents.planner import run_ai_race_engineer
+from app.agents.memory import conversation_memory
 from app.core.logger import logger
 
 app = FastAPI(
@@ -76,18 +77,49 @@ class QueryRequest(BaseModel):
     question: str
     session_id: Optional[str] = None
     driver_id: Optional[str] = None
+    conversation_id: Optional[str] = None
 
 @app.post("/engineer/query")
 def engineer_query(req: QueryRequest):
     """Interacts with the AI Race Engineer StateGraph to execute queries and gather evidence."""
     try:
+        session_id = req.session_id
+        driver_id = req.driver_id
+        history = []
+        
+        # Load and resolve memory context if conversation_id is supplied
+        if req.conversation_id:
+            resolved = conversation_memory.resolve_context(req.conversation_id, req.question)
+            if not session_id:
+                session_id = resolved.get("session_id")
+            if not driver_id:
+                driver_id = resolved.get("driver_id")
+            history = conversation_memory.get_history(req.conversation_id)
+            
+        # Execute agent graph
         response = run_ai_race_engineer(
             question=req.question,
-            session_id=req.session_id,
-            driver_id=req.driver_id
+            session_id=session_id,
+            driver_id=driver_id,
+            history=history
         )
+        
+        # Save output exchange back to memory if conversation_id is supplied
+        if req.conversation_id:
+            context = {
+                "session_id": session_id or "2024_austria_gp_race",
+                "driver_id": driver_id or "sainz"
+            }
+            conversation_memory.save_message(
+                req.conversation_id,
+                req.question,
+                response.get("final_answer", ""),
+                context
+            )
+            
         return response
     except Exception as e:
         logger.error(f"Error executing AI Race Engineer query: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 

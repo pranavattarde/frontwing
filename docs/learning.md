@@ -405,3 +405,29 @@ To ensure high availability in production and robust testing:
 - **Mock Data Caching**: If the database connection is refused or timing rows are absent, F1 tools inject realistic 71-lap Austrian GP metrics. This allows full test execution completely decoupled from infrastructure status.
 - **Exception Isolation**: Node tool execution blocks are caught, logged, and appended to the state `errors` list. The synthesizer decreases its confidence rating (-15% per error) but successfully returns the partial response.
 
+---
+
+## 13. Sprint 2 Agentic Upgrades: Memory, Reflection, and Observability Tracing
+
+> **Date**: 2026-07-08
+> **Author**: Staff Backend Architect
+> **Key Learning**: Layer observability metrics and evaluation nodes independently of user answers to guarantee high reliability.
+
+### Structured Dynamic Planning
+Instead of routing inputs directly into static steps, Sprint 2 introduces a structured planning phase. The planner constructs an execution schema specifying the user's intent (e.g. strategy simulation vs telemetry checking), required tools, reasoning, and predicted formats before launching any task.
+
+### Modularity in State Memory
+We resolved relative driver/team pronouns (such as "What about Ferrari?" or "Compare this to McLaren") by designing an active context memory tracker. This stores previous interactions and merges context settings backwards to establish missing session information during relative prompts.
+
+### Parallel Tool Concurrency
+We implemented concurrent tool runs utilizing Python's `concurrent.futures` thread dispatchers. Tool nodes evaluate steps independently and run them in parallel, saving execution latencies.
+
+### Reflection & Judge Validation Loops
+State validation is monitored by two evaluation nodes:
+1. **Reflection Node**: Reviews evidence. If scoring aggregates contradict strategy simulations or output is empty, it loops tool executions up to 2 cycles.
+2. **Judge Node**: Grades factual completeness, evidence quality, and consistency.
+
+### Observability Trace Layer
+We isolated developer-only diagnostics (`FrontWing Intelligence Trace`) detailing timeline latencies, execution durations, reflection remarks, judge evaluations, confidence breakdowns, and recovery routes. Future UI widgets can render these variables without contaminating the user-facing answers.
+
+

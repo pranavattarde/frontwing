@@ -25,3 +25,20 @@ class AgentState(TypedDict):
     
     # Error log & warnings
     errors: List[str]
+
+    # --- SPRINT 2 EXTENSIONS ---
+    # Conversation history context
+    history: List[Dict[str, Any]]
+    
+    # Structured planner output
+    structured_plan: Dict[str, Any] # Intent, Required Tools, Execution Order, Reasoning, Expected Outputs
+    
+    # Reflection loop metadata
+    reflection_count: int
+    reflection_notes: List[str]
+    
+    # Judge evaluation metrics
+    judge_evaluation: Dict[str, Any] # factual completeness, evidence quality, confidence, consistency
+    
+    # Observability layers
+    intelligence_trace: Dict[str, Any]
