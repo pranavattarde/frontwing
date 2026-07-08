@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional, List
 
 from app.scoring.aggregator import calculate_race_scores
 from app.simulation.simulation_engine import run_strategy_simulation
+from app.agents.planner import run_ai_race_engineer
 from app.core.logger import logger
 
 app = FastAPI(
@@ -70,3 +71,23 @@ def simulate_strategy(req: SimulationRequest):
     except Exception as e:
         logger.error(f"Error running strategy simulation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+class QueryRequest(BaseModel):
+    question: str
+    session_id: Optional[str] = None
+    driver_id: Optional[str] = None
+
+@app.post("/engineer/query")
+def engineer_query(req: QueryRequest):
+    """Interacts with the AI Race Engineer StateGraph to execute queries and gather evidence."""
+    try:
+        response = run_ai_race_engineer(
+            question=req.question,
+            session_id=req.session_id,
+            driver_id=req.driver_id
+        )
+        return response
+    except Exception as e:
+        logger.error(f"Error executing AI Race Engineer query: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

@@ -386,3 +386,22 @@ Every component in V2 is defined as a **contract** before implementation:
 When five different frontend engineers implement from `component_library.md`, they produce nearly identical components — because the contract specifies the *behavior*, not just the *appearance*. Appearance is handled by `design_system.md`. Behavior is handled by `component_library.md`. Together they eliminate ambiguity.
 
 ---
+
+## 12. Sprint 1 Backend Architecture: AI Race Engineer Orchestration
+
+> **Date**: 2026-07-08
+> **Author**: Staff Backend Architect
+> **Key Learning**: decouple LLM reasoning from mathematical F1 execution engines via an extensible tool registry and stateful planning loops.
+
+### The Decoupled Engineering Pattern
+In Sprint 1, we implemented the foundational backend intelligence layer. The core rule is: **The AI should never calculate scores or run strategy stints itself.** It is a planner and a narrator, not a calculator. We designed a decoupled workflow:
+1. **LangGraph Planner**: Understands intent (e.g. strategy what-if vs performance scoring) and structures a tool execution plan.
+2. **Tool Registry**: Declares a common `BaseF1Tool` schema contract.
+3. **Deterministic F1 Tools**: Adapters wrap the scoring aggregator, strategy simulator, downsampled telemetry storage, explain calculations, and PostgreSQL query engines.
+
+### Graceful Fallback Mechanics
+To ensure high availability in production and robust testing:
+- **Rule-Based Routing**: If Groq/Gemini LLM API keys are missing or hit limits, the planner switches to a regex-based deterministic planner node.
+- **Mock Data Caching**: If the database connection is refused or timing rows are absent, F1 tools inject realistic 71-lap Austrian GP metrics. This allows full test execution completely decoupled from infrastructure status.
+- **Exception Isolation**: Node tool execution blocks are caught, logged, and appended to the state `errors` list. The synthesizer decreases its confidence rating (-15% per error) but successfully returns the partial response.
+

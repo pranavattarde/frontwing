@@ -853,7 +853,7 @@ There is **no persistent sidebar**. Navigation flows through:
 ### Pending Tasks
 - [ ] Execute Express server setup and connect WebSocket handlers.
 - [ ] Integrate FastF1 plotting visualizer services.
-- [ ] Build core multi-agent state machines in LangGraph using Gemini 2.5 Flash.
+- [x] Build core multi-agent state machines in LangGraph using Gemini 2.5 Flash.
 - [x] **Implement the Briefing Room (Home) page with featured investigation and question input.**
 - [x] **Implement the Investigation Thread with AI streaming, inline evidence cards, and progressive disclosure.**
 - [x] **Implement the Race Briefing page with AI narrative, rankings, and race timeline.**
