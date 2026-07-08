@@ -44,7 +44,7 @@ class TestAgenticAIRaceEngineer(unittest.TestCase):
         res_plan = plan_node(initial_state)
         self.assertIn("structured_plan", res_plan)
         plan_dict = res_plan["structured_plan"]
-        self.assertEqual(plan_dict["intent"], "strategy_simulation")
+        self.assertEqual(plan_dict["intent"], "strategy_investigation")
         self.assertIn("simulation_tool", plan_dict["required_tools"])
         self.assertTrue(len(res_plan["plan"]) > 0)
         self.assertIn("simulation_tool", res_plan["plan"][0])
@@ -80,10 +80,9 @@ class TestAgenticAIRaceEngineer(unittest.TestCase):
         self.assertEqual(len(res_exec["tools_used"]), 2)
         
         # Verify trace timelines captured tool latencies
-        tool_timeline = res_exec["intelligence_trace"]["tool_timeline"]
-        self.assertEqual(len(tool_timeline), 2)
-        self.assertIn("scoring_tool", [t["tool"] for t in tool_timeline])
-        self.assertIn("explain_mode_tool", [t["tool"] for t in tool_timeline])
+        timelines = res_exec["intelligence_trace"]["timelines"]
+        self.assertIn("engineers", timelines)
+        self.assertEqual(len(timelines["engineers"]), 2)
 
     def test_reflection_agent_loops_back(self):
         """Verifies reflection loops plan edits when mismatch or empty parameters trigger it."""
@@ -150,9 +149,10 @@ class TestAgenticAIRaceEngineer(unittest.TestCase):
         self.assertIn("intelligence_trace", res)
         trace = res["intelligence_trace"]
         self.assertIn("investigation_id", trace)
-        self.assertIn("planning_timeline", trace)
-        self.assertIn("tool_timeline", trace)
-        self.assertIn("execution_duration_ms", trace)
+        self.assertIn("planning_graph", trace)
+        self.assertIn("execution_graph", trace)
+        self.assertIn("timelines", trace)
+        self.assertIn("total_latency_ms", trace)
         self.assertIn("reflection_notes", trace)
         self.assertIn("judge_notes", trace)
         self.assertIn("confidence_breakdown", trace)

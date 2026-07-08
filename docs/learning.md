@@ -430,4 +430,32 @@ State validation is monitored by two evaluation nodes:
 ### Observability Trace Layer
 We isolated developer-only diagnostics (`FrontWing Intelligence Trace`) detailing timeline latencies, execution durations, reflection remarks, judge evaluations, confidence breakdowns, and recovery routes. Future UI widgets can render these variables without contaminating the user-facing answers.
 
+---
 
+## 14. Sprint 3 Platform Redesign: Multi-Agent Personas and Observability V2
+
+> **Date**: 2026-07-08
+> **Author**: Lead AI Platform Architect
+> **Key Learning**: Restrict Gemini's responsibility strictly to planning, and orchestrate execution via strongly-typed specialized engineer personas to eliminate unconstrained LLM answers.
+
+### Chief Race Engineer Orchestration
+Gemini must never answer users directly. Instead, it parses inputs and outputs a structured execution plan. The `ChiefRaceEngineer` coordinates specialized personas:
+- **StrategyEngineer**: dispatches strategy playground simulations.
+- **TelemetryEngineer**: reads speed profile arrays.
+- **InvestigationEngineer**: evaluates intelligence scoring composites.
+- **ExplainEngineer**: decodes math rules (CAR, SPG, TSE) for target audiences.
+- **JudgeEngineer** & **ReflectionEngineer**: run evaluation cycles.
+
+### F1 Investigation Report Structured Format
+Investigations return a highly structured output containing:
+- Executive Summary
+- Evidence List
+- Telemetry Findings
+- Simulation Findings
+- Historical Findings
+- Alternative Scenarios
+- Final Recommendation
+- Confidence Grade
+
+### Observability Trace V2 Upgrades
+Timelines tracking planning latencies, engineer runtimes, evidence loading, self-corrections, and judge metrics are compiled into `intelligence_trace` alongside execution and planning graph maps.
