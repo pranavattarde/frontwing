@@ -459,3 +459,33 @@ Investigations return a highly structured output containing:
 
 ### Observability Trace V2 Upgrades
 Timelines tracking planning latencies, engineer runtimes, evidence loading, self-corrections, and judge metrics are compiled into `intelligence_trace` alongside execution and planning graph maps.
+
+---
+
+## 15. Sprint 4 Production-Grade AI Investigation Platform
+
+> **Date**: 2026-07-09
+> **Author**: Lead AI Platform Architect
+> **Key Learning**: Integrate multi-model planning failovers and dynamic multi-agent collaboration dispatches to guarantee high-availability, while standardizing RAG data source access layers.
+
+### Gemini 2.5 Flash strict JSON Planner & Groq Failover
+We migrated the Chief Race Engineer's planning node to support a real Gemini 2.5 Flash structured query, returning strict JSON plan formatting. To avoid external service interruptions, we added an automatic failover to Groq (`llama-3.1-70b-versatile`) if Gemini times out or crashes. The orchestrator logs which provider served the plan, maintaining continuous operation.
+
+### Modular RAG Loader Layers
+We added 7 modular knowledge loaders to `app/agents/knowledge.py`:
+- `FIASportingLoader` (Sporting Regulations)
+- `FIATechnicalLoader` (Technical chassis weight and wings delta restrictions)
+- `CircuitNotesLoader` (Traction notes, altitude variables)
+- `HistoricGPLoader` (Race standings)
+- `TyreStrategyLoader` (Compounds wear characteristics)
+- `TrackCharacteristicsLoader` (Tyre thermal strain limits)
+- `WeatherNotesLoader` (Surface temperature limits)
+The Knowledge Engineer resolves query requests via keyword matching.
+
+### Agent Collaboration Graphs & Multi-Audience Explanations
+Specialized personas collaborate dynamically by invoking other registered agents (e.g. `TelemetryEngineer` calling `KnowledgeEngineer` to fetch tyre wear limits). The graph traces these links to map an `engineer_collaboration_graph` in Trace V3.
+Additionally, the `ExplainEngineer` generates three distinct audience versions (`beginner`, `intermediate`, `engineer`) of every race summary using strictly the same gathered metrics.
+
+### Observability Trace V3 & Streaming Events
+We exposed core execution updates via structured streaming events logs (`planning`, `tool_started`, `tool_finished`, `reflection`, `judge`, `completed`). Trace V3 captures planning, reasoning, evidence, and collaboration graph maps alongside token usages and timing lines.
+

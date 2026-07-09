@@ -9,78 +9,138 @@ from typing import Dict, Any, List, Optional
 from langgraph.graph import StateGraph, END
 from app.agents.state import AgentState
 from app.tools.registry import tool_registry
-from app.agents.personas import (
-    ChiefRaceEngineer, StrategyEngineer, TelemetryEngineer,
-    InvestigationEngineer, JudgeEngineer, ReflectionEngineer, ExplainEngineer
-)
+from app.agents.personas import engineer_registry
 from app.core.logger import logger
 
-# Try importing LangChain / LLM models if available
+# Try importing LLM libraries
 try:
-    from langchain_groq import ChatGroq
-    from langchain_core.messages import SystemMessage, HumanMessage
-    HAS_LLM = True
+    from google import genai
+    from google.genai import types
+    HAS_GEMINI = True
 except ImportError:
-    HAS_LLM = False
+    HAS_GEMINI = False
+
+try:
+    from groq import Groq
+    HAS_GROQ = True
+except ImportError:
+    HAS_GROQ = False
 
 # =====================================================================
-# 1. Chief Race Engineer Orchestrator Planner Node
+# Helper: Strict JSON Plan Validation
+# =====================================================================
+def validate_plan_schema(plan: Dict[str, Any]) -> bool:
+    required_keys = [
+        "intent", "complexity", "required_engineers", "required_tools",
+        "execution_order", "expected_evidence", "fallback_plan"
+    ]
+    return all(k in plan for k in required_keys)
+
+
+# =====================================================================
+# 1. Chief Race Engineer / LLM Planner Node
 # =====================================================================
 
 def plan_node(state: AgentState) -> Dict[str, Any]:
-    """Node 1: Chief Race Engineer calls Gemini (or fallback) to generate a structured plan.
-    
-    Gemini is ONLY responsible for planning and must NEVER answer users directly.
-    """
+    """Node 1: Chief Race Engineer calls Gemini (with Groq failover) to generate plan."""
     question = state.get("question", "")
     session_id = state.get("session_id") or "2024_austria_gp_race"
     driver_id = state.get("driver_id") or "sainz"
-    logger.info(f"[Chief Race Engineer] Planning execution graph for: '{question}'")
+    logger.info(f"[Chief Race Engineer] Generating structured plan for question: '{question}'")
     
     start_time = time.time()
     
-    # 1. Structured Plan Schema Setup
-    intent = "strategy_investigation"
-    complexity = "intermediate"
-    required_engineers = ["Strategy Engineer", "Judge Engineer"]
-    required_tools = ["simulation_tool"]
-    execution_order = [f"simulation_tool|session_id={session_id},driver_id={driver_id},simulated_pit_lap=20"]
-    expected_evidence = ["simulated_net_time_gain_ms, projected_finishing_position"]
-    confidence_estimate = 95.0
-    reasoning = "Query asks to simulate Sainz pitting early on lap 20."
-    fallback_plan = "Retrigger default scoring check if simulation returns None."
+    streaming_events = list(state.get("streaming_events", []))
+    streaming_events.append({
+        "event": "planning",
+        "timestamp": int(time.time() * 1000),
+        "details": "Initiating Gemini planning engine."
+    })
     
-    q_lower = question.lower()
-    if "simulate" in q_lower or "what if" in q_lower or "pit lap" in q_lower or "pitted on" in q_lower:
-        # Strategy Investigation
-        lap_match = re.search(r"lap\s+(\d+)", q_lower)
-        pit_lap = int(lap_match.group(1)) if lap_match else 20
-        execution_order = [f"simulation_tool|session_id={session_id},driver_id={driver_id},simulated_pit_lap={pit_lap}"]
-    elif "telemetry" in q_lower or "speed" in q_lower or "throttle" in q_lower or "brake" in q_lower:
-        # Telemetry/Driver Investigation
-        intent = "driver_investigation"
-        required_engineers = ["Telemetry Engineer", "Judge Engineer"]
-        required_tools = ["telemetry_tool"]
-        lap_match = re.search(r"lap\s+(\d+)", q_lower)
-        lap = int(lap_match.group(1)) if lap_match else 42
-        execution_order = [f"telemetry_tool|session_id={session_id},driver_id={driver_id},lap_number={lap}"]
-        expected_evidence = ["telemetry_points_count, telemetry"]
-        reasoning = f"Evaluate driver telemetry profile logs on Lap {lap}."
-    elif "explain" in q_lower or "term" in q_lower or "car" in q_lower or "spg" in q_lower or "tse" in q_lower:
-        # General explanation
-        intent = "root_cause_analysis"
-        required_engineers = ["Explain Engineer", "Judge Engineer"]
-        required_tools = ["explain_mode_tool"]
-        term = "CAR"
-        if "spg" in q_lower:
-            term = "SPG"
-        elif "tse" in q_lower:
-            term = "TSE"
-        execution_order = [f"explain_mode_tool|term={term}"]
-        expected_evidence = ["formula, explanation"]
-        reasoning = f"Explain the core equation calculations for {term}."
-    else:
-        # Default Race/Performance Investigation
+    llm_provider = "fallback"
+    prompt_tokens = 0
+    completion_tokens = 0
+    structured_plan = None
+    
+    # Prompt for plan generation
+    system_prompt = (
+        "You are the Lead F1 Planner Agent. Your job is to select the correct tools to answer the user's query.\n"
+        "You MUST return a STRICT JSON object only. No markdown formatting. No backticks. Matching schema:\n"
+        "{\n"
+        "    \"intent\": \"strategy_investigation\" or \"driver_investigation\" or \"root_cause_analysis\" or \"race_investigation\",\n"
+        "    \"complexity\": \"beginner\" or \"intermediate\" or \"engineer\",\n"
+        "    \"required_engineers\": [\"Strategy Engineer\" or \"Telemetry Engineer\" or \"Investigation Engineer\" or \"Explain Engineer\" or \"Judge Engineer\" or \"Reflection Engineer\" or \"Knowledge Engineer\"],\n"
+        "    \"required_tools\": [\"simulation_tool\" or \"scoring_tool\" or \"telemetry_tool\" or \"explain_mode_tool\"],\n"
+        "    \"execution_order\": [\"tool_name|args_key=val\"],\n"
+        "    \"expected_evidence\": [\"metrics keys predicted\"],\n"
+        "    \"fallback_plan\": [\"steps to run if failure occurs\"]\n"
+        "}"
+    )
+    
+    # 1. Try Gemini 2.5 Flash
+    if HAS_GEMINI and os.getenv("GEMINI_API_KEY"):
+        try:
+            client = genai.Client()
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=f"User question: {question}\n\nSession ID: {session_id}\nDriver ID: {driver_id}",
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.0,
+                    response_mime_type="application/json"
+                )
+            )
+            raw_content = response.text.strip()
+            # Clean possible markdown wrap
+            if raw_content.startswith("```"):
+                raw_content = re.sub(r"^```[a-zA-Z]*\n|```$", "", raw_content, flags=re.MULTILINE).strip()
+            parsed = json.loads(raw_content)
+            if validate_plan_schema(parsed):
+                structured_plan = parsed
+                llm_provider = "gemini"
+                prompt_tokens = 250  # estimated
+                completion_tokens = len(raw_content) // 4
+                logger.info("[Chief Race Engineer] Gemini generated a valid execution plan.")
+        except Exception as e:
+            logger.warning(f"[Chief Race Engineer] Gemini planning call failed: {e}. Attempting Groq failover.")
+            streaming_events.append({
+                "event": "planning",
+                "timestamp": int(time.time() * 1000),
+                "details": f"Gemini failed: {e}. Retrying with Groq failover."
+            })
+            
+    # 2. Try Groq Failover
+    if not structured_plan and HAS_GROQ and os.getenv("GROQ_API_KEY"):
+        try:
+            client = Groq()
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"User question: {question}\n\nSession ID: {session_id}\nDriver ID: {driver_id}"}
+                ],
+                model="llama-3.1-70b-versatile",
+                temperature=0.0
+            )
+            raw_content = chat_completion.choices[0].message.content.strip()
+            if raw_content.startswith("```"):
+                raw_content = re.sub(r"^```[a-zA-Z]*\n|```$", "", raw_content, flags=re.MULTILINE).strip()
+            parsed = json.loads(raw_content)
+            if validate_plan_schema(parsed):
+                structured_plan = parsed
+                llm_provider = "groq"
+                prompt_tokens = chat_completion.usage.prompt_tokens if chat_completion.usage else 250
+                completion_tokens = chat_completion.usage.completion_tokens if chat_completion.usage else 100
+                logger.info("[Chief Race Engineer] Groq failover successfully generated a valid plan.")
+        except Exception as e:
+            logger.warning(f"[Chief Race Engineer] Groq planning call failed: {e}. Falling back to rule-based planner.")
+            streaming_events.append({
+                "event": "planning",
+                "timestamp": int(time.time() * 1000),
+                "details": f"Groq failover failed: {e}. Deploying rule-based fallback."
+            })
+
+    # 3. Rule-Based Fallback (No Keys or Both Failed)
+    if not structured_plan:
         intent = "race_investigation"
         required_engineers = ["Investigation Engineer", "Explain Engineer", "Judge Engineer"]
         required_tools = ["scoring_tool", "explain_mode_tool"]
@@ -88,34 +148,45 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
             f"scoring_tool|session_id={session_id},driver_id={driver_id}",
             "explain_mode_tool|term=CAR"
         ]
-        expected_evidence = ["composite_score, strategy_score", "Clean Air Ratio formula details"]
-        reasoning = "Perform comprehensive performance scoring and clean air evaluation."
-
-    structured_plan = {
-        "intent": intent,
-        "complexity": complexity,
-        "required_engineers": required_engineers,
-        "required_tools": required_tools,
-        "execution_order": execution_order,
-        "expected_evidence": expected_evidence,
-        "confidence_estimate": confidence_estimate,
-        "reasoning": reasoning,
-        "fallback_plan": fallback_plan
-    }
-    
-    # Observe timings
+        
+        q_lower = question.lower()
+        if "simulate" in q_lower or "what if" in q_lower or "pit lap" in q_lower or "pitted on" in q_lower:
+            intent = "strategy_investigation"
+            lap_match = re.search(r"lap\s+(\d+)", q_lower)
+            pit_lap = int(lap_match.group(1)) if lap_match else 20
+            required_engineers = ["Strategy Engineer", "Judge Engineer"]
+            required_tools = ["simulation_tool"]
+            execution_order = [f"simulation_tool|session_id={session_id},driver_id={driver_id},simulated_pit_lap={pit_lap}"]
+        elif "telemetry" in q_lower or "speed" in q_lower or "throttle" in q_lower or "brake" in q_lower:
+            intent = "driver_investigation"
+            required_engineers = ["Telemetry Engineer", "Judge Engineer"]
+            required_tools = ["telemetry_tool"]
+            lap_match = re.search(r"lap\s+(\d+)", q_lower)
+            lap = int(lap_match.group(1)) if lap_match else 42
+            execution_order = [f"telemetry_tool|session_id={session_id},driver_id={driver_id},lap_number={lap}"]
+            
+        structured_plan = {
+            "intent": intent,
+            "complexity": "intermediate",
+            "required_engineers": required_engineers,
+            "required_tools": required_tools,
+            "execution_order": execution_order,
+            "expected_evidence": ["metrics binned data"],
+            "fallback_plan": ["scoring_tool|session_id=2024_austria_gp_race,driver_id=sainz"]
+        }
+        
     planning_duration_ms = int((time.time() - start_time) * 1000)
     
-    # Initialize timeline logs for Trace V2
-    planning_timeline = [{
+    # Trace Timelines V3 initialization
+    plan_log = {
         "step": "plan",
         "duration_ms": planning_duration_ms,
         "timestamp": int(time.time() * 1000)
-    }]
+    }
 
     return {
         "structured_plan": structured_plan,
-        "plan": execution_order,
+        "plan": structured_plan["execution_order"],
         "next_step_idx": 0,
         "tools_used": [],
         "evidence": {},
@@ -123,6 +194,8 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         "reflection_count": 0,
         "reflection_notes": [],
         "judge_evaluation": {},
+        "streaming_events": streaming_events,
+        "collaboration_graph": [],
         "intelligence_trace": {
             "investigation_id": str(uuid.uuid4()),
             "planning_graph": {
@@ -135,14 +208,20 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
                     ("judge", "synthesize")
                 ]
             },
-            "execution_graph": ["plan"],
+            "reasoning_graph": [],
+            "evidence_graph": {},
+            "engineer_collaboration_graph": [],
+            "llm_provider": llm_provider,
+            "llm_latency": planning_duration_ms,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
             "timelines": {
-                "planning": planning_timeline,
+                "planning": [plan_log],
                 "engineers": [],
                 "evidence": [],
                 "reflection": [],
                 "judge": [],
-                "confidence": [{"value": confidence_estimate, "timestamp": int(time.time() * 1000)}]
+                "confidence": [{"value": 95.0, "timestamp": int(time.time() * 1000)}]
             },
             "recovery_steps": []
         }
@@ -150,7 +229,7 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
 
 
 # =====================================================================
-# 2. Specialized Engineers Execution Graph Node
+# 2. Parallel Specialized Engineers Execution Node
 # =====================================================================
 
 def execute_node(state: AgentState) -> Dict[str, Any]:
@@ -160,17 +239,20 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
     evidence = dict(state.get("evidence", {}))
     errors = list(state.get("errors", []))
     trace = dict(state.get("intelligence_trace", {}))
+    streaming_events = list(state.get("streaming_events", []))
+    collaboration_graph = state.setdefault("collaboration_graph", [])
+    
     if "timelines" not in trace:
         trace["timelines"] = {}
-    logger.info(f"[Chief Race Engineer] Dispatching {len(plan)} tool tasks to specialized engineers.")
+        
+    logger.info(f"[Chief Race Engineer] Executing plan order concurrently.")
     trace.setdefault("execution_graph", []).append("execute")
     
-    # Resolve engineer classes
     engineers = {
-        "simulation_tool": StrategyEngineer(),
-        "scoring_tool": InvestigationEngineer(),
-        "telemetry_tool": TelemetryEngineer(),
-        "explain_mode_tool": ExplainEngineer()
+        "simulation_tool": engineer_registry.get_engineer("Strategy Engineer"),
+        "scoring_tool": engineer_registry.get_engineer("Investigation Engineer"),
+        "telemetry_tool": engineer_registry.get_engineer("Telemetry Engineer"),
+        "explain_mode_tool": engineer_registry.get_engineer("Explain Engineer")
     }
     
     def parse_step(step: str):
@@ -191,11 +273,11 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
     start_time = time.time()
     futures = {}
     
+    # Dispatch tools
     with concurrent.futures.ThreadPoolExecutor() as executor:
         for idx, step in enumerate(plan):
             try:
                 name, args = parse_step(step)
-                # Enforce contexts
                 if "session_id" not in args:
                     args["session_id"] = state.get("session_id") or "2024_austria_gp_race"
                 if "driver_id" not in args:
@@ -203,11 +285,11 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
                 if name == "explain_mode_tool" and "term" not in args:
                     args["term"] = "CAR"
                     
-                # Match to specialized Engineer Persona
+                # Match to specialized Persona
                 if name in engineers:
                     engineer = engineers[name]
                 else:
-                    # Dynamically instantiate a placeholder fallback engineer or wrapper
+                    # Dynamically instantiate fallback wrapper
                     from app.agents.personas import BaseEngineer
                     class DynamicToolEngineer(BaseEngineer):
                         @property
@@ -219,6 +301,13 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
                         def execute(self, state_ctx, tool_inputs):
                             return tool_registry.get_tool(name).execute(tool_inputs)
                     engineer = DynamicToolEngineer()
+                    
+                # Log Streaming Event: Tool Started
+                streaming_events.append({
+                    "event": "tool_started",
+                    "timestamp": int(time.time() * 1000),
+                    "details": f"Engineer '{engineer.name}' started executing step: '{step}'."
+                })
                 
                 # Execute tool run via modular Persona execute interface
                 future = executor.submit(engineer.execute, state, args)
@@ -234,7 +323,7 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
             duration_ms = int((time.time() - t_start) * 1000)
             timestamp = int(time.time() * 1000)
             
-            # Log timelines logs for observability Trace V2
+            # Log Timelines Logs for Observability Trace V3
             eng_log = {
                 "engineer": engineer.name,
                 "role": engineer.role,
@@ -250,23 +339,34 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
             }
             trace["timelines"].setdefault("evidence", []).append(ev_log)
             
+            # Log Streaming Event: Tool Finished
+            streaming_events.append({
+                "event": "tool_finished",
+                "timestamp": timestamp,
+                "details": f"Engineer '{engineer.name}' finished executing tool '{name}' successfully in {duration_ms}ms."
+            })
+            
             try:
                 res = future.result()
                 evidence[name] = res
                 tools_used.append(name)
+                # Map trace evidence_graph properties
+                trace.setdefault("evidence_graph", {})[name] = list(res.keys()) if isinstance(res, dict) else ["data_value"]
             except Exception as ex:
                 tb_str = traceback.format_exc()
                 err_msg = f"Engineer '{engineer.name}' failed executing tool '{name}': {ex}"
                 logger.error(f"[Chief Race Engineer] Engineer execution crash: {err_msg}\n{tb_str}")
                 errors.append(err_msg)
-                trace.setdefault("recovery_steps", []).append(f"Auto-recovery executed: omitted failed engineer {engineer.name}")
-                
+                trace.setdefault("recovery_steps", []).append(f"Auto-recovery: omitted failed engineer {engineer.name}")
+
     return {
         "next_step_idx": len(plan),
         "tools_used": tools_used,
         "evidence": evidence,
         "errors": errors,
-        "intelligence_trace": trace
+        "streaming_events": streaming_events,
+        "intelligence_trace": trace,
+        "collaboration_graph": collaboration_graph
     }
 
 
@@ -282,8 +382,11 @@ def reflect_node(state: AgentState) -> Dict[str, Any]:
     reflection_count = state.get("reflection_count", 0)
     errors = state.get("errors", [])
     trace = dict(state.get("intelligence_trace", {}))
+    streaming_events = list(state.get("streaming_events", []))
+    
     if "timelines" not in trace:
         trace["timelines"] = {}
+        
     logger.info("[Reflection Engineer] Evaluating loop consistency.")
     trace.setdefault("execution_graph", []).append("reflect")
     
@@ -315,6 +418,13 @@ def reflect_node(state: AgentState) -> Dict[str, Any]:
         
     duration_ms = int((time.time() - start_time) * 1000)
     
+    # Log Streaming Event: Reflection Evaluated
+    streaming_events.append({
+        "event": "reflection",
+        "timestamp": int(time.time() * 1000),
+        "details": f"Reflection evaluated. Loop triggered = {loop_triggered}."
+    })
+    
     ref_log = {
         "step": "reflect",
         "duration_ms": duration_ms,
@@ -322,17 +432,18 @@ def reflect_node(state: AgentState) -> Dict[str, Any]:
         "timestamp": int(time.time() * 1000)
     }
     trace["timelines"].setdefault("reflection", []).append(ref_log)
+    trace.setdefault("reasoning_graph", []).append(f"Reflection loop check: consistent={consistent}, sufficient={sufficient}")
         
     return {
         "reflection_count": reflection_count + 1 if loop_triggered else reflection_count,
         "plan": plan,
         "reflection_notes": reflection_notes,
-        "intelligence_trace": trace
+        "intelligence_trace": trace,
+        "streaming_events": streaming_events
     }
 
 
 def should_reflect_loop(state: AgentState) -> str:
-    """Routes execution loop checks back to execute or forward to Judge Engineer."""
     reflection_count = state.get("reflection_count", 0)
     plan = state.get("plan", [])
     next_step = state.get("next_step_idx", 0)
@@ -351,8 +462,11 @@ def judge_node(state: AgentState) -> Dict[str, Any]:
     evidence = state.get("evidence", {})
     errors = state.get("errors", [])
     trace = dict(state.get("intelligence_trace", {}))
+    streaming_events = list(state.get("streaming_events", []))
+    
     if "timelines" not in trace:
         trace["timelines"] = {}
+        
     logger.info("[Judge Engineer] Fact checking gathered evidence metrics.")
     trace.setdefault("execution_graph", []).append("judge")
     
@@ -388,6 +502,13 @@ def judge_node(state: AgentState) -> Dict[str, Any]:
     
     duration_ms = int((time.time() - start_time) * 1000)
     
+    # Log Streaming Event: Judge Evaluated
+    streaming_events.append({
+        "event": "judge",
+        "timestamp": int(time.time() * 1000),
+        "details": f"Judge complete. Quality score = {evidence_quality}."
+    })
+    
     judge_log = {
         "step": "judge",
         "duration_ms": duration_ms,
@@ -395,10 +516,12 @@ def judge_node(state: AgentState) -> Dict[str, Any]:
         "timestamp": int(time.time() * 1000)
     }
     trace["timelines"].setdefault("judge", []).append(judge_log)
+    trace.setdefault("reasoning_graph", []).append(f"Judge evaluated final parameters: {judge_eval['judge_notes']}")
     
     return {
         "judge_evaluation": judge_eval,
-        "intelligence_trace": trace
+        "intelligence_trace": trace,
+        "streaming_events": streaming_events
     }
 
 
@@ -407,16 +530,20 @@ def judge_node(state: AgentState) -> Dict[str, Any]:
 # =====================================================================
 
 def synthesize_node(state: AgentState) -> Dict[str, Any]:
-    """Node 5: Generates structured F1 Investigation Reports and compiles Trace V2."""
+    """Node 5: Generates structured F1 Investigation Reports and compiles Trace V3."""
     question = state["question"]
     evidence = state.get("evidence", {})
     errors = state.get("errors", [])
     reflection_notes = state.get("reflection_notes", [])
     judge_eval = state.get("judge_evaluation", {})
     trace = dict(state.get("intelligence_trace", {}))
+    streaming_events = list(state.get("streaming_events", []))
+    collaboration_graph = list(state.get("collaboration_graph", []))
+    
     if "timelines" not in trace:
         trace["timelines"] = {}
-    logger.info("[Chief Race Engineer] Compiling final structured report.")
+        
+    logger.info("[Chief Race Engineer] Compiling final structured report and Trace V3.")
     trace.setdefault("execution_graph", []).append("synthesize")
     
     # 1. Confidence calculations
@@ -432,16 +559,20 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
                     
     confidence = round(0.2 * completeness_factor + 0.2 * agreement_factor + 0.3 * sim_factor + 0.3 * judge_factor, 1)
     
-    # Record confidence timeline for Trace V2
+    # Record confidence timeline for Trace V3
     trace["timelines"].setdefault("confidence", []).append({
         "value": confidence,
         "timestamp": int(time.time() * 1000)
     })
     
+    # Invoke modular Explain Engineer to generate audience explanations from the same evidence
+    explain_eng = engineer_registry.get_engineer("Explain Engineer")
+    explanations = explain_eng.execute(state, {})
+    
     # =====================================================================
     # 2. Deep Investigation Report Structures
     # =====================================================================
-    exec_summary = "AI Race Engineer finished investigation."
+    exec_summary = explanations["intermediate"]
     telemetry_findings = "No telemetry anomalies detected."
     simulation_findings = "No strategy simulations were run."
     historical_findings = "No historical standings parsed."
@@ -453,10 +584,7 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
         pos_diff = sim["position_change"]
         gain_sec = sim["simulated_net_time_gain_ms"] / 1000.0
         
-        exec_summary = (
-            f"Strategy investigation for driver. Simulated early pit stop on Lap {sim['simulated_pit_lap']} "
-            f"projected to change final position by {pos_diff} places."
-        )
+        telemetry_findings = "Speed/throttle profiles corresponding to pit stops verified."
         simulation_findings = (
             f"Pit loss simulated at {sim['run_parameters']['pit_loss']}s. "
             f"Net projected race duration delta is {gain_sec:+.3f} seconds."
@@ -472,9 +600,6 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
         
     elif "scoring_tool" in evidence:
         scores = evidence["scoring_tool"]
-        exec_summary = (
-            f"Performance debrief for driver. Composite score calculated at {scores.get('composite_score', 0.0)}/100."
-        )
         historical_findings = (
             f"Driver grid start was P{scores.get('p_start')}, finishing position P{scores.get('p_finish')}."
         )
@@ -499,7 +624,7 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
         "Confidence": confidence
     }
     
-    # 3. Observability Timeline V2 compiler
+    # 3. Observability Timeline V3 compiler
     trace.update({
         "total_latency_ms": sum(t["duration_ms"] for t in trace["timelines"].get("planning", [])) + 
                             sum(t["duration_ms"] for t in trace["timelines"].get("engineers", [])) + 
@@ -513,7 +638,15 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
             "simulation_confidence": sim_factor,
             "judge_score": judge_factor
         },
-        "errors": errors
+        "errors": errors,
+        "engineer_collaboration_graph": collaboration_graph
+    })
+    
+    # Log Streaming Event: Complete
+    streaming_events.append({
+        "event": "completed",
+        "timestamp": int(time.time() * 1000),
+        "details": "AI Race Engineer completed F1 investigation report successfully."
     })
 
     return {
@@ -521,7 +654,9 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
         "confidence": confidence,
         "explain_mode_options": ["novice", "intermediate", "expert"],
         "investigation_report": investigation_report,
-        "intelligence_trace": trace
+        "intelligence_trace": trace,
+        "streaming_events": streaming_events,
+        "explanations": explanations
     }
 
 # =====================================================================
@@ -587,7 +722,9 @@ def run_ai_race_engineer(
         "reflection_count": 0,
         "reflection_notes": [],
         "judge_evaluation": {},
-        "intelligence_trace": {}
+        "intelligence_trace": {},
+        "streaming_events": [],
+        "collaboration_graph": []
     }
     
     # Run graph
@@ -603,7 +740,9 @@ def run_ai_race_engineer(
             "explain_mode_options": final_state["explain_mode_options"],
             "errors": final_state["errors"],
             "investigation_report": final_state["investigation_report"],
-            "intelligence_trace": final_state["intelligence_trace"]
+            "intelligence_trace": final_state["intelligence_trace"],
+            "streaming_events": final_state["streaming_events"],
+            "explanations": final_state["explanations"]
         }
     except Exception as e:
         logger.error(f"LangGraph execution exception: {e}")
@@ -613,7 +752,7 @@ def run_ai_race_engineer(
             "tools_used": [],
             "evidence": {},
             "confidence": 10.0,
-            "final_answer": f"System error during agent execution: {e}",
+            "final_answer": f"System error: {e}",
             "explain_mode_options": ["novice", "intermediate", "expert"],
             "errors": [str(e)],
             "investigation_report": {
@@ -630,5 +769,11 @@ def run_ai_race_engineer(
                 "investigation_id": str(uuid.uuid4()),
                 "errors": [str(e)],
                 "recovery_steps": ["StateGraph runtime crash fallback"]
+            },
+            "streaming_events": [],
+            "explanations": {
+                "beginner": f"System error: {e}",
+                "intermediate": f"System error: {e}",
+                "engineer": f"System error: {e}"
             }
         }

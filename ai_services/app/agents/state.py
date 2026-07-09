@@ -29,7 +29,6 @@ class AgentState(TypedDict):
     # Conversation history context
     history: List[Dict[str, Any]]
     
-    # --- SPRINT 3 UPGRADES ---
     # Structured planner output (Chief Race Engineer)
     structured_plan: Dict[str, Any] 
     # Fields: Intent, Complexity, Required Engineers, Required Tools, Execution Order, Expected Evidence, Confidence Estimate, Reasoning, Fallback Plan
@@ -45,6 +44,15 @@ class AgentState(TypedDict):
     # Judge evaluation metrics (Judge Engineer)
     judge_evaluation: Dict[str, Any] 
     
-    # Observability Trace V2
+    # Observability Trace
     intelligence_trace: Dict[str, Any]
     # Fields: investigation_id, planning_graph, execution_graph, timelines, latency_statistics
+
+    # --- SPRINT 4 UPGRADES ---
+    # Streaming events tracker
+    streaming_events: List[Dict[str, Any]]
+    # Collaboration trace logs
+    collaboration_graph: List[List[str]] # e.g. [["Chief", "Telemetry"], ["Telemetry", "Knowledge"]]
+    
+    # Audience specific explanations (beginner, intermediate, engineer)
+    explanations: Dict[str, str]
