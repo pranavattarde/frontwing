@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, List
 from app.tools.registry import tool_registry
 from app.agents.knowledge import rag_knowledge
+from app.prompts.loader import load_prompt
+from app.core.logger import logger
 
 class BaseEngineer(ABC):
     """Abstract base class representing an F1 specialized agent engineer persona."""
@@ -100,6 +102,10 @@ class InvestigationEngineer(BaseEngineer):
         return "Investigation Engineer"
         
     def execute(self, state: Dict[str, Any], tool_inputs: Dict[str, Any]) -> Any:
+        # Load external prompt instruction dynamically
+        prompt = load_prompt("investigation")
+        logger.info(f"[Investigation Engineer] Loaded dynamic prompt rules: '{prompt[:40]}...'")
+        
         # Investigation Engineer collaborates with Telemetry Engineer and Knowledge Engineer
         if "collaboration_graph" in state:
             state["collaboration_graph"].append([self.name, "Knowledge Engineer"])
@@ -167,6 +173,9 @@ class ExplainEngineer(BaseEngineer):
         return "Explain Engineer"
         
     def execute(self, state: Dict[str, Any], tool_inputs: Dict[str, Any]) -> Any:
+        # Load external prompt dynamically
+        prompt = load_prompt("explain")
+        logger.info(f"[Explain Engineer] Loaded dynamic prompt rules: '{prompt[:40]}...'")
         evidence = state.get("evidence", {})
         
         # Beginner, Intermediate, and Engineer (expert) versions from the same evidence
@@ -226,6 +235,27 @@ class ExplainEngineer(BaseEngineer):
         }
 
 
+class ResearchEngineer(BaseEngineer):
+    @property
+    def role(self) -> str:
+        return "modular_rag_retrieval"
+        
+    @property
+    def name(self) -> str:
+        return "Research Engineer"
+        
+    def execute(self, state: Dict[str, Any], tool_inputs: Dict[str, Any]) -> Any:
+        prompt = load_prompt("research")
+        logger.info(f"[Research Engineer] Loaded dynamic prompt rules: '{prompt[:40]}...'")
+        query = tool_inputs.get("query", "")
+        references = rag_knowledge.retrieve(query)
+        return {
+            "status": "success",
+            "query": query,
+            "references": references
+        }
+
+
 # =====================================================================
 # 3. Engineer Registry
 # =====================================================================
@@ -253,3 +283,5 @@ engineer_registry.register(KnowledgeEngineer())
 engineer_registry.register(JudgeEngineer())
 engineer_registry.register(ReflectionEngineer())
 engineer_registry.register(ExplainEngineer())
+engineer_registry.register(ResearchEngineer())
+

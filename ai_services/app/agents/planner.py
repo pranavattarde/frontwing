@@ -11,6 +11,8 @@ from app.agents.state import AgentState
 from app.tools.registry import tool_registry
 from app.agents.personas import engineer_registry
 from app.core.logger import logger
+from app.core.providers import reliable_llm_provider
+from app.prompts.loader import load_prompt
 
 # Try importing LLM libraries
 try:
@@ -58,86 +60,35 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
     })
     
     llm_provider = "fallback"
+    llm_model = "rule_based"
     prompt_tokens = 0
     completion_tokens = 0
+    estimated_cost = 0.0
+    retries = 0
     structured_plan = None
     
-    # Prompt for plan generation
-    system_prompt = (
-        "You are the Lead F1 Planner Agent. Your job is to select the correct tools to answer the user's query.\n"
-        "You MUST return a STRICT JSON object only. No markdown formatting. No backticks. Matching schema:\n"
-        "{\n"
-        "    \"intent\": \"strategy_investigation\" or \"driver_investigation\" or \"root_cause_analysis\" or \"race_investigation\",\n"
-        "    \"complexity\": \"beginner\" or \"intermediate\" or \"engineer\",\n"
-        "    \"required_engineers\": [\"Strategy Engineer\" or \"Telemetry Engineer\" or \"Investigation Engineer\" or \"Explain Engineer\" or \"Judge Engineer\" or \"Reflection Engineer\" or \"Knowledge Engineer\"],\n"
-        "    \"required_tools\": [\"simulation_tool\" or \"scoring_tool\" or \"telemetry_tool\" or \"explain_mode_tool\"],\n"
-        "    \"execution_order\": [\"tool_name|args_key=val\"],\n"
-        "    \"expected_evidence\": [\"metrics keys predicted\"],\n"
-        "    \"fallback_plan\": [\"steps to run if failure occurs\"]\n"
-        "}"
-    )
+    # Load dynamic prompt instruction externally
+    system_prompt = load_prompt("planning")
+    user_content = f"User question: {question}\n\nSession ID: {session_id}\nDriver ID: {driver_id}"
     
-    # 1. Try Gemini 2.5 Flash
-    if HAS_GEMINI and os.getenv("GEMINI_API_KEY"):
-        try:
-            client = genai.Client()
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=f"User question: {question}\n\nSession ID: {session_id}\nDriver ID: {driver_id}",
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    temperature=0.0,
-                    response_mime_type="application/json"
-                )
-            )
-            raw_content = response.text.strip()
-            # Clean possible markdown wrap
-            if raw_content.startswith("```"):
-                raw_content = re.sub(r"^```[a-zA-Z]*\n|```$", "", raw_content, flags=re.MULTILINE).strip()
-            parsed = json.loads(raw_content)
-            if validate_plan_schema(parsed):
-                structured_plan = parsed
-                llm_provider = "gemini"
-                prompt_tokens = 250  # estimated
-                completion_tokens = len(raw_content) // 4
-                logger.info("[Chief Race Engineer] Gemini generated a valid execution plan.")
-        except Exception as e:
-            logger.warning(f"[Chief Race Engineer] Gemini planning call failed: {e}. Attempting Groq failover.")
-            streaming_events.append({
-                "event": "planning",
-                "timestamp": int(time.time() * 1000),
-                "details": f"Gemini failed: {e}. Retrying with Groq failover."
-            })
-            
-    # 2. Try Groq Failover
-    if not structured_plan and HAS_GROQ and os.getenv("GROQ_API_KEY"):
-        try:
-            client = Groq()
-            chat_completion = client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"User question: {question}\n\nSession ID: {session_id}\nDriver ID: {driver_id}"}
-                ],
-                model="llama-3.1-70b-versatile",
-                temperature=0.0
-            )
-            raw_content = chat_completion.choices[0].message.content.strip()
-            if raw_content.startswith("```"):
-                raw_content = re.sub(r"^```[a-zA-Z]*\n|```$", "", raw_content, flags=re.MULTILINE).strip()
-            parsed = json.loads(raw_content)
-            if validate_plan_schema(parsed):
-                structured_plan = parsed
-                llm_provider = "groq"
-                prompt_tokens = chat_completion.usage.prompt_tokens if chat_completion.usage else 250
-                completion_tokens = chat_completion.usage.completion_tokens if chat_completion.usage else 100
-                logger.info("[Chief Race Engineer] Groq failover successfully generated a valid plan.")
-        except Exception as e:
-            logger.warning(f"[Chief Race Engineer] Groq planning call failed: {e}. Falling back to rule-based planner.")
-            streaming_events.append({
-                "event": "planning",
-                "timestamp": int(time.time() * 1000),
-                "details": f"Groq failover failed: {e}. Deploying rule-based fallback."
-            })
+    try:
+        parsed, metrics = reliable_llm_provider.generate_plan(system_prompt, user_content)
+        if validate_plan_schema(parsed):
+            structured_plan = parsed
+            llm_provider = metrics["llm_provider"]
+            llm_model = metrics["llm_model"]
+            prompt_tokens = metrics["prompt_tokens"]
+            completion_tokens = metrics["completion_tokens"]
+            estimated_cost = metrics["estimated_cost"]
+            retries = metrics["retries"]
+            logger.info(f"[Chief Race Engineer] {llm_provider} provider successfully generated valid plan.")
+    except Exception as e:
+        logger.warning(f"[Chief Race Engineer] Reliable LLM provider planning failed: {e}. Falling back to rule-based planner.")
+        streaming_events.append({
+            "event": "planning",
+            "timestamp": int(time.time() * 1000),
+            "details": f"Reliable LLM provider planning failed: {e}. Running rule-based fallback."
+        })
 
     # 3. Rule-Based Fallback (No Keys or Both Failed)
     if not structured_plan:
@@ -212,9 +163,12 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
             "evidence_graph": {},
             "engineer_collaboration_graph": [],
             "llm_provider": llm_provider,
+            "llm_model": llm_model,
             "llm_latency": planning_duration_ms,
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
+            "estimated_cost": estimated_cost,
+            "retries": retries,
             "timelines": {
                 "planning": [plan_log],
                 "engineers": [],

@@ -27,10 +27,28 @@ class SimulationRequest(BaseModel):
     target_compound: Optional[str] = None
     save_to_db: Optional[bool] = True
 
+from app.core.startup import run_startup_health_checks
+
+# Run validation checks on FastAPI boot
+@app.on_event("startup")
+def startup_event():
+    logger.info("[Startup] Running FrontWing AI service initialization checks.")
+    run_startup_health_checks()
+
 @app.get("/health")
 def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "service": "frontwing-ai-services"}
+
+@app.get("/health/diagnostics")
+def health_diagnostics():
+    """Enterprise health and service diagnostics endpoint."""
+    try:
+        diagnostics = run_startup_health_checks()
+        status_code = 200 if diagnostics.get("healthy", True) else 200 # degraded status is 200 OK with degraded flags
+        return diagnostics
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/score")
 def score_driver(req: ScoreRequest):

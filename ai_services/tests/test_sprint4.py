@@ -121,8 +121,8 @@ class TestSprint4AgenticProduction(unittest.TestCase):
         os.environ["GEMINI_API_KEY"] = "mock_gemini_key"
         os.environ["GROQ_API_KEY"] = "mock_groq_key"
         
-        with patch("app.agents.planner.genai.Client", return_value=mock_gemini_client), \
-             patch("app.agents.planner.Groq", return_value=mock_groq_client):
+        with patch("app.core.providers.genai.Client", return_value=mock_gemini_client), \
+             patch("app.core.providers.Groq", return_value=mock_groq_client):
                  
             res_plan = plan_node(initial_state)
             
