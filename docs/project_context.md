@@ -853,6 +853,8 @@ There is **no persistent sidebar**. Navigation flows through:
 - [x] **Upgrade AI Race Engineer into F1 AI Investigation Platform featuring modular engineer personas, RAG placeholders, structured reports, and V2 observability tracing (Sprint 3).**
 - [x] **Integrate Gemini 2.5 Flash strict JSON planners, Groq failovers, RAG loaders, collaborative graph dispatches, multi-audience explanations, streaming events, and Trace V3 (Sprint 4).**
 - [x] **Complete the production infrastructure with dotenv validations, LLM BaseLLMProvider abstractions, dynamic prompt loaders, ResearchEngineer modular RAG, reliability retry wrappers, and boot startup health diagnostic verifications (Sprint 5).**
+- [x] **Set up local database and cache storage infrastructure services (PostgreSQL 17 and Redis 7) via Docker Compose (Sprint 5.5).**
+
 
 
 
