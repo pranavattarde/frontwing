@@ -86,3 +86,27 @@ class TestProductionIntegration(unittest.TestCase):
             self.assertEqual(metrics["llm_provider"], "groq")
             self.assertEqual(plan["intent"], "driver_investigation")
             self.assertTrue(metrics["retries"] >= 3)
+
+    @patch("app.core.providers.HAS_GEMINI", True)
+    def test_reliable_llm_planning_caching(self):
+        """Verifies that identical planning requests hit the cache and do not invoke the LLM client again."""
+        # Clear cache first
+        reliable_llm_provider._plan_cache.clear()
+        
+        mock_gemini = MagicMock()
+        mock_gemini.models.generate_content.return_value = MagicMock(
+            text='{"intent": "caching_test", "complexity": "low", "required_engineers": [], "required_tools": [], "execution_order": [], "expected_evidence": [], "fallback_plan": []}'
+        )
+        
+        os.environ["GEMINI_API_KEY"] = "mock_key"
+        with patch("app.core.providers.genai.Client", return_value=mock_gemini):
+            # First call: should hit the mock client
+            plan1, metrics1 = reliable_llm_provider.generate_plan("System instructions cached", "User query cached")
+            self.assertEqual(plan1["intent"], "caching_test")
+            self.assertEqual(mock_gemini.models.generate_content.call_count, 1)
+            
+            # Second call: should hit the cache and NOT call generate_content again
+            plan2, metrics2 = reliable_llm_provider.generate_plan("System instructions cached", "User query cached")
+            self.assertEqual(plan2["intent"], "caching_test")
+            self.assertEqual(mock_gemini.models.generate_content.call_count, 1) # Still 1!
+

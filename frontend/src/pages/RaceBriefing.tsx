@@ -13,11 +13,46 @@ import {
   TEAM_METRICS,
 } from '@/lib/data';
 import type { BreadcrumbItem } from '@/lib/types';
+import { generateId } from '@/lib/utils';
+import { submitEngineerQuery } from '@/lib/api';
 
 export function RaceBriefing() {
   const navigate = useNavigate();
   const [selectedTeams, setSelectedTeams] = useState<string[]>(['mclaren', 'redbull', 'mercedes', 'ferrari']);
   const [sortKey, setSortKey] = useState<'composite' | 'pace' | 'tire' | 'strategy'>('composite');
+
+  const handleQueryTrigger = async (queryText: string) => {
+    try {
+      if (typeof (window as any).__fw_notify === 'function') {
+        (window as any).__fw_notify({
+          id: 'briefing-query',
+          message: `Querying AI Gateway: "${queryText}"`,
+          type: 'info',
+          duration: 3000,
+        });
+      }
+      const aiResponse = await submitEngineerQuery(queryText);
+      const generatedId = generateId();
+      const newInvestigation = {
+        id: generatedId,
+        question: queryText,
+        response: aiResponse,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(`frontwing_investigation_${generatedId}`, JSON.stringify(newInvestigation));
+      navigate(`/investigate/${generatedId}`);
+    } catch (error: any) {
+      console.error('[RaceBriefing] Query failed:', error);
+      if (typeof (window as any).__fw_notify === 'function') {
+        (window as any).__fw_notify({
+          id: String(Date.now()),
+          message: `Query failed: ${error.message}`,
+          type: 'error',
+          duration: 5000,
+        });
+      }
+    }
+  };
 
   const breadcrumbs: BreadcrumbItem[] = [
     { label: 'Home', href: '/' },
@@ -118,7 +153,12 @@ export function RaceBriefing() {
               phases={RACE_PHASES}
               incidents={RACE_INCIDENTS}
               orientation="vertical"
-              onPhaseClick={() => navigate('/investigate/msg-1')}
+              onPhaseClick={(phaseIdx) => {
+                const phase = RACE_PHASES[phaseIdx];
+                if (phase) {
+                  handleQueryTrigger(`Explain Austrian GP stint timeline phase: ${phase.description}`);
+                }
+              }}
             />
           </section>
         </div>
@@ -136,7 +176,7 @@ export function RaceBriefing() {
                 key={teamMetrics.team.name}
                 metrics={teamMetrics}
                 variant="summary"
-                onClick={() => navigate('/investigate/msg-1')}
+                onClick={() => handleQueryTrigger(`Analyze constructor station for ${teamMetrics.team.name}`)}
               />
             ))}
           </div>

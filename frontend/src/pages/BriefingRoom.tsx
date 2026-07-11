@@ -10,23 +10,40 @@ import {
   SUGGESTED_QUESTIONS,
   FEATURED_STORIES,
 } from '@/lib/data';
+import { generateId } from '@/lib/utils';
+import { submitEngineerQuery } from '@/lib/api';
 
 export function BriefingRoom() {
   const navigate = useNavigate();
   const [sessionState, setSessionState] = useState<'idle' | 'loading' | 'streaming' | 'error'>('idle');
 
-  const handleQuestionSubmit = (query: string) => {
+  const handleQuestionSubmit = async (query: string) => {
     setSessionState('loading');
-    // Simulate navigation to the demo thread if they ask about Sainz/Ferrari
-    setTimeout(() => {
+    try {
+      const aiResponse = await submitEngineerQuery(query);
+      const generatedId = generateId();
+      const newInvestigation = {
+        id: generatedId,
+        question: query,
+        response: aiResponse,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(`frontwing_investigation_${generatedId}`, JSON.stringify(newInvestigation));
       setSessionState('idle');
-      if (query.toLowerCase().includes('sainz') || query.toLowerCase().includes('ferrari')) {
-        navigate('/investigate/msg-1');
-      } else {
-        // Fallback to a new thread
-        navigate('/investigate/new');
+      navigate(`/investigate/${generatedId}`);
+    } catch (error: any) {
+      console.error('[BriefingRoom] Submit query failed:', error);
+      setSessionState('error');
+      if (typeof (window as any).__fw_notify === 'function') {
+        (window as any).__fw_notify({
+          id: String(Date.now()),
+          message: `Query failed: ${error.message}`,
+          type: 'error',
+          duration: 5000,
+        });
       }
-    }, 1200);
+      setTimeout(() => setSessionState('idle'), 1500);
+    }
   };
 
   const handleSearchTrigger = () => {
@@ -158,9 +175,11 @@ export function BriefingRoom() {
                 raceId={story.raceId}
                 variant="featured"
                 onFullDebrief={() => navigate(`/race/${story.raceId}`)}
-                onMomentClick={() => {
-                  // Route to active section of investigation based on moment
-                  navigate('/investigate/msg-1');
+                onMomentClick={(momentIdx) => {
+                  const moment = story.keyMoments[momentIdx];
+                  if (moment) {
+                    handleQuestionSubmit(`Explain Austrian GP lap ${moment.lap} incident: ${moment.description}`);
+                  }
                 }}
               />
             ))}
@@ -177,7 +196,7 @@ export function BriefingRoom() {
                   key={idx}
                   insight={insight}
                   variant="featured"
-                  onClick={() => navigate('/investigate/msg-1')}
+                  onClick={() => handleQuestionSubmit(`Analyze strategic insight: ${insight.headline} (${insight.metric.value} ${insight.metric.unit} - ${insight.metric.context})`)}
                 />
               ))}
             </div>

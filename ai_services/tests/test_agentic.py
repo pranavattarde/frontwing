@@ -5,7 +5,21 @@ from app.agents.planner import run_ai_race_engineer, plan_node, execute_node, re
 from app.tools.registry import tool_registry
 
 class TestAgenticAIRaceEngineer(unittest.TestCase):
-    
+    def setUp(self):
+        from unittest.mock import patch
+        from app.core.providers import LLMProviderError
+        
+        # Patch reliable_llm_provider to always fail and trigger fallback
+        self.generate_plan_patcher = patch(
+            "app.core.providers.reliable_llm_provider.generate_plan",
+            side_effect=LLMProviderError("Mock LLM Provider Error")
+        )
+        self.generate_plan_patcher.start()
+
+    def tearDown(self):
+        if hasattr(self, "generate_plan_patcher"):
+            self.generate_plan_patcher.stop()
+            
     def test_conversation_memory_context_resolution(self):
         """Verifies memory resolves driver and team details from previous queries."""
         memory = InMemoryConversationMemory()

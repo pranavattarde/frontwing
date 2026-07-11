@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import { cn, generateId } from '@/lib/utils';
+import { submitEngineerQuery } from '@/lib/api';
 
 interface CommandItem {
   id: string;
@@ -22,13 +23,47 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const runPaletteQuery = async (queryText: string) => {
+    onClose();
+    try {
+      if (typeof (window as any).__fw_notify === 'function') {
+        (window as any).__fw_notify({
+          id: 'palette-query',
+          message: `Querying AI Gateway: "${queryText}"`,
+          type: 'info',
+          duration: 3000,
+        });
+      }
+      const aiResponse = await submitEngineerQuery(queryText);
+      const generatedId = generateId();
+      const newInvestigation = {
+        id: generatedId,
+        question: queryText,
+        response: aiResponse,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(`frontwing_investigation_${generatedId}`, JSON.stringify(newInvestigation));
+      navigate(`/investigate/${generatedId}`);
+    } catch (error: any) {
+      console.error('[CommandPalette] Query failed:', error);
+      if (typeof (window as any).__fw_notify === 'function') {
+        (window as any).__fw_notify({
+          id: String(Date.now()),
+          message: `Query failed: ${error.message}`,
+          type: 'error',
+          duration: 5000,
+        });
+      }
+    }
+  };
+
   const commands: CommandItem[] = [
     { id: 'nav-home', label: 'Go to Home / Briefing Room', category: 'NAVIGATION', shortcut: 'G H', action: () => navigate('/') },
     { id: 'nav-briefing', label: 'Go to Spielberg GP Race Briefing', category: 'NAVIGATION', shortcut: 'G B', action: () => navigate('/race/aut-2024') },
     { id: 'nav-playground', label: 'Go to Strategy Playground Simulator', category: 'NAVIGATION', shortcut: 'G P', action: () => navigate('/strategy/aut-2024') },
     { id: 'nav-ghost', label: 'Go to Piastri vs Sainz Ghost Battle', category: 'NAVIGATION', shortcut: 'G G', action: () => navigate('/ghost-battle/aut-2024') },
-    { id: 'query-sainz', label: 'Why did Sainz finish P3 instead of P2?', category: 'QUERIES', action: () => navigate('/investigate/msg-1') },
-    { id: 'query-norris', label: 'Why did Verstappen and Norris collide?', category: 'QUERIES', action: () => navigate('/investigate/new') },
+    { id: 'query-sainz', label: 'Why did Sainz finish P3 instead of P2?', category: 'QUERIES', action: () => runPaletteQuery('Why did Sainz finish P3 instead of P2?') },
+    { id: 'query-norris', label: 'Why did Verstappen and Norris collide?', category: 'QUERIES', action: () => runPaletteQuery('Why did Verstappen and Norris collide?') },
     { id: 'action-export', label: 'Export active telemetry trace as PNG', category: 'ACTIONS', shortcut: '⌘E', action: () => console.log('Export PNG') },
     { id: 'action-reset', label: 'Reset all active what-if simulation states', category: 'ACTIONS', shortcut: '⌘R', action: () => console.log('Reset sims') },
   ];

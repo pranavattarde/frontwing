@@ -122,7 +122,7 @@ def run_strategy_simulation(
         # Load from PostgreSQL
         db_data = load_session_data_from_db(session_id, driver_id)
         if not db_data:
-            raise ValueError(f"No timing data found in database for session {session_id} and driver {driver_id}")
+            raise ValueError(f"Telemetry for this session has not been ingested yet. (No timing data found in database for session {session_id} and driver {driver_id})")
             
         driver_actual_laps = db_data["driver_actual_laps"]
         rivals_laps = db_data["rivals_laps"]
@@ -194,7 +194,8 @@ def run_strategy_simulation(
         "run_parameters": {
             "pit_loss": pit_loss,
             "overtake_difficulty": overtake_difficulty,
-            "stints": simulated_stints
+            "stints": simulated_stints,
+            "actual_stints": actual_stints
         }
     }
     

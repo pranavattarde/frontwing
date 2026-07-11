@@ -469,7 +469,7 @@ Timelines tracking planning latencies, engineer runtimes, evidence loading, self
 > **Key Learning**: Integrate multi-model planning failovers and dynamic multi-agent collaboration dispatches to guarantee high-availability, while standardizing RAG data source access layers.
 
 ### Gemini 2.5 Flash strict JSON Planner & Groq Failover
-We migrated the Chief Race Engineer's planning node to support a real Gemini 2.5 Flash structured query, returning strict JSON plan formatting. To avoid external service interruptions, we added an automatic failover to Groq (`llama-3.1-70b-versatile`) if Gemini times out or crashes. The orchestrator logs which provider served the plan, maintaining continuous operation.
+We migrated the Chief Race Engineer's planning node to support a real Gemini 2.0 Flash structured query, returning strict JSON plan formatting. To avoid external service interruptions, we added an automatic failover to Groq (`llama-3.3-70b-versatile`) if Gemini times out or crashes. The orchestrator logs which provider served the plan, maintaining continuous operation.
 
 ### Modular RAG Loader Layers
 We added 7 modular knowledge loaders to `app/agents/knowledge.py`:
@@ -542,6 +542,21 @@ We updated `migrate.ts` to dynamically resolve all SQL schema migrations from th
 
 ### Startup Lifecycle & Express Server Launch
 We implemented `backend/src/index.ts` declaring an Express listener that connects to PostgreSQL and Redis during start, defines health check routes, and initializes a WebSocket server for real-time trace events.
+
+---
+
+## 19. Sprint 5.6 LLM Provider Stabilization Phase
+
+> **Date**: 2026-07-11
+> **Author**: Lead AI Platform Architect
+> **Key Learning**: Implement planning request caching, failover exception details logging, and fatal error fast-exit triggers in reliable composite provider configurations to optimize latency and reliability under rate-limit constraints.
+
+### Upgraded Production Models & Caching
+We upgraded the Gemini planning model to `gemini-2.0-flash` to bypass Gemini 2.5 RPM limits, and updated the Groq fallback model to `llama-3.3-70b-versatile`. Additionally, we cached identical planning query payloads inside `ReliableLLMProvider` to reduce API request volume.
+
+### Non-swallowed Error Handling & Diagnostics
+We configured `ReliableLLMProvider` exception logging to output provider, model, HTTP status, and raw response details, and enabled fatal error fast-exits to break the retry loop immediately on key/model configuration failures. In production online mode, both LLM failures raise exceptions bubble-up returning structured AI errors, with rule-based fallback kept as a final emergency fallback for offline/test runner executions.
+
 
 
 

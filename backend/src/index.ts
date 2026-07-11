@@ -40,6 +40,34 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// AI Engineer Query Proxy Route
+app.post('/engineer/query', async (req, res) => {
+  try {
+    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+    console.log(`[Gateway] Proxying query to: ${aiServiceUrl}/engineer/query`);
+    
+    const response = await fetch(`${aiServiceUrl}/engineer/query`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(req.body),
+    });
+    
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[Gateway] AI service returned error: ${response.status} - ${errText}`);
+      return res.status(response.status).send(errText);
+    }
+    
+    const data = await response.json();
+    res.json(data);
+  } catch (error: any) {
+    console.error('[Gateway] Proxy query crash:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Create HTTP server
 const server = http.createServer(app);
 
