@@ -529,5 +529,20 @@ We containerized development database layers utilizing a project root `docker-co
 - `frontwing-redis` running `redis:7-alpine`, exposing 6379, with persistent volume `redis_data`.
 This matches configured local `DATABASE_URL` and `REDIS_URL` parameters, simplifying local bootstrap cycles.
 
+---
+
+## 18. Backend Integration & Startup Operational Readiness
+
+> **Date**: 2026-07-11
+> **Author**: Lead AI Platform Architect
+> **Key Learning**: Implement a robust and complete Express startup sequence validating Postgres and Redis dependencies on boot, and dynamically resolve and apply all SQL migrations alphabetically in transaction blocks to guarantee data layer integrity.
+
+### Dynamic SQL Migration Sequence
+We updated `migrate.ts` to dynamically resolve all SQL schema migrations from the `database/migrations` directory, sorting files alphabetically to run `01_init_schema.sql` and `02_intelligence_tables.sql` sequentially inside clean transaction scopes.
+
+### Startup Lifecycle & Express Server Launch
+We implemented `backend/src/index.ts` declaring an Express listener that connects to PostgreSQL and Redis during start, defines health check routes, and initializes a WebSocket server for real-time trace events.
+
+
 
 

@@ -5,21 +5,29 @@ import { pool } from './db';
 async function runMigrations() {
   console.log('[Migration] Starting database initialization...');
 
-  const schemaPath = path.join(__dirname, '../../../database/migrations/01_init_schema.sql');
+  const migrationsDir = path.join(__dirname, '../../../database/migrations');
   const seedPath = path.join(__dirname, '../../../database/seeds/seed_static_data.sql');
 
   const client = await pool.connect();
   try {
-    // 1. Run Init Schema DDL
-    if (fs.existsSync(schemaPath)) {
-      console.log('[Migration] Loading schema DDL...');
-      const schemaSql = fs.readFileSync(schemaPath, 'utf8');
-      await client.query('BEGIN');
-      await client.query(schemaSql);
-      await client.query('COMMIT');
-      console.log('[Migration] Schema DDL executed successfully');
+    // 1. Run all Init and Schema DDL files in alphabetical order
+    if (fs.existsSync(migrationsDir)) {
+      const files = fs.readdirSync(migrationsDir)
+        .filter(file => file.endsWith('.sql'))
+        .sort(); // guarantees alphabetical order
+
+      console.log(`[Migration] Found ${files.length} SQL schema files to apply.`);
+      for (const file of files) {
+        const filePath = path.join(migrationsDir, file);
+        console.log(`[Migration] Executing migration: ${file}`);
+        const sql = fs.readFileSync(filePath, 'utf8');
+        await client.query('BEGIN');
+        await client.query(sql);
+        await client.query('COMMIT');
+        console.log(`[Migration] Migration ${file} executed successfully`);
+      }
     } else {
-      console.error(`[Migration] Schema file not found at: ${schemaPath}`);
+      console.error(`[Migration] Migrations directory not found at: ${migrationsDir}`);
     }
 
     // 2. Run Static Data Seeds
