@@ -78,6 +78,8 @@ class TestSprint4AgenticProduction(unittest.TestCase):
         self.assertIn("required_engineers", plan_dict)
         self.assertIn("fallback_plan", plan_dict)
 
+    @patch("app.core.providers.HAS_GEMINI", True)
+    @patch("app.core.providers.HAS_GROQ", True)
     @patch("app.agents.planner.HAS_GEMINI", True)
     def test_gemini_failover_to_groq(self):
         """Verifies planner automatically falls back to Groq if Gemini throws exception."""

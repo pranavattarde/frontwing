@@ -4,6 +4,7 @@ import time
 import json
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Tuple
+from app.core.logger import logger
 
 # Try importing LLM SDKs
 try:
@@ -165,35 +166,73 @@ class ReliableLLMProvider(BaseLLMProvider):
     def generate_plan(self, system_instruction: str, contents: str, timeout_seconds: float = 10.0) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         retries = 0
         backoff = 0.5 # start backoff at 500ms
+        errors_logged = []
         
         # 1. Attempt Gemini (up to 2 retries)
+        logger.info("[ReliableLLMProvider] Initiating Gemini planning call.")
         for attempt in range(3):
+            start_time = time.time()
             try:
+                logger.info(f"[ReliableLLMProvider] Selected provider: Gemini, Model: gemini-2.5-flash, Attempt: {attempt + 1}/3, Start: {start_time}")
                 plan, metrics = self.gemini.generate_plan(system_instruction, contents, timeout_seconds)
+                end_time = time.time()
+                latency_ms = int((end_time - start_time) * 1000)
+                logger.info(
+                    f"[ReliableLLMProvider] Gemini call SUCCEEDED. End: {end_time}, Latency: {latency_ms}ms, "
+                    f"Response parsing: SUCCESS. Result: {plan}"
+                )
                 metrics["retries"] = retries
                 return plan, metrics
             except Exception as e:
+                end_time = time.time()
+                latency_ms = int((end_time - start_time) * 1000)
+                err_msg = f"Gemini Attempt {attempt + 1} failed (Latency: {latency_ms}ms). Exception: {e}"
+                logger.warning(f"[ReliableLLMProvider] {err_msg}")
+                errors_logged.append(err_msg)
                 retries += 1
                 if attempt == 2:
+                    logger.warning(f"[ReliableLLMProvider] Gemini failed all 3 attempts. Triggering failover to Groq.")
                     break
+                logger.info(f"[ReliableLLMProvider] Retry reason: Gemini exception. Waiting {backoff}s before retry...")
                 time.sleep(backoff)
                 backoff *= 2.0
                 
         # 2. Attempt Groq Failover (up to 2 retries)
         backoff = 0.5
+        logger.info("[ReliableLLMProvider] Initiating Groq failover planning call.")
         for attempt in range(3):
+            start_time = time.time()
             try:
+                logger.info(f"[ReliableLLMProvider] Selected provider: Groq, Model: llama-3.1-70b-versatile, Attempt: {attempt + 1}/3, Start: {start_time}")
                 plan, metrics = self.groq.generate_plan(system_instruction, contents, timeout_seconds)
+                end_time = time.time()
+                latency_ms = int((end_time - start_time) * 1000)
+                logger.info(
+                    f"[ReliableLLMProvider] Groq call SUCCEEDED. End: {end_time}, Latency: {latency_ms}ms, "
+                    f"Response parsing: SUCCESS. Result: {plan}"
+                )
                 metrics["retries"] = retries
                 return plan, metrics
             except Exception as e:
+                end_time = time.time()
+                latency_ms = int((end_time - start_time) * 1000)
+                err_msg = f"Groq Attempt {attempt + 1} failed (Latency: {latency_ms}ms). Exception: {e}"
+                logger.warning(f"[ReliableLLMProvider] {err_msg}")
+                errors_logged.append(err_msg)
                 retries += 1
                 if attempt == 2:
                     break
+                logger.info(f"[ReliableLLMProvider] Retry reason: Groq exception. Waiting {backoff}s before retry...")
                 time.sleep(backoff)
                 backoff *= 2.0
                 
-        raise LLMProviderError("All LLM providers (Gemini & Groq) failed after retries and failovers.")
+        # If both fail, log a complete list of exceptions before throwing
+        fatal_error_msg = (
+            f"All LLM providers (Gemini & Groq) failed after retries and failovers. "
+            f"Accumulated failures details:\n" + "\n".join(errors_logged)
+        )
+        logger.error(f"[ReliableLLMProvider] {fatal_error_msg}")
+        raise LLMProviderError(fatal_error_msg)
 
 
 # Global instance

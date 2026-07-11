@@ -33,7 +33,20 @@ from app.core.startup import run_startup_health_checks
 @app.on_event("startup")
 def startup_event():
     logger.info("[Startup] Running FrontWing AI service initialization checks.")
-    run_startup_health_checks()
+    # Run checks, this will raise RuntimeError if any critical dependency is missing
+    diagnostics = run_startup_health_checks()
+    
+    # Trigger background seeding if DB is empty
+    from app.core.db import execute_query
+    try:
+        res = execute_query("SELECT COUNT(*) as count FROM sessions", fetch=True)
+        if res and res[0]["count"] == 0:
+            logger.info("[Startup] Database sessions table is empty. Seeding F1 GP race weekend in background...")
+            import threading
+            from app.ingestion.loader import load_default_race_weekend
+            threading.Thread(target=load_default_race_weekend, daemon=True).start()
+    except Exception as e:
+        logger.warning(f"[Startup] Failed to check sessions or trigger background ingestion: {e}")
 
 @app.get("/health")
 def health_check():

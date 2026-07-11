@@ -1,14 +1,11 @@
-import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import redis
-from dotenv import load_dotenv
+from app.core.config import settings
 from .logger import logger
 
-load_dotenv()
-
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/frontwing")
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+DATABASE_URL = settings.DATABASE_URL
+REDIS_URL = settings.REDIS_URL
 
 # 1. PostgreSQL connection helpers
 def get_db_connection():

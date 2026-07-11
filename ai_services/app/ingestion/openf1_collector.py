@@ -40,6 +40,16 @@ class OpenF1Collector(BaseCollector):
             s_data = raw[0]
             session_id = f"{race_id}_{s_data['session_name'].lower().replace(' ', '_')}"
             
+            # Ensure circuit and race exist to satisfy foreign keys
+            execute_query(
+                "INSERT INTO circuits (id, name, location, country) VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                ("unknown", "Unknown Circuit", "Unknown", "Unknown")
+            )
+            execute_query(
+                "INSERT INTO races (id, circuit_id, year, round, name, date) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                (race_id, "unknown", int(race_id[:4]), 1, "Race event", s_data["date_start"][:10])
+            )
+
             # Upsert into PostgreSQL 'sessions' table
             execute_query(
                 """

@@ -660,6 +660,14 @@ def run_ai_race_engineer(
     history: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
     """Top-level function to execute the Chief Race Engineer StateGraph."""
+    # Dynamically resolve year, race location, session type, and driver code if not explicitly provided
+    from app.agents.resolver import SessionResolver
+    resolved = SessionResolver.resolve(question, history)
+    if not session_id:
+        session_id = resolved["session_id"]
+    if not driver_id:
+        driver_id = resolved["driver_id"]
+        
     initial_state = {
         "question": question,
         "session_id": session_id,

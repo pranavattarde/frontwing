@@ -5,6 +5,7 @@ from app.tools.registry import BaseF1Tool, tool_registry
 from app.core.db import execute_query
 from app.scoring.aggregator import calculate_race_scores
 from app.simulation.simulation_engine import run_strategy_simulation
+from app.agents.knowledge import rag_knowledge
 
 # =====================================================================
 # 1. Scoring Tool Adapter
@@ -475,9 +476,105 @@ class ExplainModeTool(BaseF1Tool):
         }
 
 
+# =====================================================================
+# 6. Research Tool Adapter
+# =====================================================================
+class ResearchTool(BaseF1Tool):
+    @property
+    def name(self) -> str:
+        return "research_tool"
+        
+    @property
+    def description(self) -> str:
+        return (
+            "Performs semantic keyword lookup against FIA regulations and track notes. "
+            "Requires inputs: query (str)."
+        )
+        
+    @property
+    def input_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"}
+            },
+            "required": ["query"]
+        }
+        
+    def execute(self, inputs: Dict[str, Any]) -> Any:
+        query = inputs["query"]
+        return rag_knowledge.retrieve(query)
+
+
+# =====================================================================
+# 7. Knowledge Tool Adapter
+# =====================================================================
+class KnowledgeTool(BaseF1Tool):
+    @property
+    def name(self) -> str:
+        return "knowledge_tool"
+        
+    @property
+    def description(self) -> str:
+        return (
+            "Retrieves static F1 sporting and technical regulation rules. "
+            "Requires inputs: query (str)."
+        )
+        
+    @property
+    def input_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"}
+            },
+            "required": ["query"]
+        }
+        
+    def execute(self, inputs: Dict[str, Any]) -> Any:
+        query = inputs["query"]
+        return rag_knowledge.retrieve(query)
+
+
+# =====================================================================
+# 8. Investigation Tool Adapter
+# =====================================================================
+class InvestigationTool(BaseF1Tool):
+    @property
+    def name(self) -> str:
+        return "investigation_tool"
+        
+    @property
+    def description(self) -> str:
+        return (
+            "Gathers historical and session investigation reports for F1 analysis. "
+            "Requires inputs: session_id (str), driver_id (str)."
+        )
+        
+    @property
+    def input_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "driver_id": {"type": "string"}
+            },
+            "required": ["session_id", "driver_id"]
+        }
+        
+    def execute(self, inputs: Dict[str, Any]) -> Any:
+        # Re-use HistoricalDataTool implementation for session context queries
+        hist_tool = tool_registry.get_tool("historical_data_tool")
+        return hist_tool.execute(inputs)
+
+
 # Register all tools globally
 tool_registry.register(ScoringTool())
 tool_registry.register(SimulationTool())
 tool_registry.register(TelemetryTool())
 tool_registry.register(HistoricalDataTool())
 tool_registry.register(ExplainModeTool())
+tool_registry.register(ResearchTool())
+tool_registry.register(KnowledgeTool())
+tool_registry.register(InvestigationTool())
+

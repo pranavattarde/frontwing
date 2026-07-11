@@ -49,6 +49,19 @@ class FastF1Collector(BaseCollector):
         type_str = session_type_map.get(session.name, session.name)
         session_id = f"{race_id}_{type_str.lower().replace(' ', '_')}"
 
+        # Ensure circuit exists to prevent foreign key violation
+        circuit_id = session.event['Location'].lower().replace(' ', '_')
+        exists_circ = execute_query("SELECT id FROM circuits WHERE id = %s", (circuit_id,), fetch=True)
+        if not exists_circ:
+            name_match = execute_query("SELECT id FROM circuits WHERE name ILIKE %s OR location ILIKE %s", (f"%{session.event['Location']}%", f"%{session.event['Location']}%"), fetch=True)
+            if name_match:
+                circuit_id = name_match[0]["id"]
+            else:
+                execute_query(
+                    "INSERT INTO circuits (id, name, location, country) VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                    (circuit_id, session.event['EventName'], session.event['Location'], "Unknown")
+                )
+
         # Confirm race is registered in DB first
         execute_query(
             """
@@ -56,7 +69,7 @@ class FastF1Collector(BaseCollector):
             VALUES (%s, %s, %s, %s, %s, %s)
             ON CONFLICT (id) DO NOTHING
             """,
-            (race_id, session.event['Location'].lower().replace(' ', '_'), year, round_num, session.event['EventName'], session.date.strftime('%Y-%m-%d'))
+            (race_id, circuit_id, year, round_num, session.event['EventName'], session.date.strftime('%Y-%m-%d'))
         )
 
         # Confirm session is registered in DB
@@ -78,6 +91,14 @@ class FastF1Collector(BaseCollector):
             # Match code to driver ID from db (fallback to lowercase code if not found)
             drv_rows = execute_query("SELECT id FROM drivers WHERE code = %s", (drv_code,), fetch=True)
             drv_id = drv_rows[0]['id'] if drv_rows else drv_code.lower()
+            
+            # Ensure driver exists to prevent foreign key violation in stints/laps
+            exists_drv = execute_query("SELECT id FROM drivers WHERE id = %s", (drv_id,), fetch=True)
+            if not exists_drv:
+                execute_query(
+                    "INSERT INTO drivers (id, first_name, last_name, code) VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                    (drv_id, drv_code, "Driver", drv_code)
+                )
 
             # Process stints for this driver
             drv_laps = laps_df.pick_driver(drv_code)

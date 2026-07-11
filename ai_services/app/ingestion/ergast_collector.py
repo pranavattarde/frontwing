@@ -129,6 +129,63 @@ class ErgastCollector(BaseCollector):
 
         return saved_counts
 
+    def sync_race_results(self, year: int, round_num: int):
+        """Syncs race results for a given season and round, ensuring constructors and drivers exist."""
+        endpoint = f"{year}/{round_num}/results.json"
+        logger.info(f"[{self.name}] Syncing race results for season {year} round {round_num}")
+        try:
+            data = self.collect(endpoint)
+            if self.validate(data):
+                mr_data = data.get("MRData", {})
+                race_table = mr_data.get("RaceTable", {})
+                races = race_table.get("Races", [])
+                if races:
+                    race = races[0]
+                    race_id = f"{year}_{round_num}"
+                    results = race.get("Results", [])
+                    for res in results:
+                        driver = res.get("Driver", {})
+                        drv_id = driver.get("driverId")
+                        constructor = res.get("Constructor", {})
+                        const_id = constructor.get("constructorId")
+                        
+                        # Populate constructor and driver if missing to protect foreign keys
+                        execute_query(
+                            "INSERT INTO constructors (id, name, nationality) VALUES (%s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                            (const_id, constructor.get("name"), constructor.get("nationality"))
+                        )
+                        execute_query(
+                            "INSERT INTO drivers (id, first_name, last_name, code, driver_number, nationality, dob) VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                            (drv_id, driver.get("givenName"), driver.get("familyName"), driver.get("code"), int(driver.get("permanentNumber")) if "permanentNumber" in driver else None, driver.get("nationality"), driver.get("dateOfBirth"))
+                        )
+                        
+                        # Insert race results
+                        execute_query(
+                            """
+                            INSERT INTO race_results (session_id, driver_id, constructor_id, grid_position, position, points, laps_completed, status)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (session_id, driver_id) DO UPDATE SET
+                                grid_position = EXCLUDED.grid_position,
+                                position = EXCLUDED.position,
+                                points = EXCLUDED.points,
+                                laps_completed = EXCLUDED.laps_completed,
+                                status = EXCLUDED.status
+                            """,
+                            (
+                                f"{race_id}_race",
+                                drv_id,
+                                const_id,
+                                int(res.get("grid")),
+                                int(res.get("position")) if str(res.get("position", "")).isdigit() else 99,
+                                float(res.get("points", 0)),
+                                int(res.get("laps", 0)),
+                                res.get("status")
+                            )
+                        )
+                    logger.info(f"[{self.name}] Synced {len(results)} race results for session {race_id}_race")
+        except Exception as e:
+            logger.error(f"[{self.name}] Syncing race results failed: {e}")
+
     def fetch_and_sync_all_static_data(self):
         """Runs batch synchronization for historical constructors, drivers, and circuits."""
         logger.info(f"[{self.name}] Initiating F1 historical sync...")

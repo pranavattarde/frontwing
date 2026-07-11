@@ -6,7 +6,7 @@ _PROMPT_CACHE = {}
 def load_prompt(name: str) -> str:
     """Loads prompt markdown template dynamically. Returns fallback if missing."""
     if name in _PROMPT_CACHE:
-        return _PROMPT_CACHE[name]
+        return _PROMPT_CACHE[name]["content"]
         
     base_dir = os.path.dirname(os.path.abspath(__file__))
     filename = f"{name}.md"
@@ -16,7 +16,7 @@ def load_prompt(name: str) -> str:
         try:
             with open(filepath, "r", encoding="utf-8") as f:
                 content = f.read().strip()
-                _PROMPT_CACHE[name] = content
+                _PROMPT_CACHE[name] = {"content": content, "is_fallback": False}
                 return content
         except Exception:
             pass
@@ -30,4 +30,13 @@ def load_prompt(name: str) -> str:
         "research": "F1 Research Engineer. Retrieve RAG document indexes.",
         "explain": "Explain Engineer. Generate beginner, intermediate, and expert summaries."
     }
-    return fallbacks.get(name, "F1 AI Engineer assistant role instructions.")
+    content = fallbacks.get(name, "F1 AI Engineer assistant role instructions.")
+    _PROMPT_CACHE[name] = {"content": content, "is_fallback": True}
+    return content
+
+def is_prompt_fallback(name: str) -> bool:
+    """Returns True if the loaded prompt was resolved via hardcoded fallback."""
+    if name not in _PROMPT_CACHE:
+        load_prompt(name)
+    return _PROMPT_CACHE.get(name, {}).get("is_fallback", True)
+
