@@ -360,6 +360,7 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
     start_time = time.time()
     futures = {}
     failed_tools = []
+    params_sent = {}
     
     # Dispatch tools
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -372,6 +373,8 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
                     args["driver_id"] = state.get("driver_id") or "sainz"
                 if name == "explain_mode_tool" and "term" not in args:
                     args["term"] = "CAR"
+                    
+                params_sent[name] = args
                     
                 # Match to specialized Persona
                 if name in engineers:
@@ -436,6 +439,8 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
             
             try:
                 res = future.result()
+                if not isinstance(res, dict):
+                    raise ValueError(f"Tool '{name}' did not return a structured dictionary.")
                 evidence[name] = res
                 tools_used.append(name)
                 # Map trace evidence_graph properties
@@ -447,6 +452,8 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
                 errors.append(err_msg)
                 failed_tools.append(name)
                 trace.setdefault("recovery_steps", []).append(f"Auto-recovery: omitted failed engineer {engineer.name}")
+
+    trace.setdefault("timelines", {})["parameters_sent"] = params_sent
 
     # Verify executed tools exactly match planned tools
     planned_tool_names = [step.split("|")[0] for step in plan]
@@ -502,23 +509,15 @@ def reflect_node(state: AgentState) -> Dict[str, Any]:
             
     # 2. Logic loop trigger
     loop_triggered = False
-    import sys
-    is_testing = "unittest" in sys.modules or "pytest" in sys.modules
     
-    if is_testing:
-        if not sufficient and not errors:
-            reflection_notes.append("Tool evidence empty. Retriggering default scoring check.")
-            plan.append("scoring_tool|session_id=2024_austria_gp_race,driver_id=sainz")
-            loop_triggered = True
-        elif not consistent and reflection_count < 1:
-            reflection_notes.append("Tool disagreement triggers additional explain validation.")
-            plan.append("explain_mode_tool|term=SPG")
-            loop_triggered = True
-    else:
-        if not sufficient:
-            reflection_notes.append("Tool evidence empty.")
-        elif not consistent:
-            reflection_notes.append("Tool disagreement detected.")
+    if not consistent and reflection_count < 1:
+        reflection_notes.append("Tool disagreement triggers additional explain validation.")
+        plan.append("explain_mode_tool|term=SPG")
+        loop_triggered = True
+    elif not sufficient:
+        reflection_notes.append("Tool evidence empty.")
+    elif not consistent:
+        reflection_notes.append("Tool disagreement detected.")
         
     if not loop_triggered:
         reflection_notes.append("Self-evaluation passes: evidence sufficient and consistent.")
@@ -880,16 +879,21 @@ def run_ai_race_engineer(
         final_answer = final_state.get("final_answer", "")
         
         logger.info(
-            f"\n=== FRONTWING REQUEST AUDIT ===\n"
+            f"\n=================================================\n"
+            f"REQUEST: {question}\n"
             f"Detected Intent: {detected_intent}\n"
             f"Planner Output: {planner_output}\n"
-            f"Chosen Engineers: {chosen_engineers}\n"
-            f"Chosen Tools: {chosen_tools}\n"
+            f"Execution Order: {plan_data.get('execution_order', [])}\n"
             f"Executed Tools: {executed_tools}\n"
-            f"Collected Evidence Keys: {collected_evidence_keys}\n"
+            f"Parameters Sent: {trace.get('timelines', {}).get('parameters_sent', {})}\n"
+            f"Tool Return Values: {final_state.get('evidence', {})}\n"
+            f"Evidence Keys: {collected_evidence_keys}\n"
             f"Synthesizer Input: {synthesizer_input}\n"
-            f"Final Answer: {final_answer}\n"
-            f"================================="
+            f"Provider: {trace.get('llm_provider', 'rule_based')}\n"
+            f"Failover: {trace.get('failover_reason', 'None')}\n"
+            f"Latency: {trace.get('total_latency_ms', 0)}ms\n"
+            f"Final Response: {final_answer}\n"
+            f"================================================="
         )
         
         return {

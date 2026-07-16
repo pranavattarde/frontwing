@@ -283,7 +283,6 @@ export function InvestigationThread() {
         setMessages(allMessages);
         
         // Extract metadata from the last exchange
-        const lastEx = data.exchanges[data.exchanges.length - 1];
         if (lastEx && lastEx.response) {
           const trace = lastEx.response.intelligence_trace || {};
           const provider = trace.llm_provider || 'Gemini';

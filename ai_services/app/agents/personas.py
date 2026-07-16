@@ -101,7 +101,7 @@ class InvestigationEngineer(BaseEngineer):
         if "collaboration_graph" in state:
             state["collaboration_graph"].append([self.name, "Knowledge Engineer"])
             
-        t_name = tool_name or "scoring_tool"
+        t_name = tool_name or "investigation_tool"
         tool = tool_registry.get_tool(t_name)
         return tool.validate_and_execute(tool_inputs, state.get("question", ""))
 

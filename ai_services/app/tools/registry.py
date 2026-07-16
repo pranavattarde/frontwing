@@ -140,3 +140,9 @@ class ToolRegistry:
 
 # Global instance of the tool registry
 tool_registry = ToolRegistry()
+
+# Trigger side-effect tool registrations dynamically
+try:
+    import app.tools.adapters
+except ImportError:
+    pass
