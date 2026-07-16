@@ -855,12 +855,7 @@ There is **no persistent sidebar**. Navigation flows through:
 - [x] **Complete the production infrastructure with dotenv validations, LLM BaseLLMProvider abstractions, dynamic prompt loaders, ResearchEngineer modular RAG, reliability retry wrappers, and boot startup health diagnostic verifications (Sprint 5).**
 - [x] **Set up local database and cache storage infrastructure services (PostgreSQL 17 and Redis 7) via Docker Compose (Sprint 5.5).**
 - [x] **Audit backend startup lifecycle, configure package.json run scripts, execute SQL schema DDL and seeds sequentially, and launch active Express and WebSockets server (Integration Phase).**
-
-
-
-
-
-
+- [x] **Stabilize execution pipeline, eliminate legacy automatic execution logic, align registry mappings, structure evidence, and fix duplicates and intermediate state leaks on the frontend (Sprint 6).**
 
 ### Pending Tasks
 - [ ] Execute Express server setup and connect WebSocket handlers.

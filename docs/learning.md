@@ -555,9 +555,21 @@ We implemented `backend/src/index.ts` declaring an Express listener that connect
 We upgraded the Gemini planning model to `gemini-2.0-flash` to bypass Gemini 2.5 RPM limits, and updated the Groq fallback model to `llama-3.3-70b-versatile`. Additionally, we cached identical planning query payloads inside `ReliableLLMProvider` to reduce API request volume.
 
 ### Non-swallowed Error Handling & Diagnostics
-We configured `ReliableLLMProvider` exception logging to output provider, model, HTTP status, and raw response details, and enabled fatal error fast-exits to break the retry loop immediately on key/model configuration failures. In production online mode, both LLM failures raise exceptions bubble-up returning structured AI errors, with rule-based fallback kept as a final emergency fallback for offline/test runner executions.
+We configured `ReliableLLMProvider` exception logging to output provider, model, HTTP status, and raw response details, and enabled fatal error fast-exits to break the retry loop immediately on key/model configuration failures. In production online mode, both LLM failures raise exceptions bubble-up returning structured AI errors, with rule-based fallback kept as a final emergency fallback for offline/test runner executions.## 20. Sprint 6 AI Execution Pipeline Stabilization
 
+> **Date**: 2026-07-16
+> **Author**: Lead AI Platform Architect
+> **Key Learning**: Eliminate all legacy and automatic engineer execution cycles. Force the execution layer to strictly execute only the planned tools by parsing and verifying the exact toolset requested by the planner.
 
+### Complete Planner-Driven Dispatching
+- Engineers must never decide what to execute. We removed all legacy helper triggers (`knowledge_eng.execute` from inside other engineers) and modified signatures to pass `tool_name` down from the dispatcher.
+- Mapped missing tool identifiers in `execute_node` to prevent wrap fallbacks, and added strict verification asserting that executed tools match the planned tools, raising errors on substitutions.
 
+### Structured Evidence & LLM-Driven Synthesis
+- Refactored `RaceResultsTool` and `InvestigationTool` to return structured evidence schemas instead of text or lists.
+- Rewrote the synthesizer to completely eliminate manual formatting and template statements. The system now passes structured evidence to the LLM with the instruction to synthesize response tiers strictly utilizing the provided data, responding honestly if empty.
 
+### UI Card Deduplication & Planner Command Filtering
+- Prevented UI duplicate blocks by rendering only the single latest response in `InvestigationThread.tsx`.
+- Filtered out `fallback_plan` internal command formats from suggestion cards to block raw agent state leakages to clients.
 

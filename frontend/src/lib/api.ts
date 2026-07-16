@@ -26,7 +26,11 @@ export interface AIResponse {
   explanations?: Record<string, string>;
 }
 
-export async function submitEngineerQuery(question: string, conversationId?: string): Promise<AIResponse> {
+export async function submitEngineerQuery(
+  question: string,
+  conversationId?: string,
+  signal?: AbortSignal
+): Promise<AIResponse> {
   const backendUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
   console.log(`[API Client] Submitting query to gateway: ${backendUrl}/engineer/query`, { question, conversationId });
   
@@ -40,6 +44,7 @@ export async function submitEngineerQuery(question: string, conversationId?: str
         question,
         conversation_id: conversationId
       }),
+      signal
     });
 
     if (!response.ok) {
@@ -54,16 +59,24 @@ export async function submitEngineerQuery(question: string, conversationId?: str
         throw new Error("Telemetry for this session has not been ingested yet.");
       }
       
+      if (errText.includes("rate limit") || errText.includes("429")) {
+        throw new Error("Rate limit exceeded");
+      }
+      
       // Do not expose other backend exceptions directly to users
       throw new Error("An error occurred while communicating with the AI Race Engineer. Please try again.");
     }
 
     return await response.json();
   } catch (error: any) {
+    if (error.name === 'AbortError') {
+      throw error;
+    }
     // If it's already one of our user-friendly errors, rethrow it
     if (
       error.message === "Telemetry for this session has not been ingested yet." ||
-      error.message === "An error occurred while communicating with the AI Race Engineer. Please try again."
+      error.message === "An error occurred while communicating with the AI Race Engineer. Please try again." ||
+      error.message === "Rate limit exceeded"
     ) {
       throw error;
     }

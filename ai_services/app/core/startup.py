@@ -89,30 +89,42 @@ def run_startup_health_checks() -> Dict[str, Any]:
             "error": str(e)
         }
         
-    # 4. Tool Registry Audit
+    # 4. Tool Registry Audit & Planner Compatibility Validation
     from app.tools.registry import tool_registry
-    required_tools = ["scoring_tool", "simulation_tool", "explain_mode_tool", "research_tool", "investigation_tool", "knowledge_tool"]
-    missing_tools = []
-    for t_name in required_tools:
-        try:
-            tool_registry.get_tool(t_name)
-        except KeyError:
-            missing_tools.append(t_name)
-            
+    PLANNER_REFERENCED_TOOLS = [
+        "scoring_tool",
+        "simulation_tool",
+        "telemetry_tool",
+        "explain_mode_tool",
+        "research_tool",
+        "knowledge_tool",
+        "investigation_tool",
+        "race_results_tool",
+        "driver_database_tool",
+        "constructor_database_tool",
+        "standings_tool",
+        "historical_results_tool"
+    ]
+    registered_tools = [t.name for t in tool_registry.list_tools()]
+    missing_tools = [t for t in PLANNER_REFERENCED_TOOLS if t not in registered_tools]
+    unused_tools = [t for t in registered_tools if t not in PLANNER_REFERENCED_TOOLS]
+    
+    compatibility = "fully_compatible"
     if missing_tools:
+        compatibility = "incompatible_missing_tools"
         is_healthy = False
-        critical_missing.append(f"Missing registered tools: {missing_tools}")
-        print(f"[FAIL] Tool registry complete: FAILED (missing {missing_tools})")
-        diagnostics["tools"] = {
-            "status": "unhealthy",
-            "missing": missing_tools
-        }
+        critical_missing.append(f"Planner references non-existent tools: {missing_tools}")
+        print(f"[FAIL] Tool registry complete: FAILED (missing tools {missing_tools})")
     else:
-        print(f"[OK] Tool registry complete: all {len(required_tools)} required tools registered")
-        diagnostics["tools"] = {
-            "status": "healthy",
-            "registered_count": len(required_tools)
-        }
+        print(f"[OK] Tool registry complete: all planner-referenced tools registered")
+        
+    diagnostics["tools"] = {
+        "status": "healthy" if not missing_tools else "unhealthy",
+        "registered_tools": registered_tools,
+        "missing_tools": missing_tools,
+        "unused_tools": unused_tools,
+        "planner_compatibility": compatibility
+    }
 
     # 5. Database Ping & Session/Driver Counts
     db_connected = False

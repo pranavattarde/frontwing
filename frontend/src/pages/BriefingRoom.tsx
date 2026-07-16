@@ -11,39 +11,27 @@ import {
   FEATURED_STORIES,
 } from '@/lib/data';
 import { generateId } from '@/lib/utils';
-import { submitEngineerQuery } from '@/lib/api';
 
 export function BriefingRoom() {
   const navigate = useNavigate();
   const [sessionState, setSessionState] = useState<'idle' | 'loading' | 'streaming' | 'error'>('idle');
 
   const handleQuestionSubmit = async (query: string) => {
+    if (sessionState === 'loading' || !query.trim()) return;
     setSessionState('loading');
-    try {
-      const aiResponse = await submitEngineerQuery(query);
-      const generatedId = generateId();
-      const newInvestigation = {
-        id: generatedId,
-        question: query,
-        response: aiResponse,
-        timestamp: Date.now()
-      };
-      localStorage.setItem(`frontwing_investigation_${generatedId}`, JSON.stringify(newInvestigation));
-      setSessionState('idle');
-      navigate(`/investigate/${generatedId}`);
-    } catch (error: any) {
-      console.error('[BriefingRoom] Submit query failed:', error);
-      setSessionState('error');
-      if (typeof (window as any).__fw_notify === 'function') {
-        (window as any).__fw_notify({
-          id: String(Date.now()),
-          message: `Query failed: ${error.message}`,
-          type: 'error',
-          duration: 5000,
-        });
-      }
-      setTimeout(() => setSessionState('idle'), 1500);
-    }
+    
+    const generatedId = generateId();
+    const newInvestigation = {
+      id: generatedId,
+      question: query,
+      status: 'loading',
+      exchanges: [],
+      timestamp: Date.now()
+    };
+    
+    localStorage.setItem(`frontwing_investigation_${generatedId}`, JSON.stringify(newInvestigation));
+    setSessionState('idle');
+    navigate(`/investigate/${generatedId}`);
   };
 
   const handleSearchTrigger = () => {

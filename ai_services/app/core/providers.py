@@ -56,7 +56,7 @@ def log_provider_failure(provider: str, model: str, e: Exception):
 
 
 def is_fatal_error(e: Exception) -> bool:
-    """Returns True if the exception represents a non-retryable configuration or authentication error."""
+    """Returns True if the exception represents a non-retryable configuration, auth, rate limit or quota error."""
     err_str = str(e).lower()
     # Check for invalid API key or authentication errors (e.g., HTTP 401)
     if "api key not valid" in err_str or "invalid api key" in err_str or "api_key_invalid" in err_str or "401" in err_str:
@@ -65,6 +65,9 @@ def is_fatal_error(e: Exception) -> bool:
     if "model_decommissioned" in err_str or "decommissioned" in err_str or "no longer available" in err_str:
         return True
     if "not_found" in err_str or "model not found" in err_str or "404" in err_str:
+        return True
+    # Check for rate limits / quota exceeded
+    if "429" in err_str or "resource_exhausted" in err_str or "rate_limit_exceeded" in err_str or "quota_limit" in err_str or "quota limit" in err_str:
         return True
     return False
 
@@ -79,6 +82,11 @@ class BaseLLMProvider(ABC):
     @abstractmethod
     def generate_plan(self, system_instruction: str, contents: str, timeout_seconds: float = 10.0) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Generates structured execution plan and returns (plan_dict, observability_metrics)."""
+        pass
+
+    @abstractmethod
+    def generate_response(self, system_instruction: str, contents: str, response_mime_type: str = "text/plain", timeout_seconds: float = 10.0) -> Tuple[str, Dict[str, Any]]:
+        """Generates a text/JSON response and returns (response_text, observability_metrics)."""
         pass
 
 
@@ -127,6 +135,48 @@ class GeminiProvider(BaseLLMProvider):
                 "retries": 0
             }
             return parsed, metrics
+        except Exception as e:
+            log_provider_failure("Gemini", "gemini-2.0-flash", e)
+            if "timeout" in str(e).lower() or (time.time() - start_time) >= timeout_seconds:
+                raise LLMTimeoutError(f"Gemini provider timed out: {e}")
+            raise LLMProviderError(f"Gemini execution failed: {e}")
+
+    def generate_response(self, system_instruction: str, contents: str, response_mime_type: str = "text/plain", timeout_seconds: float = 10.0) -> Tuple[str, Dict[str, Any]]:
+        if not HAS_GEMINI:
+            raise LLMProviderError("Gemini SDK ('google-genai') is not installed.")
+        key = os.getenv("GEMINI_API_KEY", "")
+        if not key or not key.strip():
+            raise LLMProviderError("GEMINI_API_KEY environment variable is empty.")
+            
+        start_time = time.time()
+        try:
+            client = genai.Client(api_key=key)
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    temperature=0.0,
+                    response_mime_type=response_mime_type
+                )
+            )
+            raw_text = response.text.strip()
+            latency_ms = int((time.time() - start_time) * 1000)
+            
+            prompt_toks = 250
+            completion_toks = len(raw_text) // 4
+            cost = (prompt_toks * 0.075 / 1_000_000) + (completion_toks * 0.30 / 1_000_000)
+            
+            metrics = {
+                "llm_provider": "gemini",
+                "llm_model": "gemini-2.0-flash",
+                "llm_latency": latency_ms,
+                "prompt_tokens": prompt_toks,
+                "completion_tokens": completion_toks,
+                "estimated_cost": cost,
+                "retries": 0
+            }
+            return raw_text, metrics
         except Exception as e:
             log_provider_failure("Gemini", "gemini-2.0-flash", e)
             if "timeout" in str(e).lower() or (time.time() - start_time) >= timeout_seconds:
@@ -187,6 +237,52 @@ class GroqProvider(BaseLLMProvider):
                 raise LLMTimeoutError(f"Groq provider timed out: {e}")
             raise LLMProviderError(f"Groq execution failed: {e}")
 
+    def generate_response(self, system_instruction: str, contents: str, response_mime_type: str = "text/plain", timeout_seconds: float = 10.0) -> Tuple[str, Dict[str, Any]]:
+        if not HAS_GROQ:
+            raise LLMProviderError("Groq SDK ('groq') is not installed.")
+        key = os.getenv("GROQ_API_KEY", "")
+        if not key or not key.strip():
+            raise LLMProviderError("GROQ_API_KEY environment variable is empty.")
+            
+        start_time = time.time()
+        try:
+            client = Groq(api_key=key)
+            response_format = None
+            if response_mime_type == "application/json":
+                response_format = {"type": "json_object"}
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": contents}
+                ],
+                model="llama-3.3-70b-versatile",
+                temperature=0.0,
+                response_format=response_format,
+                timeout=timeout_seconds
+            )
+            raw_text = chat_completion.choices[0].message.content.strip()
+            latency_ms = int((time.time() - start_time) * 1000)
+            
+            prompt_toks = chat_completion.usage.prompt_tokens if chat_completion.usage else 250
+            completion_toks = chat_completion.usage.completion_tokens if chat_completion.usage else 100
+            cost = (prompt_toks * 0.59 / 1_000_000) + (completion_toks * 0.79 / 1_000_000)
+            
+            metrics = {
+                "llm_provider": "groq",
+                "llm_model": "llama-3.3-70b-versatile",
+                "llm_latency": latency_ms,
+                "prompt_tokens": prompt_toks,
+                "completion_tokens": completion_toks,
+                "estimated_cost": cost,
+                "retries": 0
+            }
+            return raw_text, metrics
+        except Exception as e:
+            log_provider_failure("Groq", "llama-3.3-70b-versatile", e)
+            if "timeout" in str(e).lower() or (time.time() - start_time) >= timeout_seconds:
+                raise LLMTimeoutError(f"Groq provider timed out: {e}")
+            raise LLMProviderError(f"Groq execution failed: {e}")
+
 
 # =====================================================================
 # 4. Reliable LLM Provider with failover & retries
@@ -236,7 +332,7 @@ class ReliableLLMProvider(BaseLLMProvider):
                 
                 # Check for fatal error to trigger immediate failover
                 if is_fatal_error(e):
-                    logger.warning("[ReliableLLMProvider] Fatal Gemini error detected. Failover immediately without retrying.")
+                    logger.warning("[ReliableLLMProvider] Non-retryable Gemini error detected (fatal/429/quota). Failover immediately without retrying.")
                     retries += 1
                     break
                     
@@ -274,7 +370,7 @@ class ReliableLLMProvider(BaseLLMProvider):
                 
                 # Check for fatal error to trigger immediate failover
                 if is_fatal_error(e):
-                    logger.warning("[ReliableLLMProvider] Fatal Groq error detected. Break retry loop immediately.")
+                    logger.warning("[ReliableLLMProvider] Non-retryable Groq error detected (fatal/429/quota). Break retry loop immediately.")
                     retries += 1
                     break
                     
@@ -289,6 +385,62 @@ class ReliableLLMProvider(BaseLLMProvider):
         fatal_error_msg = (
             f"All LLM providers (Gemini & Groq) failed after retries and failovers. "
             f"Accumulated failures details:\n" + "\n".join(errors_logged)
+        )
+        logger.error(f"[ReliableLLMProvider] {fatal_error_msg}")
+        raise LLMProviderError(fatal_error_msg)
+
+    def generate_response(self, system_instruction: str, contents: str, response_mime_type: str = "text/plain", timeout_seconds: float = 10.0) -> Tuple[str, Dict[str, Any]]:
+        # General non-planning response generator
+        retries = 0
+        backoff = 0.5
+        errors_logged = []
+        
+        logger.info("[ReliableLLMProvider] Initiating Gemini response call.")
+        for attempt in range(3):
+            start_time = time.time()
+            try:
+                text, metrics = self.gemini.generate_response(system_instruction, contents, response_mime_type, timeout_seconds)
+                metrics["retries"] = retries
+                return text, metrics
+            except Exception as e:
+                latency_ms = int((time.time() - start_time) * 1000)
+                err_msg = f"Gemini response Attempt {attempt + 1} failed (Latency: {latency_ms}ms). Exception: {e}"
+                logger.warning(f"[ReliableLLMProvider] {err_msg}")
+                errors_logged.append(err_msg)
+                if is_fatal_error(e):
+                    logger.warning("[ReliableLLMProvider] Non-retryable Gemini error. Failover immediately.")
+                    retries += 1
+                    break
+                retries += 1
+                if attempt == 2:
+                    break
+                time.sleep(backoff)
+                backoff *= 2.0
+                
+        backoff = 0.5
+        logger.info("[ReliableLLMProvider] Initiating Groq failover response call.")
+        for attempt in range(3):
+            start_time = time.time()
+            try:
+                text, metrics = self.groq.generate_response(system_instruction, contents, response_mime_type, timeout_seconds)
+                metrics["retries"] = retries
+                return text, metrics
+            except Exception as e:
+                latency_ms = int((time.time() - start_time) * 1000)
+                err_msg = f"Groq response Attempt {attempt + 1} failed (Latency: {latency_ms}ms). Exception: {e}"
+                logger.warning(f"[ReliableLLMProvider] {err_msg}")
+                errors_logged.append(err_msg)
+                if is_fatal_error(e):
+                    retries += 1
+                    break
+                retries += 1
+                if attempt == 2:
+                    break
+                time.sleep(backoff)
+                backoff *= 2.0
+                
+        fatal_error_msg = (
+            f"All LLM providers (Gemini & Groq) failed to generate response. Details:\n" + "\n".join(errors_logged)
         )
         logger.error(f"[ReliableLLMProvider] {fatal_error_msg}")
         raise LLMProviderError(fatal_error_msg)
