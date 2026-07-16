@@ -74,7 +74,7 @@ def classify_intent(question: str) -> str:
         return "race_result"
     if "scoring" in q_lower or "score" in q_lower or "composite" in q_lower:
         return "scoring"
-    if "strategy" in q_lower or "pit strategy" in q_lower or "stint" in q_lower or "tire" in q_lower or "weather" in q_lower:
+    if "strategy" in q_lower or "pit strategy" in q_lower or "stint" in q_lower or "tire" in q_lower or "weather" in q_lower or "traffic" in q_lower:
         return "strategy"
     if "research" in q_lower or "database" in q_lower or "stats" in q_lower or "driver info" in q_lower or "constructor info" in q_lower:
         return "research"

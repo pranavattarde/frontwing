@@ -42,6 +42,11 @@ class FIATechnicalLoader(BaseLoader):
                 "id": "technical_rules_2",
                 "source": "FIA Technical Regulations",
                 "content": "Article 5.1: Minimum car weight chassis limitations require the car to weigh no less than 798kg without fuel at all points during the Grand Prix session."
+            },
+            {
+                "id": "technical_rules_drs",
+                "source": "FIA Technical Regulations",
+                "content": "Article 3.6: Drag Reduction System (DRS) allows the driver to open a rear flap in the wing to reduce drag and increase top speed when within 1 second of the car ahead in designated zones."
             }
         ]
 
