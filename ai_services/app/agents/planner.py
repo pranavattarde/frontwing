@@ -113,7 +113,7 @@ def extract_entities(question: str) -> Dict[str, Any]:
     }
     extracted_drivers = []
     for drv, aliases in drivers_map.items():
-        if any(alias in q_lower for alias in aliases):
+        if any(re.search(r"\b" + re.escape(alias) + r"\b", q_lower) for alias in aliases):
             extracted_drivers.append(drv)
             
     # 2. Teams / Constructors
@@ -131,7 +131,7 @@ def extract_entities(question: str) -> Dict[str, Any]:
     }
     extracted_team = None
     for team, aliases in teams_map.items():
-        if any(alias in q_lower for alias in aliases):
+        if any(re.search(r"\b" + re.escape(alias) + r"\b", q_lower) for alias in aliases):
             extracted_team = team
             break
             
@@ -143,7 +143,7 @@ def extract_entities(question: str) -> Dict[str, Any]:
     }
     extracted_gp = None
     for gp, aliases in gp_map.items():
-        if any(alias in q_lower for alias in aliases):
+        if any(re.search(r"\b" + re.escape(alias) + r"\b", q_lower) for alias in aliases):
             extracted_gp = gp
             break
             
@@ -368,8 +368,11 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         # Only inject state session_id / driver_id if they are NOT None and we didn't extract a conflicting one
         if "session_id" not in args and session_id:
             args["session_id"] = session_id
-        if "driver_id" not in args and driver_id and entities.get("drivers"):
+        if "driver_id" not in args and driver_id:
             args["driver_id"] = driver_id
+            
+        if t == "explain_mode_tool" and "term" not in args:
+            args["term"] = "CAR"
             
         arg_str = ",".join(f"{k}={v}" for k, v in args.items())
         execution_order.append(f"{t}|{arg_str}")
@@ -449,8 +452,17 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
 # 2. Parallel Specialized Engineers Execution Node
 # =====================================================================
 
+class DispatcherValidationError(Exception):
+    """Raised when executed + skipped tools do not match planned tools."""
+    pass
+
+
+# =====================================================================
+# 2. Sequential Specialized Engineers Execution Node
+# =====================================================================
+
 def execute_node(state: AgentState) -> Dict[str, Any]:
-    """Node 2: Chief Race Engineer dispatches inputs to specialized engineers concurrently."""
+    """Node 2: Chief Race Engineer dispatches inputs to specialized engineers sequentially."""
     plan = state["plan"]
     tools_used = list(state.get("tools_used", []))
     evidence = dict(state.get("evidence", {}))
@@ -493,7 +505,7 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
     if "timelines" not in trace:
         trace["timelines"] = {}
         
-    logger.info(f"[Chief Race Engineer] Executing plan order concurrently.")
+    logger.info(f"[Chief Race Engineer] Executing plan order sequentially.")
     trace.setdefault("execution_graph", []).append("execute")
     
     engineers = {
@@ -526,112 +538,144 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
         else:
             return step, {}
 
-    start_time = time.time()
-    futures = {}
+    session_id = state.get("session_id")
+    driver_id = state.get("driver_id")
+
+    skipped_tools = []
+    executed_tools = []
     failed_tools = []
     params_sent = {}
     
-    # Dispatch tools
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        for idx, step in enumerate(plan):
-            try:
-                name, args = parse_step(step)
-                if "session_id" not in args:
-                    args["session_id"] = state.get("session_id") or "2024_austria_gp_race"
-                if "driver_id" not in args:
-                    args["driver_id"] = state.get("driver_id") or "sainz"
-                if name == "explain_mode_tool" and "term" not in args:
-                    args["term"] = "CAR"
-                    
-                params_sent[name] = args
-                    
-                # Match to specialized Persona
-                if name in engineers:
-                    engineer = engineers[name]
-                else:
-                    # Dynamically instantiate fallback wrapper
-                    from app.agents.personas import BaseEngineer
-                    class DynamicToolEngineer(BaseEngineer):
-                        @property
-                        def role(self) -> str:
-                            return f"dynamic_{name}_execution"
-                        @property
-                        def name(self) -> str:
-                            return f"Dynamic {name} Engineer"
-                        def execute(self, state_ctx, tool_inputs, tool_name_ctx=None):
-                            return tool_registry.get_tool(name).execute(tool_inputs)
-                    engineer = DynamicToolEngineer()
-                    
-                # Log Streaming Event: Tool Started
-                streaming_events.append({
-                    "event": "tool_started",
-                    "timestamp": int(time.time() * 1000),
-                    "details": f"Engineer '{engineer.name}' started executing step: '{step}'."
-                })
+    print("========== EXECUTION ==========")
+    for idx, step in enumerate(plan):
+        name, args = parse_step(step)
+        if "session_id" not in args and session_id:
+            args["session_id"] = session_id
+        if "driver_id" not in args and driver_id:
+            args["driver_id"] = driver_id
+            
+        params_sent[name] = args
+        
+        print(f"Tool {idx + 1}")
+        print("START")
+        
+        # Match to specialized Persona
+        if name in engineers:
+            engineer = engineers[name]
+        else:
+            from app.agents.personas import BaseEngineer
+            class DynamicToolEngineer(BaseEngineer):
+                @property
+                def role(self) -> str:
+                    return f"dynamic_{name}_execution"
+                @property
+                def name(self) -> str:
+                    return f"Dynamic {name} Engineer"
+                def execute(self, state_ctx, tool_inputs, tool_name_ctx=None):
+                    return tool_registry.get_tool(name).execute(tool_inputs)
+            engineer = DynamicToolEngineer()
+
+        try:
+            tool = tool_registry.get_tool(name)
+        except Exception as e:
+            print("FAILED")
+            print(f"Reason:\n{e}")
+            failed_tools.append(name)
+            errors.append(f"Tool {name} is not registered.")
+            if idx < len(plan) - 1:
+                print("------------------")
+            continue
+
+        # Strictly check missing required parameters from the schema
+        schema = tool.input_schema
+        required_params = schema.get("required", [])
+        
+        missing_param = None
+        # Requirement 4: If planner requested driver = null and tool requires driver, SKIP the tool.
+        if ("driver_id" in required_params or "driver" in required_params) and not args.get("driver_id") and not args.get("driver"):
+            missing_param = "driver"
                 
-                # Execute tool run via modular Persona execute interface
-                future = executor.submit(engineer.execute, state, args, name)
-                futures[future] = (engineer, name, step, time.time())
-            except Exception as e:
-                err_msg = f"Failed to dispatch step '{step}': {e}"
-                errors.append(err_msg)
-                trace.setdefault("recovery_steps", []).append(f"Dispatch recovery: {err_msg}")
+        if missing_param:
+            print("SKIPPED")
+            print(f"Reason:\nMissing required parameter: {missing_param}")
+            skipped_tools.append(name)
+            if idx < len(plan) - 1:
+                print("------------------")
+            continue
+
+        # Sequential Execution
+        t_start = time.time()
+        streaming_events.append({
+            "event": "tool_started",
+            "timestamp": int(time.time() * 1000),
+            "details": f"Engineer '{engineer.name}' started executing step: '{step}'."
+        })
+        
+        try:
+            res = engineer.execute(state, args, name)
+            
+            # Verify structured output
+            if not isinstance(res, (dict, list)):
+                raise ValueError(f"Tool '{name}' did not return structured evidence.")
                 
-        # Gather outputs
-        for future in concurrent.futures.as_completed(futures):
-            engineer, name, step, t_start = futures[future]
+            evidence[name] = res
+            tools_used.append(name)
+            executed_tools.append(name)
+            trace.setdefault("evidence_graph", {})[name] = list(res.keys()) if isinstance(res, dict) else ["data_value"]
+            
             duration_ms = int((time.time() - t_start) * 1000)
             timestamp = int(time.time() * 1000)
             
-            # Log Timelines Logs for Observability Trace V3
+            # Timelines logs
             eng_log = {
                 "engineer": engineer.name,
                 "role": engineer.role,
                 "duration_ms": duration_ms,
                 "timestamp": timestamp
             }
-            trace["timelines"].setdefault("engineers", []).append(eng_log)
+            trace.setdefault("timelines", {}).setdefault("engineers", []).append(eng_log)
             
             ev_log = {
                 "evidence_key": name,
                 "source_tool": name,
                 "timestamp": timestamp
             }
-            trace["timelines"].setdefault("evidence", []).append(ev_log)
+            trace.setdefault("timelines", {}).setdefault("evidence", []).append(ev_log)
             
-            # Log Streaming Event: Tool Finished
             streaming_events.append({
                 "event": "tool_finished",
                 "timestamp": timestamp,
                 "details": f"Engineer '{engineer.name}' finished executing tool '{name}' successfully in {duration_ms}ms."
             })
             
-            try:
-                res = future.result()
-                if not isinstance(res, (dict, list)):
-                    raise ValueError(f"Tool '{name}' did not return structured evidence.")
-                evidence[name] = res
-                tools_used.append(name)
-                # Map trace evidence_graph properties
-                trace.setdefault("evidence_graph", {})[name] = list(res.keys()) if isinstance(res, dict) else ["data_value"]
-            except Exception as ex:
-                tb_str = traceback.format_exc()
-                err_msg = f"Engineer '{engineer.name}' failed executing tool '{name}': {ex}"
-                logger.error(f"[Chief Race Engineer] Engineer execution crash: {err_msg}\n{tb_str}")
-                errors.append(err_msg)
-                failed_tools.append(name)
-                trace.setdefault("recovery_steps", []).append(f"Auto-recovery: omitted failed engineer {engineer.name}")
-
+            print("SUCCESS")
+            print("Evidence Stored")
+            
+        except Exception as ex:
+            tb_str = traceback.format_exc()
+            err_msg = f"Engineer '{engineer.name}' failed executing tool '{name}': {ex}"
+            logger.error(f"[Chief Race Engineer] Engineer execution crash: {err_msg}\n{tb_str}")
+            print("FAILED")
+            print(f"Reason:\n{ex}")
+            errors.append(err_msg)
+            failed_tools.append(name)
+            trace.setdefault("recovery_steps", []).append(f"Auto-recovery: omitted failed engineer {engineer.name}")
+            
+        if idx < len(plan) - 1:
+            print("------------------")
+            
+    print("================================")
+    
     trace.setdefault("timelines", {})["parameters_sent"] = params_sent
-
-    # Verify executed tools exactly match planned tools
+    
+    # Validation step: planned_tools == executed_tools + skipped_tools + failed_tools
     planned_tool_names = [step.split("|")[0] for step in plan]
-    all_attempted_tools = tools_used + failed_tools
+    all_attempted_tools = executed_tools + skipped_tools + failed_tools
+    
     if set(planned_tool_names) != set(all_attempted_tools):
-        err_msg = f"Execution Error: Executed tools {all_attempted_tools} do not match planned tools {planned_tool_names}"
+        err_msg = f"Dispatcher Validation Error: Planned tools {planned_tool_names} do not match attempted/skipped/failed list {all_attempted_tools}"
         logger.error(err_msg)
-        errors.append(err_msg)
-        raise ValueError(err_msg)
+        raise DispatcherValidationError(err_msg)
 
     return {
         "next_step_idx": len(plan),
