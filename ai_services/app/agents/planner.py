@@ -32,7 +32,7 @@ except ImportError:
 # Helper: F1 Intent Classifier
 # =====================================================================
 def classify_intent(question: str) -> str:
-    """Classifies the user question into one of the F1 intent categories."""
+    """Classifies the user question into one of the supported F1 intent categories."""
     q_lower = question.lower()
     
     # Check environment keys to see if we are in offline dev/test mode
@@ -46,28 +46,18 @@ def classify_intent(question: str) -> str:
     if not is_offline_dev:
         try:
             system_prompt = (
-                "You are the F1 Intent Classifier. Your job is to classify the user's question into one of the following exact intent categories. "
-                "Respond with ONLY the intent name. No other text, no quotes, no formatting.\n\n"
-                "Intents:\n"
-                "- race_result\n- race_winner\n- qualifying\n- standings\n- championship\n- driver_information\n"
-                "- constructor_information\n- circuit_information\n- weather\n- telemetry_analysis\n- strategy_analysis\n"
-                "- stint_analysis\n- lap_analysis\n- pitstop_analysis\n- explanation\n- historical_comparison\n"
-                "- simulation\n- scoring"
+                "You are the F1 Intent Classifier. Classify the user's question into one of the following exact categories: "
+                "investigation, race_result, comparison, telemetry, strategy, explanation, simulation, scoring, research. "
+                "Respond with ONLY the category name."
             )
             intent_raw, _ = reliable_llm_provider.generate_response(system_prompt, f"Question: {question}", timeout_seconds=4.0)
             intent = intent_raw.strip().lower()
-            valid_intents = [
-                "race_result", "race_winner", "qualifying", "standings", "championship",
-                "driver_information", "constructor_information", "circuit_information",
-                "weather", "telemetry_analysis", "strategy_analysis", "stint_analysis",
-                "lap_analysis", "pitstop_analysis", "explanation", "historical_comparison",
-                "simulation", "scoring"
-            ]
-            if intent in valid_intents:
+            valid = ["investigation", "race_result", "comparison", "telemetry", "strategy", "explanation", "simulation", "scoring", "research"]
+            if intent in valid:
                 return intent
-            for vi in valid_intents:
-                if vi in intent:
-                    return vi
+            for v in valid:
+                if v in intent:
+                    return v
         except Exception as e:
             logger.warning(f"[Intent Classifier] LLM classification failed: {e}. Falling back to rule-based classification.")
             
@@ -75,35 +65,162 @@ def classify_intent(question: str) -> str:
     if "simulate" in q_lower or "what if" in q_lower or "pit lap" in q_lower or "pitted on" in q_lower:
         return "simulation"
     if "telemetry" in q_lower or "speed" in q_lower or "throttle" in q_lower or "brake" in q_lower:
-        return "telemetry_analysis"
-    if "explain" in q_lower or "what is" in q_lower or "undercut" in q_lower or "overcut" in q_lower:
+        return "telemetry"
+    if "explain" in q_lower or "what is" in q_lower or "drs" in q_lower or "undercut" in q_lower or "overcut" in q_lower:
         return "explanation"
-    if "winner" in q_lower or "won" in q_lower:
-        return "race_winner"
-    if "qualifying" in q_lower or "qualy" in q_lower or "pole" in q_lower:
-        return "qualifying"
-    if "standings" in q_lower or "points" in q_lower:
-        return "standings"
-    if "weather" in q_lower or "rain" in q_lower or "temp" in q_lower:
-        return "weather"
-    if "pitstop" in q_lower or "pit stop" in q_lower or "stationary" in q_lower:
-        return "pitstop_analysis"
-    if "stint" in q_lower or "compound" in q_lower:
-        return "stint_analysis"
-    if "driver" in q_lower or "who is" in q_lower or "dob" in q_lower or "age" in q_lower:
-        return "driver_information"
-    if "constructor" in q_lower or "team" in q_lower or "headquarters" in q_lower or "base" in q_lower:
-        return "constructor_information"
-    if "circuit" in q_lower or "track" in q_lower or "turns" in q_lower:
-        return "circuit_information"
-    if "history" in q_lower or "past" in q_lower or "historical" in q_lower:
-        return "historical_comparison"
-    if "lap" in q_lower or "lap time" in q_lower:
-        return "lap_analysis"
-    if "score" in q_lower or "scoring" in q_lower or "composite" in q_lower:
+    if "compare" in q_lower or "comparison" in q_lower:
+        return "comparison"
+    if "won" in q_lower or "winner" in q_lower or "who won" in q_lower:
+        return "race_result"
+    if "scoring" in q_lower or "score" in q_lower or "composite" in q_lower:
         return "scoring"
+    if "strategy" in q_lower or "pit strategy" in q_lower or "stint" in q_lower or "tire" in q_lower or "weather" in q_lower:
+        return "strategy"
+    if "research" in q_lower or "database" in q_lower or "stats" in q_lower or "driver info" in q_lower or "constructor info" in q_lower:
+        return "research"
+    if "why" in q_lower or "reason" in q_lower or "fail" in q_lower or "investigate" in q_lower or "crash" in q_lower or "retire" in q_lower:
+        return "investigation"
         
     return "race_result"
+
+
+def extract_entities(question: str) -> Dict[str, Any]:
+    """Extracts explicit F1 entities from the question, preventing parameter hallucination."""
+    q_lower = question.lower()
+    
+    # 1. Drivers
+    drivers_map = {
+        "verstappen": ["verstappen", "max", "ves"],
+        "norris": ["norris", "lando", "nor"],
+        "hamilton": ["hamilton", "lewis", "ham"],
+        "leclerc": ["leclerc", "charles", "lec"],
+        "sainz": ["sainz", "carlos"],
+        "piastri": ["piastri", "oscar", "pia"],
+        "russell": ["russell", "george", "rus"],
+        "perez": ["perez", "checo", "per"],
+        "alonso": ["alonso", "fernando", "alo"],
+        "ricciardo": ["ricciardo", "daniel", "ric"],
+        "tsunoda": ["tsunoda", "yuki", "tsu"],
+        "albon": ["albon", "alex", "alb"],
+        "gasly": ["gasly", "pierre", "gas"],
+        "ocon": ["ocon", "esteban", "oco"],
+        "stroll": ["stroll", "lance", "str"],
+        "bottas": ["bottas", "valtteri", "bot"],
+        "zhou": ["zhou", "guanyu", "zho"],
+        "magnussen": ["magnussen", "kevin", "mag"],
+        "hulkenberg": ["hulkenberg", "nico", "hul"],
+        "sargeant": ["sargeant", "logan", "sar"]
+    }
+    extracted_drivers = []
+    for drv, aliases in drivers_map.items():
+        if any(alias in q_lower for alias in aliases):
+            extracted_drivers.append(drv)
+            
+    # 2. Teams / Constructors
+    teams_map = {
+        "Ferrari": ["ferrari", "scuderia"],
+        "Red Bull": ["red bull", "redbull", "rbr"],
+        "McLaren": ["mclaren"],
+        "Mercedes": ["mercedes"],
+        "Aston Martin": ["aston martin", "aston"],
+        "Alpine": ["alpine"],
+        "Williams": ["williams"],
+        "Haas": ["haas"],
+        "Kick Sauber": ["kick sauber", "sauber", "stake"],
+        "RB": ["rb", "racing bulls", "alphatauri", "torro rosso"]
+    }
+    extracted_team = None
+    for team, aliases in teams_map.items():
+        if any(alias in q_lower for alias in aliases):
+            extracted_team = team
+            break
+            
+    # 3. Grand Prix
+    gp_map = {
+        "Monaco GP": ["monaco"],
+        "British GP": ["british", "silverstone", "great britain"],
+        "Austria GP": ["austria", "spielberg", "red bull ring"]
+    }
+    extracted_gp = None
+    for gp, aliases in gp_map.items():
+        if any(alias in q_lower for alias in aliases):
+            extracted_gp = gp
+            break
+            
+    # 4. Laps
+    extracted_lap = None
+    lap_match = re.search(r"\blap\s+(\d+)\b", q_lower)
+    if lap_match:
+        extracted_lap = int(lap_match.group(1))
+        
+    # 5. Season / Year (Default to 'latest' if no explicit season mentioned)
+    extracted_season = None
+    season_match = re.search(r"\b(20\d{2})\b", q_lower)
+    if season_match:
+        extracted_season = int(season_match.group(1))
+    else:
+        extracted_season = "latest"
+            
+    return {
+        "drivers": extracted_drivers if extracted_drivers else None,
+        "team": extracted_team,
+        "grand_prix": extracted_gp,
+        "lap": extracted_lap,
+        "season": extracted_season
+    }
+
+
+def get_tools_for_intent(intent: str, parameters: Dict[str, Any]) -> List[str]:
+    """Maps intent to the required F1 planner tools list."""
+    if intent == "simulation":
+        return ["simulation_tool"]
+    if intent == "telemetry":
+        return ["telemetry_tool"]
+    if intent == "explanation":
+        return ["knowledge_tool"]
+    if intent == "strategy":
+        return ["simulation_tool"]
+    if intent == "scoring":
+        return ["scoring_tool", "explain_mode_tool"]
+    if intent == "comparison":
+        return ["historical_results_tool"]
+    if intent == "race_result":
+        return ["race_results_tool"]
+    if intent == "investigation":
+        return ["race_results_tool", "telemetry_tool", "knowledge_tool"]
+    if intent == "research":
+        if parameters.get("team"):
+            return ["constructor_database_tool"]
+        return ["driver_database_tool"]
+        
+    return ["race_results_tool"]
+
+
+def get_engineers_for_tools(tools: List[str]) -> List[str]:
+    """Maps tool list to their managing engineer personas."""
+    engineers = {
+        "simulation_tool": "Strategy Engineer",
+        "scoring_tool": "Investigation Engineer",
+        "telemetry_tool": "Telemetry Engineer",
+        "explain_mode_tool": "Explain Engineer",
+        "research_tool": "Research Engineer",
+        "knowledge_tool": "Knowledge Engineer",
+        "investigation_tool": "Investigation Engineer",
+        "race_results_tool": "Investigation Engineer",
+        "driver_database_tool": "Research Engineer",
+        "constructor_database_tool": "Research Engineer",
+        "standings_tool": "Investigation Engineer",
+        "historical_results_tool": "Research Engineer"
+    }
+    extracted = []
+    for t in tools:
+        if t in engineers:
+            eng = engineers[t]
+            if eng not in extracted:
+                extracted.append(eng)
+    if "Judge Engineer" not in extracted:
+        extracted.append("Judge Engineer")
+    return extracted
 
 
 # =====================================================================
@@ -128,12 +245,14 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         reliable_llm_provider._plan_cache.clear()
         
     question = state.get("question", "")
-    session_id = state.get("session_id") or "2026_monaco_gp_race"
-    driver_id = state.get("driver_id") or "leclerc"
+    session_id = state.get("session_id")
+    driver_id = state.get("driver_id")
     
-    # Classify intent before planning
-    intent = classify_intent(question)
-    logger.info(f"[Chief Race Engineer] Generating structured plan for question: '{question}' | Classified Intent: '{intent}'")
+    # Classify intent strictly into the 9 supported intents
+    intent_norm = classify_intent(question)
+    entities = extract_entities(question)
+    
+    logger.info(f"[Chief Race Engineer] Generating structured plan for question: '{question}' | Classified Intent: '{intent_norm}'")
     
     start_time = time.time()
     
@@ -155,7 +274,7 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
     
     # Load dynamic prompt instruction externally
     system_prompt = load_prompt("planning")
-    user_content = f"User question: {question}\nClassified Intent: {intent}\n\nSession ID: {session_id}\nDriver ID: {driver_id}"
+    user_content = f"User question: {question}\nClassified Intent: {intent_norm}\n\nSession ID: {session_id}\nDriver ID: {driver_id}"
     
     try:
         parsed, metrics = reliable_llm_provider.generate_plan(system_prompt, user_content)
@@ -188,66 +307,85 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         
         is_offline_dev = is_gemini_mock or is_groq_mock or "unittest" in sys.modules or "pytest" in sys.modules
         
-        if is_offline_dev:
-            logger.info("[Chief Race Engineer] Running rule-based planning as the final emergency fallback.")
-        else:
+        if not is_offline_dev:
             raise e
 
-    # 3. Rule-Based Fallback (No Keys or Both Failed in Offline Dev)
-    if not structured_plan:
-        fallback_required_engineers = ["Investigation Engineer", "Explain Engineer", "Judge Engineer"]
-        fallback_required_tools = ["scoring_tool", "explain_mode_tool"]
-        fallback_execution_order = [
-            f"scoring_tool|session_id={session_id},driver_id={driver_id}",
-            "explain_mode_tool|term=CAR"
-        ]
+    # Clean / overwrite parameters (do NOT invent driver, team, gp, lap)
+    cleaned_params = {
+        "team": entities.get("team"),
+        "grand_prix": entities.get("grand_prix"),
+        "season": entities.get("season")
+    }
+    if intent_norm == "comparison":
+        cleaned_params["drivers"] = entities.get("drivers")
+    else:
+        cleaned_params["driver"] = entities.get("drivers")[0] if entities.get("drivers") else None
         
-        if intent == "simulation":
-            lap_match = re.search(r"\blap\s+(\d+)\b", q_lower := question.lower())
-            pit_lap = int(lap_match.group(1)) if lap_match else 20
-            fallback_required_engineers = ["Strategy Engineer", "Judge Engineer"]
-            fallback_required_tools = ["simulation_tool"]
-            fallback_execution_order = [f"simulation_tool|session_id={session_id},driver_id={driver_id},simulated_pit_lap={pit_lap}"]
-        elif intent == "telemetry_analysis":
-            fallback_required_engineers = ["Telemetry Engineer", "Judge Engineer"]
-            fallback_required_tools = ["telemetry_tool"]
-            lap_match = re.search(r"\blap\s+(\d+)\b", q_lower := question.lower())
-            lap = int(lap_match.group(1)) if lap_match else 42
-            fallback_execution_order = [f"telemetry_tool|session_id={session_id},driver_id={driver_id},lap_number={lap}"]
-        elif intent in ["race_result", "race_winner"]:
-            fallback_required_engineers = ["Investigation Engineer", "Judge Engineer"]
-            fallback_required_tools = ["race_results_tool"]
-            fallback_execution_order = [f"race_results_tool|session_id={session_id}"]
-        elif intent in ["standings", "championship"]:
-            fallback_required_engineers = ["Investigation Engineer", "Judge Engineer"]
-            fallback_required_tools = ["standings_tool"]
-            fallback_execution_order = [f"standings_tool|year=2026"]
-        elif intent in ["driver_information", "constructor_information"]:
-            fallback_required_engineers = ["Research Engineer", "Judge Engineer"]
-            fallback_required_tools = ["driver_database_tool" if intent == "driver_information" else "constructor_database_tool"]
-            fallback_execution_order = [f"{fallback_required_tools[0]}|query={driver_id}"]
-        elif intent == "historical_comparison":
-            fallback_required_engineers = ["Research Engineer", "Judge Engineer"]
-            fallback_required_tools = ["historical_results_tool"]
-            fallback_execution_order = [f"historical_results_tool|driver_id={driver_id}"]
+    if entities.get("lap") is not None:
+        cleaned_params["lap"] = entities["lap"]
+        
+    # Map normalized intent to mapped intent for backward compatibility (test compatibility)
+    intent_mapping = {
+        "simulation": "strategy_investigation",
+        "telemetry": "driver_investigation",
+        "investigation": "investigation",
+        "race_result": "race_result",
+        "comparison": "comparison",
+        "explanation": "explanation",
+        "scoring": "scoring",
+        "strategy": "strategy",
+        "research": "research"
+    }
+    mapped_intent = intent_mapping.get(intent_norm, intent_norm)
+    
+    tools = get_tools_for_intent(intent_norm, entities)
+    
+    # Rebuild execution order to guarantee NO invented/hallucinated parameters are passed
+    execution_order = []
+    for t in tools:
+        args = {}
+        if entities.get("season") and entities.get("season") != "latest":
+            args["year"] = entities["season"]
+        if entities.get("lap") is not None:
+            args["lap_number"] = entities["lap"]
+            args["simulated_pit_lap"] = entities["lap"]
+        if entities.get("drivers"):
+            args["driver_id"] = entities["drivers"][0]
             
-        fallback_intent = intent
-        if intent == "simulation":
-            fallback_intent = "strategy_investigation"
-        elif intent == "telemetry_analysis":
-            fallback_intent = "driver_investigation"
-        elif intent in ["race_result", "race_winner", "scoring"]:
-            fallback_intent = "race_investigation"
-
-        structured_plan = {
-            "intent": fallback_intent,
-            "complexity": "intermediate",
-            "required_engineers": fallback_required_engineers,
-            "required_tools": fallback_required_tools,
-            "execution_order": fallback_execution_order,
-            "expected_evidence": ["metrics binned data"],
-            "fallback_plan": ["scoring_tool|session_id=2026_monaco_gp_race,driver_id=leclerc"]
-        }
+        if entities.get("grand_prix"):
+            gp_norm = entities["grand_prix"]
+            gp_year = entities.get("season") if isinstance(entities.get("season"), int) else 2026
+            if gp_norm == "Monaco GP":
+                args["session_id"] = f"{gp_year}_monaco_gp_race"
+                args["circuit_id"] = "monaco"
+            elif gp_norm == "British GP":
+                args["session_id"] = f"{gp_year}_british_gp_race"
+                args["circuit_id"] = "silverstone"
+            elif gp_norm == "Austria GP":
+                args["session_id"] = f"{gp_year}_austria_gp_race"
+                args["circuit_id"] = "red_bull_ring"
+                
+        # Only inject state session_id / driver_id if they are NOT None and we didn't extract a conflicting one
+        if "session_id" not in args and session_id:
+            args["session_id"] = session_id
+        if "driver_id" not in args and driver_id and entities.get("drivers"):
+            args["driver_id"] = driver_id
+            
+        arg_str = ",".join(f"{k}={v}" for k, v in args.items())
+        execution_order.append(f"{t}|{arg_str}")
+        
+    # Populate the structured plan dictionary to fully satisfy Requirement 5 format and diagnostic logging
+    structured_plan = {
+        "intent": mapped_intent,
+        "tools": tools,
+        "parameters": cleaned_params,
+        "complexity": "intermediate",
+        "required_engineers": get_engineers_for_tools(tools),
+        "required_tools": tools,
+        "execution_order": execution_order,
+        "expected_evidence": ["metrics binned data"],
+        "fallback_plan": execution_order
+    }
         
     planning_duration_ms = int((time.time() - start_time) * 1000)
     
@@ -282,7 +420,7 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
                     ("judge", "synthesize")
                 ]
             },
-            "intent": intent,
+            "intent": mapped_intent,
             "reasoning_graph": [],
             "evidence_graph": {},
             "engineer_collaboration_graph": [],
@@ -320,6 +458,37 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
     trace = dict(state.get("intelligence_trace", {}))
     streaming_events = list(state.get("streaming_events", []))
     collaboration_graph = state.setdefault("collaboration_graph", [])
+    
+    # Classify intent and extract parameters for the PLANNER debug block
+    q = state.get("question", "")
+    intent_norm = classify_intent(q)
+    entities = extract_entities(q)
+    cleaned_params = {
+        "team": entities.get("team"),
+        "grand_prix": entities.get("grand_prix"),
+        "season": entities.get("season")
+    }
+    if intent_norm == "comparison":
+        cleaned_params["drivers"] = entities.get("drivers")
+    else:
+        cleaned_params["driver"] = entities.get("drivers")[0] if entities.get("drivers") else None
+        
+    if entities.get("lap") is not None:
+        cleaned_params["lap"] = entities["lap"]
+        
+    plan_data = state.get("structured_plan") or {}
+    
+    # Before Dispatcher starts, print PLANNER debug logger block
+    debug_block = (
+        f"================ PLANNER ================\n"
+        f"Question: {q}\n"
+        f"Intent: {intent_norm}\n"
+        f"Tools: {plan_data.get('tools', [])}\n"
+        f"Parameters: {cleaned_params}\n"
+        f"========================================="
+    )
+    print(debug_block)
+    logger.info(f"\n{debug_block}")
     
     if "timelines" not in trace:
         trace["timelines"] = {}
@@ -439,8 +608,8 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
             
             try:
                 res = future.result()
-                if not isinstance(res, dict):
-                    raise ValueError(f"Tool '{name}' did not return a structured dictionary.")
+                if not isinstance(res, (dict, list)):
+                    raise ValueError(f"Tool '{name}' did not return structured evidence.")
                 evidence[name] = res
                 tools_used.append(name)
                 # Map trace evidence_graph properties
