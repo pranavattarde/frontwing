@@ -26,20 +26,57 @@ export interface AIResponse {
   explanations?: Record<string, string>;
 }
 
+export interface InvestigationHistoryItem {
+  id: string;
+  user_id?: string | null;
+  question: string;
+  ai_response: AIResponse;
+  session?: string | null;
+  timestamp: string | Date;
+  provider_used: string;
+  investigation_metadata?: any;
+  created_at: string | Date;
+  is_saved?: boolean;
+}
+
+export interface UserPayload {
+  id: string;
+  email: string;
+  name?: string | null;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: UserPayload;
+}
+
+const getBackendUrl = (): string => {
+  return (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
+};
+
+const getAuthHeaders = (): Record<string, string> => {
+  const token = localStorage.getItem('frontwing_token');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
+
 export async function submitEngineerQuery(
   question: string,
   conversationId?: string,
   signal?: AbortSignal
 ): Promise<AIResponse> {
-  const backendUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
+  const backendUrl = getBackendUrl();
   console.log(`[API Client] Submitting query to gateway: ${backendUrl}/engineer/query`, { question, conversationId });
   
   try {
     const response = await fetch(`${backendUrl}/engineer/query`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         question,
         conversation_id: conversationId
@@ -51,7 +88,6 @@ export async function submitEngineerQuery(
       const errText = await response.text();
       console.error(`[API Client] AI Gateway Error details: ${errText}`);
       
-      // Map simulation/timing data missing error
       if (
         errText.includes("No timing data") || 
         errText.includes("Telemetry for this session")
@@ -63,7 +99,6 @@ export async function submitEngineerQuery(
         throw new Error("Rate limit exceeded");
       }
       
-      // Do not expose other backend exceptions directly to users
       throw new Error("An error occurred while communicating with the AI Race Engineer. Please try again.");
     }
 
@@ -72,7 +107,6 @@ export async function submitEngineerQuery(
     if (error.name === 'AbortError') {
       throw error;
     }
-    // If it's already one of our user-friendly errors, rethrow it
     if (
       error.message === "Telemetry for this session has not been ingested yet." ||
       error.message === "An error occurred while communicating with the AI Race Engineer. Please try again." ||
@@ -83,7 +117,6 @@ export async function submitEngineerQuery(
     
     console.error(`[API Client] Query exception:`, error);
     
-    // Check error message content for timing data issues
     const msg = error.message || '';
     if (
       msg.includes("No timing data") || 
@@ -93,5 +126,149 @@ export async function submitEngineerQuery(
     }
     
     throw new Error("An error occurred while communicating with the AI Race Engineer. Please try again.");
+  }
+}
+
+/**
+ * Fetch Investigation History from backend
+ */
+export async function fetchHistory(params?: {
+  limit?: number;
+  offset?: number;
+  session?: string;
+  search?: string;
+}): Promise<{ investigations: InvestigationHistoryItem[]; total: number }> {
+  const backendUrl = getBackendUrl();
+  const queryParams = new URLSearchParams();
+  if (params?.limit) queryParams.append('limit', params.limit.toString());
+  if (params?.offset) queryParams.append('offset', params.offset.toString());
+  if (params?.session) queryParams.append('session', params.session);
+  if (params?.search) queryParams.append('search', params.search);
+
+  const url = `${backendUrl}/history${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch investigation history');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Fetch a specific investigation by ID
+ */
+export async function fetchInvestigationById(id: string): Promise<InvestigationHistoryItem | null> {
+  const backendUrl = getBackendUrl();
+  const response = await fetch(`${backendUrl}/history/${id}`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch investigation');
+  }
+
+  return await response.json();
+}
+
+/**
+ * Delete an investigation by ID
+ */
+export async function deleteHistory(id: string): Promise<boolean> {
+  const backendUrl = getBackendUrl();
+  const response = await fetch(`${backendUrl}/history/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+
+  return response.ok;
+}
+
+/**
+ * Toggle bookmark / save investigation
+ */
+export async function toggleSaveInvestigation(id: string): Promise<{ saved: boolean }> {
+  const backendUrl = getBackendUrl();
+  const response = await fetch(`${backendUrl}/history/save/${id}`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to toggle saved investigation');
+  }
+
+  return await response.json();
+}
+
+/**
+ * User Authentication: Register
+ */
+export async function registerUser(email: string, password: string, name?: string): Promise<AuthResponse> {
+  const backendUrl = getBackendUrl();
+  const response = await fetch(`${backendUrl}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, name }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error || 'Registration failed');
+  }
+
+  const result: AuthResponse = await response.json();
+  localStorage.setItem('frontwing_token', result.token);
+  return result;
+}
+
+/**
+ * User Authentication: Login
+ */
+export async function loginUser(email: string, password: string): Promise<AuthResponse> {
+  const backendUrl = getBackendUrl();
+  const response = await fetch(`${backendUrl}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error || 'Login failed');
+  }
+
+  const result: AuthResponse = await response.json();
+  localStorage.setItem('frontwing_token', result.token);
+  return result;
+}
+
+/**
+ * User Authentication: Get Current User
+ */
+export async function getMe(): Promise<UserPayload | null> {
+  const backendUrl = getBackendUrl();
+  const token = localStorage.getItem('frontwing_token');
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${backendUrl}/auth/me`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.user || null;
+  } catch {
+    return null;
   }
 }

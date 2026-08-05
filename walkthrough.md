@@ -1,8 +1,8 @@
-# Phase 1 Walkthrough — Core Backend Foundation
+# Phase 1 Walkthrough — Core Backend & Frontend Foundation
 
 ## Summary of Completed Implementation
 
-Phase 1 Core Backend Foundation has been stabilized, implemented, and fully verified. All backend services, authentication mechanisms, database models, investigation history tracking, and Redis caching layers are operational under a clean, decoupled Express API architecture.
+Phase 1 Core Backend Foundation and Phase 1 Frontend Foundation have been fully stabilized, implemented, connected to backend APIs, and verified.
 
 ---
 
@@ -37,38 +37,45 @@ Phase 1 Core Backend Foundation has been stabilized, implemented, and fully veri
   2. On **Cache Hit**: Instantly returns cached investigation JSON (annotated with `_cached: true`) and logs user investigation history if authenticated.
   3. On **Cache Miss**: Proxies query to Python AI service, writes result to Redis cache (`TTL = 24 hours`), and persists record to PostgreSQL `investigations` table.
 
-### 5. Clean API Architecture
-- **Controllers**: `auth.controller.ts`, `history.controller.ts`, `engineer.controller.ts`
-- **Routes**: `auth.routes.ts`, `history.routes.ts`, `engineer.routes.ts`
-- **Services**: `auth.service.ts`, `history.service.ts`, `cache.service.ts`
-- **Middleware**: `auth.middleware.ts`
-- **Types / DTOs**: `auth.types.ts`, `history.types.ts`
-- **Utils**: `hash.ts`, `jwt.ts`
+### 5. Frontend Foundation Polish & API Integration
+- **API Client Layer (`frontend/src/lib/api.ts`)**: Extended with `fetchHistory`, `fetchInvestigationById`, `deleteHistory`, `toggleSaveInvestigation`, `registerUser`, `loginUser`, `getMe`, automatically providing `Authorization: Bearer <token>` headers with local storage fallback.
+- **React Error Boundary (`frontend/src/components/ErrorBoundary.tsx`)**: Global crash handling wrapping all routes in `App.tsx` with diagnostic alert screens and recovery buttons.
+- **Homepage (`BriefingRoom.tsx`)**:
+  - Hero section with track overlay & prompt submission.
+  - Global Search Bar & Command Palette triggers.
+  - **Recent Investigations** section displaying user's latest debriefs with quick access & deletion buttons.
+  - **Saved Investigations** section displaying bookmarked threads.
+- **Investigation Thread (`InvestigationThread.tsx`)**:
+  - Enforced strict rendering hierarchy:
+    $$\text{Question} \longrightarrow \text{Loading Progress} \longrightarrow \text{AI Verdict} \longrightarrow \text{Charts} \longrightarrow \text{Evidence} \longrightarrow \text{Follow-up Suggestions}$$
+  - Enhanced loading animations with stage progress ticker (`AIThinkingIndicator`).
+  - Thread bookmarking / save toggle (`POST /history/save/:id`).
+  - Remote investigation restoration from backend `GET /history/:id`.
 
 ---
 
 ## Verification & Test Results
 
-### 1. Backend TypeScript Compilation
+### 1. Frontend Production Build
+```bash
+cd frontend
+npm run build
+```
+- **Result**: Vite production build succeeded in **3.25s**. All 428 TypeScript modules transformed and bundled into `frontend/dist/` with **0 errors**.
+
+### 2. Backend TypeScript Compilation
 ```bash
 cd backend
 npm run build
 ```
 - **Result**: `tsc` compiled cleanly with **0 errors**. Output artifacts generated in `backend/dist/`.
 
-### 2. AI Services Test Suite
+### 3. AI Services Test Suite
 ```bash
 cd ai_services
 .\venv\Scripts\python.exe -m unittest discover -s tests
 ```
 - **Result**: **34 tests ran successfully in 27.6s (OK)**. Zero regressions across AI agents, planners, scoring tools, simulation engines, and RAG loaders.
-
-### 3. Frontend Production Build
-```bash
-cd frontend
-npm run build
-```
-- **Result**: Vite production build succeeded in **9.21s**. All TypeScript components and assets transformed cleanly into `frontend/dist/`.
 
 ### 4. Backend Express Startup & Migration Verification
 - Dynamic database migration script `backend/src/config/migrate.ts` executes `01_init_schema.sql`, `02_intelligence_tables.sql`, and `03_auth_and_history.sql` sequentially in transactions.

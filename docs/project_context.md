@@ -857,6 +857,7 @@ There is **no persistent sidebar**. Navigation flows through:
 - [x] **Audit backend startup lifecycle, configure package.json run scripts, execute SQL schema DDL and seeds sequentially, and launch active Express and WebSockets server (Integration Phase).**
 - [x] **Stabilize execution pipeline, eliminate legacy automatic execution logic, align registry mappings, structure evidence, and fix duplicates and intermediate state leaks on the frontend (Sprint 6).**
 - [x] **Implement Phase 1 Core Backend Foundation: JWT Authentication (login/register/middleware), PostgreSQL Investigation History (users, investigations, saved_investigations), History APIs (GET /history, GET /history/:id, DELETE /history/:id), and Redis Investigation Caching.**
+- [x] **Implement Phase 1 Frontend Foundation: Homepage polish (Hero, Search Bar, Recent & Saved Investigations), Investigation Thread layout hierarchy (Question -> Loading Progress -> AI Verdict -> Charts -> Evidence -> Follow-up Suggestions), React Error Boundaries, and full API Client integration.**
 
 ### Pending Tasks
 - [ ] Execute Express server setup and connect WebSocket handlers.
@@ -889,6 +890,18 @@ The backend API Gateway (`backend/src`) implements a clean architecture with:
   - `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`
   - `GET /history`, `GET /history/:id`, `DELETE /history/:id`, `POST /history/save/:id`
   - `POST /engineer/query` (with Redis cache lookup and PostgreSQL auto-persistence)
+
+---
+
+## 18. Phase 1 — Frontend Foundation Integration
+
+### Architecture Overview
+The frontend React application (`frontend/src`) implements:
+- **API Integration (`lib/api.ts`)**: Helper functions connecting frontend components to Express backend APIs (`/auth`, `/history`, `/engineer/query`) with automatic JWT header handling and local storage fallback.
+- **React Error Boundary (`components/ErrorBoundary.tsx`)**: Top-level exception boundary protecting all application routes against component rendering faults.
+- **Homepage (`pages/BriefingRoom.tsx`)**: Polished home briefing room featuring Hero track preview, question bar, recent investigations archive, and saved investigations deck.
+- **Investigation Thread (`pages/InvestigationThread.tsx`)**: Enforces strict layout ordering (Question -> Loading Progress -> AI Verdict -> Charts -> Evidence -> Follow-up Suggestions) with stage loading progress tickers, thread restoration, and bookmark toggling.
+
 
 
 ---

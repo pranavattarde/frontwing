@@ -10,14 +10,15 @@ import { TelemetryCard } from '@/components/TelemetryCard';
 import { SimulationResult } from '@/components/SimulationResult';
 import { FollowUpSuggestions } from '@/components/FollowUpSuggestions';
 import { ExplanationPanel } from '@/components/ExplanationPanel';
+import { AIThinkingIndicator } from '@/components/AIThinkingIndicator';
 import { cn } from '@/lib/utils';
 import {
   AUSTRIAN_GP,
   TELEMETRY_PIA_LAP42,
   TELEMETRY_SAI_LAP42,
 } from '@/lib/data';
-import type { ThreadMessage, BreadcrumbItem, Stint } from '@/lib/types';
-import { submitEngineerQuery } from '@/lib/api';
+import type { ThreadMessage, BreadcrumbItem, Stint, AIStage } from '@/lib/types';
+import { submitEngineerQuery, fetchInvestigationById, toggleSaveInvestigation } from '@/lib/api';
 
 function normalizeStints(stintsList: any[], isActual: boolean): Stint[] {
   if (!stintsList || !Array.isArray(stintsList)) return [];
@@ -187,10 +188,13 @@ export function InvestigationThread() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [loadingStage, setLoadingStage] = useState<string>('Initializing AI Race Engineer...');
+  const [loadingStage, setLoadingStage] = useState<AIStage>('parsing');
+  const [loadingDetail, setLoadingDetail] = useState<string>('Initializing AI Race Engineer...');
   const [latency, setLatency] = useState<number | null>(null);
   const [providerInfo, setProviderInfo] = useState<{ provider: string; model: string } | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [isSaved, setIsSaved] = useState<boolean>(false);
+  const [questionTitle, setQuestionTitle] = useState<string>('Investigation Thread');
 
   // Split-screen dual pane state for wide desktop (>1024px)
   const [expandedTelemetry, setExpandedTelemetry] = useState<{
@@ -200,16 +204,15 @@ export function InvestigationThread() {
     lapNumber: number;
   } | null>(null);
 
-  // Load from local storage dynamically
+  // Load stored exchange
   const stored = localStorage.getItem(`frontwing_investigation_${id}`);
   const investigationData = stored ? JSON.parse(stored) : null;
   const lastExchange = investigationData?.exchanges?.[investigationData.exchanges.length - 1];
-  const questionText = lastExchange?.question || investigationData?.question || 'Investigation Thread';
 
   const breadcrumbs: BreadcrumbItem[] = [
     { label: 'Home', href: '/' },
     { label: 'Investigation Thread', href: '#' },
-    { label: questionText, href: '#' },
+    { label: questionTitle, href: '#' },
   ];
 
   const lastResponse = lastExchange?.response;
@@ -240,49 +243,71 @@ export function InvestigationThread() {
   
   const activeReasoningSteps = reasoningSteps.length > 0 ? reasoningSteps : defaultReasoningSteps;
 
-  // Rotating loading status messages
+  // Rotating loading status messages & stage progress
   useEffect(() => {
     if (!isLoading) return;
-    const stages = [
-      'Initializing AI Race Engineer...',
-      'Planning investigation...',
-      'Loading telemetry...',
-      'Consulting strategy engineers...',
-      'Generating report...'
+    const stages: { stage: AIStage; detail: string }[] = [
+      { stage: 'parsing', detail: 'Parsing intent and telemetry parameters...' },
+      { stage: 'loading_data', detail: 'Querying FastF1 timing matrices...' },
+      { stage: 'computing', detail: 'Running strategy regressions & simulations...' },
+      { stage: 'generating', detail: 'Synthesizing race debrief report...' },
     ];
     let idx = 0;
     const interval = setInterval(() => {
       idx = (idx + 1) % stages.length;
-      setLoadingStage(stages[idx]);
+      setLoadingStage(stages[idx].stage);
+      setLoadingDetail(stages[idx].detail);
     }, 1200);
     return () => clearInterval(interval);
   }, [isLoading]);
 
-  // Execute query on load
+  // Execute query or restore thread on load
   useEffect(() => {
     if (!id) return;
-    const stored = localStorage.getItem(`frontwing_investigation_${id}`);
+    initInvestigation(id);
+  }, [id]);
+
+  const initInvestigation = async (targetId: string) => {
+    // 1. Attempt backend restoration first
+    try {
+      const remoteItem = await fetchInvestigationById(targetId);
+      if (remoteItem && remoteItem.ai_response) {
+        setQuestionTitle(remoteItem.question);
+        setIsSaved(!!remoteItem.is_saved);
+        const msgs = mapResponseToMessages(targetId, remoteItem.ai_response, new Date(remoteItem.timestamp).getTime(), true);
+        setMessages(msgs);
+        setIsLoading(false);
+        setErrorMsg(null);
+        return;
+      }
+    } catch (err) {
+      console.log('[InvestigationThread] Remote fetch skipped, checking local storage:', err);
+    }
+
+    // 2. Fallback to local storage
+    const stored = localStorage.getItem(`frontwing_investigation_${targetId}`);
     if (stored) {
       const data = JSON.parse(stored);
+      setQuestionTitle(data.question || 'Investigation Thread');
+      setIsSaved(!!data.is_saved);
+
       if (data.status === 'loading') {
         executeQuery(data.question);
       } else {
-        // Normal restoration of previous thread
         if (!data.exchanges) {
           data.exchanges = [{
             question: data.question || 'Initial question',
             response: data.response,
             timestamp: data.timestamp || Date.now()
           }];
-          localStorage.setItem(`frontwing_investigation_${id}`, JSON.stringify(data));
+          localStorage.setItem(`frontwing_investigation_${targetId}`, JSON.stringify(data));
         }
         const lastEx = data.exchanges[data.exchanges.length - 1];
         const allMessages = lastEx
-          ? mapResponseToMessages(id, lastEx.response, lastEx.timestamp, true)
+          ? mapResponseToMessages(targetId, lastEx.response, lastEx.timestamp, true)
           : [];
         setMessages(allMessages);
         
-        // Extract metadata from the last exchange
         if (lastEx && lastEx.response) {
           const trace = lastEx.response.intelligence_trace || {};
           const provider = trace.llm_provider || 'Gemini';
@@ -302,22 +327,25 @@ export function InvestigationThread() {
     } else {
       // Lazy fallback if directly loading a dynamic URL
       const fallbackQuestion = "Could Ferrari have won the Austrian Grand Prix?";
+      setQuestionTitle(fallbackQuestion);
       const data = {
-        id,
+        id: targetId,
         question: fallbackQuestion,
         status: 'loading',
         exchanges: [],
         timestamp: Date.now()
       };
-      localStorage.setItem(`frontwing_investigation_${id}`, JSON.stringify(data));
+      localStorage.setItem(`frontwing_investigation_${targetId}`, JSON.stringify(data));
       executeQuery(fallbackQuestion);
     }
-  }, [id]);
+  };
 
   const executeQuery = async (queryText: string) => {
     setIsLoading(true);
     setErrorMsg(null);
-    setLoadingStage('Initializing AI Race Engineer...');
+    setLoadingStage('parsing');
+    setLoadingDetail('Initializing AI Race Engineer...');
+    setQuestionTitle(queryText);
     
     const controller = new AbortController();
     setAbortController(controller);
@@ -340,7 +368,7 @@ export function InvestigationThread() {
         model: model
       });
 
-      // Update storage
+      // Update local storage
       const stored = localStorage.getItem(`frontwing_investigation_${id}`);
       const data = stored ? JSON.parse(stored) : { id, question: queryText, exchanges: [] };
       if (!data.exchanges) {
@@ -380,11 +408,29 @@ export function InvestigationThread() {
     
     setMessages([]);
     for (let i = 0; i < newMsgs.length; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       setMessages((prev) => [...prev, newMsgs[i]]);
     }
     
     setIsStreaming(false);
+  };
+
+  const handleToggleSave = async () => {
+    if (!id) return;
+    try {
+      const res = await toggleSaveInvestigation(id);
+      setIsSaved(res.saved);
+    } catch {
+      // Toggle local state fallback
+      const nextSaved = !isSaved;
+      setIsSaved(nextSaved);
+      const stored = localStorage.getItem(`frontwing_investigation_${id}`);
+      if (stored) {
+        const data = JSON.parse(stored);
+        data.is_saved = nextSaved;
+        localStorage.setItem(`frontwing_investigation_${id}`, JSON.stringify(data));
+      }
+    }
   };
 
   const handleCancel = () => {
@@ -403,7 +449,6 @@ export function InvestigationThread() {
   const handleFollowUpSubmit = (query: string) => {
     if (isLoading || isStreaming || !query.trim()) return;
     
-    // Add temporary loading indicator text placeholder inside messages
     setMessages((prev) => [
       ...prev.filter(m => m.type !== 'follow-up'),
       {
@@ -431,8 +476,8 @@ export function InvestigationThread() {
           </div>
           <div className="flex gap-4 w-full pt-2">
             <button
-              onClick={() => executeQuery(questionText)}
-              className="flex-1 py-2.5 px-4 rounded-button bg-drs-cyan text-canvas hover:bg-drs-cyan-hover transition-colors font-mono text-xs uppercase tracking-wider"
+              onClick={() => executeQuery(questionTitle)}
+              className="flex-1 py-2.5 px-4 rounded-button bg-drs-cyan text-canvas hover:bg-drs-cyan-hover transition-colors font-mono text-xs uppercase tracking-wider font-bold"
             >
               Retry Connection
             </button>
@@ -448,45 +493,12 @@ export function InvestigationThread() {
     );
   }
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-canvas flex flex-col items-center justify-center p-6 text-text-secondary relative">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1c2025_1px,transparent_1px),linear-gradient(to_bottom,#1c2025_1px,transparent_1px)] bg-[size:32px_32px] opacity-10" />
-        <div className="max-w-md w-full flex flex-col items-center gap-8 z-10">
-          <div className="relative w-20 h-20">
-            <div className="absolute inset-0 rounded-full border-2 border-fw-border/40" />
-            <div className="absolute inset-0 rounded-full border-2 border-drs-cyan border-t-transparent animate-spin" />
-            <div className="absolute inset-3 rounded-full bg-drs-cyan/5 border border-drs-cyan/10 flex items-center justify-center animate-pulse">
-              <span className="text-mono-meta font-mono text-drs-cyan text-[10px]">CRE_V3</span>
-            </div>
-          </div>
-          
-          <div className="flex flex-col items-center gap-2 text-center">
-            <h3 className="text-text-primary font-mono uppercase tracking-widest text-xs">
-              Analyzing Telemetry Arrays
-            </h3>
-            <p className="text-text-muted text-xs font-sans animate-pulse max-w-[280px]">
-              {loadingStage}
-            </p>
-          </div>
-          
-          <button
-            onClick={handleCancel}
-            className="mt-2 px-5 py-2 border border-drs-cyan/20 hover:border-drs-cyan text-drs-cyan hover:bg-drs-cyan/5 transition-colors rounded-button font-mono text-[10px] uppercase tracking-widest"
-          >
-            Cancel Investigation
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-drs-cyan/20 selection:text-drs-cyan">
       {/* Navigation Header */}
       <BriefingHeader
         breadcrumbs={breadcrumbs}
-        sessionState={isStreaming ? 'streaming' : 'idle'}
+        sessionState={isStreaming ? 'streaming' : isLoading ? 'loading' : 'idle'}
         onLogoClick={() => navigate('/')}
         onBreadcrumbClick={(index) => {
           if (index === 0) navigate('/');
@@ -494,19 +506,41 @@ export function InvestigationThread() {
         }}
       />
 
-      {/* Content wrapper with responsive split screen */}
+      {/* Main Investigation Canvas */}
       <div className="flex-1 flex w-full max-w-[1440px] mx-auto overflow-hidden">
-        {/* Left Pane: Investigation Canvas */}
         <main
           className={cn(
             'flex-1 flex flex-col justify-between py-6 px-4 transition-all duration-300',
             expandedTelemetry ? 'max-w-[720px]' : 'max-w-thread mx-auto'
           )}
         >
+          {/* Question Header & Title Section */}
+          <div className="border-b border-fw-border pb-4 mb-6 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-mono-meta font-mono text-drs-cyan uppercase tracking-widest">
+                INVESTIGATION_THREAD // {sessionId.toUpperCase()}
+              </span>
+              <button
+                onClick={handleToggleSave}
+                className={cn(
+                  'px-3 py-1 rounded-button font-mono text-[10px] uppercase tracking-wider border transition-colors flex items-center gap-1.5',
+                  isSaved
+                    ? 'border-drs-cyan bg-drs-cyan/10 text-drs-cyan'
+                    : 'border-fw-border text-text-muted hover:text-text-primary hover:bg-panel'
+                )}
+              >
+                <span>{isSaved ? '★ SAVED' : '☆ SAVE DEBRIEF'}</span>
+              </button>
+            </div>
+            <h1 className="text-display-sm text-text-primary">
+              {questionTitle}
+            </h1>
+          </div>
+
           {/* Messages list container */}
           <div className="flex flex-col gap-6 flex-1 overflow-y-auto pr-1">
-            {/* Latency display at the top of the thread */}
-            {latency && providerInfo && (
+            {/* Latency & Metadata Bar */}
+            {latency && providerInfo && !isLoading && (
               <div className="flex items-center gap-4 text-[10px] font-mono text-text-muted border-b border-fw-border pb-3 mb-2 animate-slide-up">
                 <div>
                   <span>GENERATED_IN: </span>
@@ -525,7 +559,20 @@ export function InvestigationThread() {
               </div>
             )}
 
-            {/* Render thread messages sequentially */}
+            {/* Loading Indicator inside thread layout */}
+            {isLoading && (
+              <div className="flex flex-col gap-4 my-4 animate-slide-up">
+                <AIThinkingIndicator stage={loadingStage} detail={loadingDetail} />
+                <button
+                  onClick={handleCancel}
+                  className="self-center px-4 py-1.5 border border-drs-cyan/20 hover:border-drs-cyan text-drs-cyan hover:bg-drs-cyan/5 transition-colors rounded-button font-mono text-[10px] uppercase tracking-widest"
+                >
+                  Cancel Investigation
+                </button>
+              </div>
+            )}
+
+            {/* Sequential Messages Hierarchy: AI Verdict -> Narrative -> Charts -> Evidence -> Follow-ups */}
             {messages.map((msg) => {
               if (msg.type === 'verdict') {
                 return (
@@ -543,7 +590,7 @@ export function InvestigationThread() {
                   <div key={msg.id} className="flex flex-col gap-4 animate-slide-up">
                     <NarrativeStream content={msg.content} isStreaming={isStreaming} />
 
-                    {/* Explanatory progressive reasoning panel below narrative (only for strategy/telemetry queries) */}
+                    {/* Reasoning Panel */}
                     {!isStreaming && (lastResponse?.evidence?.simulation_tool || lastResponse?.evidence?.telemetry_tool) && (
                       <ExplanationPanel
                         steps={activeReasoningSteps}
@@ -633,19 +680,19 @@ export function InvestigationThread() {
             })}
           </div>
 
-          {/* Inline Bottom-docked QuestionBar */}
+          {/* Bottom-docked QuestionBar */}
           <div className="border-t border-fw-border pt-4 mt-6">
             <QuestionBar
               variant="inline"
               placeholder="Ask a follow-up or enter custom what-if scenario..."
-              disabled={isStreaming}
+              disabled={isStreaming || isLoading}
               onSubmit={handleFollowUpSubmit}
               contextLabel="RE_ENGINEER"
             />
           </div>
         </main>
 
-        {/* Right Pane: Split Screen Interactive Telemetry (Wide Desktop Overlay) */}
+        {/* Right Pane: Split Screen Interactive Telemetry Overlay */}
         {expandedTelemetry && (() => {
           const telemetryToolData = lastResponse?.evidence?.telemetry_tool;
           const telemetryDataA = telemetryToolData?.telemetry || TELEMETRY_PIA_LAP42;
@@ -666,7 +713,6 @@ export function InvestigationThread() {
               </div>
 
               <div className="flex flex-col gap-6">
-                {/* Main Speed Overlay */}
                 <TelemetryCard
                   driverA={{ code: expandedTelemetry.driverA, color: '#00E5FF', data: telemetryDataA }}
                   driverB={{ code: expandedTelemetry.driverB || '', color: '#FFD600', data: telemetryDataB }}
@@ -677,7 +723,6 @@ export function InvestigationThread() {
                   variant="expanded"
                 />
 
-                {/* Throttle overlay */}
                 <TelemetryCard
                   driverA={{ code: expandedTelemetry.driverA, color: '#00E5FF', data: telemetryDataA }}
                   driverB={{ code: expandedTelemetry.driverB || '', color: '#FFD600', data: telemetryDataB }}
@@ -687,7 +732,6 @@ export function InvestigationThread() {
                   variant="expanded"
                 />
 
-                {/* Brake overlay */}
                 <TelemetryCard
                   driverA={{ code: expandedTelemetry.driverA, color: '#00E5FF', data: telemetryDataA }}
                   driverB={{ code: expandedTelemetry.driverB || '', color: '#FFD600', data: telemetryDataB }}

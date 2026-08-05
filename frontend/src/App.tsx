@@ -8,6 +8,7 @@ import { GhostBattle } from './pages/GhostBattle';
 import { CommandPalette } from './components/CommandPalette';
 import { SearchOverlay } from './components/SearchOverlay';
 import { NotificationContainer } from './components/Notification';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { generateId } from './lib/utils';
 import { submitEngineerQuery } from './lib/api';
 
@@ -77,24 +78,26 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      {/* Global Overlays */}
-      <CommandPalette isOpen={isCommandOpen} onClose={() => setIsCommandOpen(false)} />
-      <SearchOverlay
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        recentSearches={recentSearches}
-        trending={trendingSearches}
-        onResultClick={handleSearchResultClick}
-      />
-      <NotificationContainer />
+      <ErrorBoundary>
+        {/* Global Overlays */}
+        <CommandPalette isOpen={isCommandOpen} onClose={() => setIsCommandOpen(false)} />
+        <SearchOverlay
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+          recentSearches={recentSearches}
+          trending={trendingSearches}
+          onResultClick={handleSearchResultClick}
+        />
+        <NotificationContainer />
 
-      <Routes>
-        <Route path="/" element={<BriefingRoom />} />
-        <Route path="/investigate/:id" element={<InvestigationThread />} />
-        <Route path="/race/:raceId" element={<RaceBriefing />} />
-        <Route path="/strategy/:raceId" element={<StrategyPlayground />} />
-        <Route path="/ghost-battle/:raceId" element={<GhostBattle />} />
-      </Routes>
+        <Routes>
+          <Route path="/" element={<BriefingRoom />} />
+          <Route path="/investigate/:id" element={<InvestigationThread />} />
+          <Route path="/race/:raceId" element={<RaceBriefing />} />
+          <Route path="/strategy/:raceId" element={<StrategyPlayground />} />
+          <Route path="/ghost-battle/:raceId" element={<GhostBattle />} />
+        </Routes>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

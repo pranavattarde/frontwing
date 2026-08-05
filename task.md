@@ -1,50 +1,41 @@
-# Phase 1 — Core Backend Foundation Task Checklist
+# Phase 1 — Frontend Foundation Task Checklist
 
-- [x] **1. User Authentication (JWT)**
-  - [x] JWT Register (`POST /api/auth/register` & `POST /auth/register`)
-  - [x] JWT Login (`POST /api/auth/login` & `POST /auth/login`)
-  - [x] Middleware (`authenticateToken` for protected routes, `optionalAuth` for public/optional routes)
-  - [x] Protected User Endpoint (`GET /api/auth/me` & `GET /auth/me`)
+- [x] **1. API Layer Extensions (`frontend/src/lib/api.ts`)**
+  - [x] Add auth client methods (`loginUser`, `registerUser`, `getMe`)
+  - [x] Add history API methods (`fetchHistory`, `fetchInvestigationById`, `deleteHistory`, `toggleSaveInvestigation`)
+  - [x] Add automatic `Authorization: Bearer <token>` header support
 
-- [x] **2. Investigation History Storage (PostgreSQL)**
-  - [x] Database Schema (`03_auth_and_history.sql` with `users`, `investigations`, `saved_investigations`)
-  - [x] Store Question, AI Response, Session, Timestamp, Provider Used, Investigation Metadata
-  - [x] History Service implementation for DB operations
+- [x] **2. Error Handling & Boundaries**
+  - [x] Create `frontend/src/components/ErrorBoundary.tsx` for catching UI crashes
+  - [x] Integrate ErrorBoundary into `App.tsx` around routes
 
-- [x] **3. History APIs**
-  - [x] `GET /history` (or `/api/history`) — List user's investigations with pagination and search
-  - [x] `GET /history/:id` (or `/api/history/:id`) — Fetch specific investigation by ID
-  - [x] `DELETE /history/:id` (or `/api/history/:id`) — Delete an investigation
-  - [x] `POST /history/save/:id` (or `/api/history/save/:id`) — Toggle saved/bookmarked investigation
+- [x] **3. Homepage Refinements (`BriefingRoom.tsx`)**
+  - [x] Hero section with interactive circuit preview & question submission
+  - [x] Search Bar (`QuestionBar` & `SearchOverlay` integration)
+  - [x] Recent Investigations section (backend `GET /history` with local storage fallback)
+  - [x] Saved Investigations section (bookmarked threads display)
 
-- [x] **4. Redis Caching Layer**
-  - [x] Cache previous investigation responses based on query hash (Session + Question)
-  - [x] Check Redis cache on query request (`/engineer/query`)
-  - [x] Return cached response if identical request exists
-  - [x] Automatically cache new responses and save authenticated queries to PostgreSQL
+- [x] **4. Investigation Page Layout & Workflow (`InvestigationThread.tsx`)**
+  - [x] Enforce strict layout ordering:
+    - [x] Question
+    - [x] Loading Progress
+    - [x] AI Verdict
+    - [x] Charts
+    - [x] Evidence
+    - [x] Follow-up Suggestions
+  - [x] Enhanced loading animations & stage transitions (`AIThinkingIndicator`)
+  - [x] Investigation history restore via backend `GET /history/:id`
+  - [x] Saved investigation toggle (`POST /history/save/:id`)
 
-- [x] **5. Clean API Architecture**
-  - [x] Controllers (`auth.controller.ts`, `history.controller.ts`, `engineer.controller.ts`)
-  - [x] Routes (`auth.routes.ts`, `history.routes.ts`, `engineer.routes.ts`)
-  - [x] Services (`auth.service.ts`, `history.service.ts`, `cache.service.ts`)
-  - [x] Middlewares (`auth.middleware.ts`)
-  - [x] Models / Types (`auth.types.ts`, `history.types.ts`)
-  - [x] Utils (`hash.ts`, `jwt.ts`)
+- [x] **5. Responsive & Component Integrity**
+  - [x] Verify mobile, tablet, and desktop layouts
+  - [x] Ensure zero modifications to backend code or AI services
 
-- [x] **6. Strict Boundary Constraints**
-  - [x] DO NOT implement any AI changes
-  - [x] DO NOT touch planner
-  - [x] DO NOT touch agents
-  - [x] DO NOT touch synthesizer
-  - [x] DO NOT touch FastF1
-
-- [x] **7. Verification & Documentation**
-  - [x] Run backend compilation (`npm run build` in `backend`) — PASSED
-  - [x] Run python tests (`34 tests` passed in `ai_services`) — PASSED
-  - [x] Run frontend build (`npm run build` in `frontend`) — PASSED
-  - [x] Verify backend server startup — PASSED
-  - [x] Verify Docker configuration — PASSED
+- [x] **6. Verification & Documentation**
+  - [x] Run `npm run build` in `frontend` (0 errors) — PASSED (built in 3.25s)
+  - [x] Verify route transitions and React error boundaries — PASSED
   - [x] Update `task.md`
   - [x] Update `walkthrough.md`
   - [x] Update `docs/project_context.md`
   - [x] Update `docs/learning.md`
+  - [x] Commit after successful verification

@@ -590,4 +590,22 @@ We configured `ReliableLLMProvider` exception logging to output provider, model,
 - **Cache Hits**: Instantly returns cached investigation responses with `_cached: true` indicator, eliminating expensive AI pipeline calls.
 - **PostgreSQL Persistence**: Saves all completed investigation queries and responses into PostgreSQL `investigations` table asynchronously.
 
+---
+
+## 22. Phase 1 Frontend Foundation Insights
+
+> **Date**: 2026-08-05
+> **Author**: Lead Frontend Architect
+> **Key Learning**: Polish existing React UI components without rewriting working code, enforce strict layout order hierarchy, wrap routes with error boundaries, and integrate API helper functions with local storage fallbacks.
+
+### 1. Hybrid Remote-Local Storage Synchronization
+- **Primary Remote Fetching**: `fetchInvestigationById` and `fetchHistory` fetch real-time state from backend APIs using optional JWT headers.
+- **Local Storage Fallback**: Seamlessly merges offline/local queries from `localStorage` (`frontwing_investigation_<id>`) ensuring instant UI feedback even during network dropouts.
+
+### 2. Progressive Thread Layout Hierarchy
+- **Strict Visual Order**:
+  $$\text{Question} \longrightarrow \text{Loading Progress} \longrightarrow \text{AI Verdict} \longrightarrow \text{Charts} \longrightarrow \text{Evidence} \longrightarrow \text{Follow-up Suggestions}$$
+- **Dynamic Loading Ticker**: `AIThinkingIndicator` tracks parsing, database loading, stint regression calculations, and report synthesis stages smoothly.
+
+
 
