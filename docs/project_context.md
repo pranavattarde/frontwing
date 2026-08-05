@@ -858,6 +858,7 @@ There is **no persistent sidebar**. Navigation flows through:
 - [x] **Stabilize execution pipeline, eliminate legacy automatic execution logic, align registry mappings, structure evidence, and fix duplicates and intermediate state leaks on the frontend (Sprint 6).**
 - [x] **Implement Phase 1 Core Backend Foundation: JWT Authentication (login/register/middleware), PostgreSQL Investigation History (users, investigations, saved_investigations), History APIs (GET /history, GET /history/:id, DELETE /history/:id), and Redis Investigation Caching.**
 - [x] **Implement Phase 1 Frontend Foundation: Homepage polish (Hero, Search Bar, Recent & Saved Investigations), Investigation Thread layout hierarchy (Question -> Loading Progress -> AI Verdict -> Charts -> Evidence -> Follow-up Suggestions), React Error Boundaries, and full API Client integration.**
+- [x] **Implement Dedicated Context Builder Stage: Structured context normalization, evidence deduplication, empty field purging, confidence/relevance ranking, and LLM raw dump isolation.**
 
 ### Pending Tasks
 - [ ] Execute Express server setup and connect WebSocket handlers.
@@ -901,6 +902,19 @@ The frontend React application (`frontend/src`) implements:
 - **React Error Boundary (`components/ErrorBoundary.tsx`)**: Top-level exception boundary protecting all application routes against component rendering faults.
 - **Homepage (`pages/BriefingRoom.tsx`)**: Polished home briefing room featuring Hero track preview, question bar, recent investigations archive, and saved investigations deck.
 - **Investigation Thread (`pages/InvestigationThread.tsx`)**: Enforces strict layout ordering (Question -> Loading Progress -> AI Verdict -> Charts -> Evidence -> Follow-up Suggestions) with stage loading progress tickers, thread restoration, and bookmark toggling.
+
+---
+
+## 19. Dedicated Context Builder Integration
+
+### Architecture Overview
+The Python AI service (`ai_services/app/agents/context_builder.py`) implements:
+- **Pipeline Stage Insertion**: Inserts `context_builder` stage between tool execution (`execute`/`reflect`/`judge`) and LLM report synthesis (`synthesize`).
+- **Structured Context Normalization**: Transforms tool evidence into a common schema (`tool`, `category`, `relevance`, `confidence`, `summary`, `data`).
+- **Data Sanitization**: Recursively removes empty values (`None`, `""`, `[]`, `{}`) with numpy array handling.
+- **Deduplication & Ranking**: De-duplicates evidence items by payload hash and ranks entries by `(relevance * confidence)` descending.
+- **LLM Context Isolation**: Ensures LLM prompts receive **ONLY** the single `structured_context` object, guaranteeing that raw tool dumps are never sent to LLMs or leaked to the frontend.
+
 
 
 

@@ -56,3 +56,6 @@ class AgentState(TypedDict):
     
     # Audience specific explanations (beginner, intermediate, engineer)
     explanations: Dict[str, str]
+
+    # Dedicated Context Builder stage output
+    structured_context: Dict[str, Any]

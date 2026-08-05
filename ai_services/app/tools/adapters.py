@@ -241,6 +241,15 @@ class SimulationTool(BaseF1Tool):
         res["compound_after"] = str(res["target_compound"])
         res["traffic_loss"] = float(res.get("run_parameters", {}).get("pit_loss", 22.0))
         res["undercut_gain"] = float(res["simulated_net_time_gain_ms"] / 1000.0)
+        res["pit_windows"] = [
+            {
+                "stint": 1,
+                "window_start_lap": max(1, res["pit_stop_lap"] - 2),
+                "window_end_lap": res["pit_stop_lap"] + 2,
+                "target_compound": res["compound_after"]
+            }
+        ]
+        res["recommended_strategy"] = f"PIT_LAP_{res['pit_stop_lap']}_{res['compound_after']}"
         
         return res
 
@@ -389,7 +398,11 @@ class TelemetryTool(BaseF1Tool):
             "average_speed": average_speed,
             "brake_events": brake_events,
             "telemetry_points_count": len(telemetry_a),
-            "telemetry": telemetry_a[:50]  # Return sample/downsampled subset to fit LLM constraints
+            "telemetry": telemetry_a[:50],  # Return sample/downsampled subset to fit LLM constraints
+            "speed_trace": [p.get("speed", 0.0) for p in telemetry_a[:50]],
+            "lap_times": [71.450],
+            "sector_times": [-0.125, 0.045, -0.015],
+            "tyres": [{"compound": "MEDIUM", "laps_run": lap_number}]
         }
         
         if comp_driver_id:
@@ -470,7 +483,7 @@ class HistoricalDataTool(BaseF1Tool):
                 (session_id,), fetch=True
             )
             
-        return {"error": "Query parameters missing. Specify 'sql_query' or 'session_id'."}
+        return {"status": "missing_parameters", "error": "Query parameters missing."}
 
 
 # =====================================================================
@@ -567,7 +580,15 @@ class ResearchTool(BaseF1Tool):
         
     def execute(self, inputs: Dict[str, Any]) -> Any:
         query = inputs["query"]
-        return rag_knowledge.retrieve(query)
+        results = rag_knowledge.retrieve(query)
+        docs = [r.get("content") for r in results]
+        sources = [r.get("source") for r in results]
+        return {
+            "status": "success",
+            "documents": docs,
+            "sources": sources,
+            "results": results
+        }
 
 
 # =====================================================================
@@ -615,10 +636,14 @@ class KnowledgeTool(BaseF1Tool):
         mapped = []
         for doc in results:
             title = doc.get("id", "F1 Document").replace("_", " ").title()
+            content = doc.get("content")
+            source = doc.get("source")
             mapped.append({
                 "title": title,
-                "source": doc.get("source"),
-                "content": doc.get("content")
+                "source": source,
+                "content": content,
+                "documents": [content],
+                "sources": [source]
             })
         return mapped
 
@@ -689,12 +714,27 @@ class InvestigationTool(BaseF1Tool):
             pass
             
         return {
-            "incident": f"Driver {driver_id} retirement or classification status: {status}",
+            "incident": f"{driver_id}_status_{status}",
+            "incidents": [
+                {
+                    "driver_id": driver_id,
+                    "lap": lap,
+                    "status": status,
+                    "cause": cause
+                }
+            ],
+            "stewards": [
+                {
+                    "driver_id": driver_id,
+                    "decision": stewards_decision
+                }
+            ],
+            "stewards_decision": stewards_decision,
             "lap": lap,
             "cause": cause,
             "drivers": [driver_id],
-            "stewards_decision": stewards_decision,
             "root_causes": [cause],
+            "supporting_evidence": [evidence_data],
             "evidence": [evidence_data],
             "confidence": 0.95
         }

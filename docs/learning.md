@@ -607,5 +607,22 @@ We configured `ReliableLLMProvider` exception logging to output provider, model,
   $$\text{Question} \longrightarrow \text{Loading Progress} \longrightarrow \text{AI Verdict} \longrightarrow \text{Charts} \longrightarrow \text{Evidence} \longrightarrow \text{Follow-up Suggestions}$$
 - **Dynamic Loading Ticker**: `AIThinkingIndicator` tracks parsing, database loading, stint regression calculations, and report synthesis stages smoothly.
 
+---
+
+## 23. Dedicated Context Builder Stage Insights
+
+> **Date**: 2026-08-05
+> **Author**: Lead AI Systems Architect
+> **Key Learning**: Intercept raw tool execution outputs with a dedicated Context Builder node between execution/reflection/judge stages and LLM synthesis to normalize schemas, purge empty values, eliminate duplicated evidence, rank by confidence/relevance, and pass ONLY unified structured context to LLMs.
+
+### 1. Unified Context Normalization & Empty Purging
+- **Common Schema**: Transforms disparate tool returns into standardized items with `tool`, `category`, `relevance`, `confidence`, `summary`, and `data` fields.
+- **Safe Empty Purging**: Recursively strips `None`, `""`, `[]`, and `{}` values, with type checking for numpy arrays (`hasattr(val, "size") and val.size == 0`) to prevent truth value ambiguity errors.
+
+### 2. LLM Context Isolation & UI Leak Prevention
+- **LLM Isolation**: `synthesize_node` and `ExplainEngineer` persona feed `json.dumps(structured_context)` to LLM prompts, ensuring LLMs never receive raw tool dumps.
+- **Frontend Protection**: `investigation_report["Evidence"]` presents clean human-readable titles, suppressing raw JSON leaks to client user interfaces.
+
+
 
 

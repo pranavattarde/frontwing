@@ -158,6 +158,8 @@ class ExplainEngineer(BaseEngineer):
         
     def execute(self, state: Dict[str, Any], tool_inputs: Dict[str, Any], tool_name: Optional[str] = None) -> Any:
         evidence = state.get("evidence", {})
+        from app.agents.context_builder import build_structured_context
+        struct_ctx = state.get("structured_context") or build_structured_context(evidence, state.get("question", ""))
         
         import os
         import json
@@ -179,8 +181,8 @@ class ExplainEngineer(BaseEngineer):
                     "- beginner: basic racing analogies, high-level and accessible.\n"
                     "- intermediate: natural language strategy and timing deltas, clear and human.\n"
                     "- engineer: expert context including math formulas (CAR, SPG, TSE), aero, and exact tire wear rates.\n\n"
-                    "IMPORTANT: Generate the final answer using ONLY the supplied evidence. Do NOT fabricate or assume any facts outside the evidence. "
-                    "If evidence is missing or incomplete, respond honestly: 'No evidence was returned by the execution pipeline.'\n"
+                    "IMPORTANT: Generate the final answer using ONLY the supplied structured context. Do NOT fabricate or assume any facts outside the context. "
+                    "If context is missing or incomplete, respond honestly: 'No evidence was returned by the execution pipeline.'\n"
                     "You MUST respond with a STRICT JSON object only. Schema:\n"
                     "{\n"
                     '  "beginner": "...",\n'
@@ -188,8 +190,8 @@ class ExplainEngineer(BaseEngineer):
                     '  "engineer": "..."\n'
                     "}"
                 )
-                evidence_summary = json.dumps(evidence, indent=2)
-                user_content = f"Original user question: {state.get('question')}\nGathered evidence:\n{evidence_summary}"
+                evidence_summary = json.dumps(struct_ctx, indent=2)
+                user_content = f"Original user question: {state.get('question')}\nStructured Context:\n{evidence_summary}"
                 res_raw, _ = reliable_llm_provider.generate_response(system_prompt, user_content, response_mime_type="application/json", timeout_seconds=6.0)
                 parsed = json.loads(res_raw)
                 if "beginner" in parsed and "intermediate" in parsed and "engineer" in parsed:
@@ -242,12 +244,19 @@ class ResearchEngineer(BaseEngineer):
         t_name = tool_name or "research_tool"
         tool = tool_registry.get_tool(t_name)
         result = tool.validate_and_execute(tool_inputs, state.get("question", ""))
-        if t_name == "research_tool" and isinstance(result, list):
-            return {
-                "status": "success",
-                "query": tool_inputs.get("query", ""),
-                "references": result
-            }
+        if t_name == "research_tool":
+            if isinstance(result, list):
+                return {
+                    "status": "success",
+                    "query": tool_inputs.get("query", ""),
+                    "references": result
+                }
+            elif isinstance(result, dict):
+                res_dict = dict(result)
+                res_dict["status"] = "success"
+                res_dict["query"] = tool_inputs.get("query", "")
+                res_dict["references"] = result.get("results") or result.get("documents") or []
+                return res_dict
         return result
 
 

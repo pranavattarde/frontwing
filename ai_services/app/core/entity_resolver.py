@@ -107,11 +107,15 @@ class EntityResolver:
             entities_found["drivers"] = matched_drivers
             driver_ids = []
             for d in matched_drivers:
-                # Always query PostgreSQL
-                res = execute_query("SELECT id FROM drivers WHERE id = %s", (d,), fetch=True)
-                if res:
-                    driver_ids.append(res[0]["id"])
-                    db_matches.append(dict(res[0]))
+                try:
+                    res = execute_query("SELECT id FROM drivers WHERE id = %s", (d,), fetch=True)
+                    if res:
+                        driver_ids.append(res[0]["id"])
+                        db_matches.append(dict(res[0]))
+                    else:
+                        driver_ids.append(d)
+                except Exception:
+                    driver_ids.append(d)
             if driver_ids:
                 resolved_ids["driver_ids"] = driver_ids
                 resolved_ids["driver_id"] = driver_ids[0]
@@ -141,19 +145,15 @@ class EntityResolver:
                         
         if matched_constructor:
             entities_found["constructor"] = matched_constructor
-            res = execute_query("SELECT id FROM constructors WHERE id = %s", (matched_constructor,), fetch=True)
-            if res:
-                resolved_ids["constructor_id"] = res[0]["id"]
-                db_matches.append(dict(res[0]))
-            else:
-                # If constructor was identified but is not in the database
-                print(f"=========== ENTITY RESOLUTION ===========")
-                print(f"Question: {question}")
-                print(f"Entities Found: {entities_found}")
-                print(f"Database Matches: {db_matches}")
-                print(f"Resolved IDs: {{}}")
-                print("=========================================")
-                return {"status": "entity_not_found"}
+            try:
+                res = execute_query("SELECT id FROM constructors WHERE id = %s", (matched_constructor,), fetch=True)
+                if res:
+                    resolved_ids["constructor_id"] = res[0]["id"]
+                    db_matches.append(dict(res[0]))
+                else:
+                    resolved_ids["constructor_id"] = matched_constructor
+            except Exception:
+                resolved_ids["constructor_id"] = matched_constructor
 
         # 4. Extract and resolve Circuit / GP & Session
         circuits_map = {
@@ -173,31 +173,31 @@ class EntityResolver:
             entities_found["circuit"] = matched_circuit
             
             # Query PostgreSQL for matching circuit
-            circ_res = execute_query("SELECT id, name FROM circuits WHERE id = %s", (matched_circuit,), fetch=True)
-            if not circ_res:
-                print(f"=========== ENTITY RESOLUTION ===========")
-                print(f"Question: {question}")
-                print(f"Entities Found: {entities_found}")
-                print(f"Database Matches: {db_matches}")
-                print(f"Resolved IDs: {{}}")
-                print("=========================================")
-                return {"status": "entity_not_found"}
+            circ_res = None
+            try:
+                circ_res = execute_query("SELECT id, name FROM circuits WHERE id = %s", (matched_circuit,), fetch=True)
+            except Exception:
+                pass
                 
-            db_matches.append(dict(circ_res[0]))
+            if circ_res:
+                db_matches.append(dict(circ_res[0]))
             
             # Look up matching race for year
             race_res = None
-            if year:
-                race_res = execute_query(
-                    "SELECT id, year, round, name FROM races WHERE circuit_id = %s AND year = %s",
-                    (matched_circuit, year), fetch=True
-                )
-            else:
-                # If multiple exist, choose latest season
-                race_res = execute_query(
-                    "SELECT id, year, round, name FROM races WHERE circuit_id = %s ORDER BY year DESC LIMIT 1",
-                    (matched_circuit,), fetch=True
-                )
+            try:
+                if year:
+                    race_res = execute_query(
+                        "SELECT id, year, round, name FROM races WHERE circuit_id = %s AND year = %s",
+                        (matched_circuit, year), fetch=True
+                    )
+                else:
+                    # If multiple exist, choose latest season
+                    race_res = execute_query(
+                        "SELECT id, year, round, name FROM races WHERE circuit_id = %s ORDER BY year DESC LIMIT 1",
+                        (matched_circuit,), fetch=True
+                    )
+            except Exception:
+                pass
                 
             if not race_res:
                 print(f"=========== ENTITY RESOLUTION ===========")

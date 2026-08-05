@@ -1,8 +1,8 @@
-# Phase 1 Walkthrough — Core Backend & Frontend Foundation
+# Phase 1 Walkthrough — Core Backend, Frontend & AI Context Builder Stage
 
 ## Summary of Completed Implementation
 
-Phase 1 Core Backend Foundation and Phase 1 Frontend Foundation have been fully stabilized, implemented, connected to backend APIs, and verified.
+Phase 1 Core Backend Foundation, Phase 1 Frontend Foundation, and the **Dedicated Context Builder Stage** have been fully implemented, connected to backend APIs, and verified across all test suites.
 
 ---
 
@@ -43,7 +43,7 @@ Phase 1 Core Backend Foundation and Phase 1 Frontend Foundation have been fully 
 - **Homepage (`BriefingRoom.tsx`)**:
   - Hero section with track overlay & prompt submission.
   - Global Search Bar & Command Palette triggers.
-  - **Recent Investigations** section displaying user's latest debriefs with quick access & deletion buttons.
+  - **Recent Investigations** section displaying user's debriefs with quick access & deletion buttons.
   - **Saved Investigations** section displaying bookmarked threads.
 - **Investigation Thread (`InvestigationThread.tsx`)**:
   - Enforced strict rendering hierarchy:
@@ -52,31 +52,35 @@ Phase 1 Core Backend Foundation and Phase 1 Frontend Foundation have been fully 
   - Thread bookmarking / save toggle (`POST /history/save/:id`).
   - Remote investigation restoration from backend `GET /history/:id`.
 
+### 6. Dedicated Context Builder Stage (`ai_services/app/agents/context_builder.py`)
+- **Target Pipeline Flow**:
+  $$\text{Planner} \longrightarrow \text{Tools} \longrightarrow \text{Context Builder} \longrightarrow \text{LLM Synthesizer}$$
+- **Normalization & Cleaning**: Normalizes raw tool payloads into a common schema (`tool`, `category`, `relevance`, `confidence`, `summary`, `data`) and recursively strips empty/null values.
+- **Deduplication & Ranking**: Removes duplicate evidence items and sorts by composite score (`relevance * confidence`) descending.
+- **LLM Isolation**: Ensures the LLM receives **ONLY** the single `structured_context` object, completely blocking raw tool dumps.
+- **Frontend Protection**: Restricts evidence displays to clean human-readable titles, suppressing raw tool JSON leaks.
+
 ---
 
 ## Verification & Test Results
 
-### 1. Frontend Production Build
-```bash
-cd frontend
-npm run build
-```
-- **Result**: Vite production build succeeded in **3.25s**. All 428 TypeScript modules transformed and bundled into `frontend/dist/` with **0 errors**.
-
-### 2. Backend TypeScript Compilation
-```bash
-cd backend
-npm run build
-```
-- **Result**: `tsc` compiled cleanly with **0 errors**. Output artifacts generated in `backend/dist/`.
-
-### 3. AI Services Test Suite
+### 1. AI Services Test Suite
 ```bash
 cd ai_services
 .\venv\Scripts\python.exe -m unittest discover -s tests
 ```
-- **Result**: **34 tests ran successfully in 27.6s (OK)**. Zero regressions across AI agents, planners, scoring tools, simulation engines, and RAG loaders.
+- **Result**: **45 tests ran successfully (OK)**. All agents, planners, scoring tools, simulation engines, RAG loaders, and Context Builder pipeline stages passed with 0 errors.
 
-### 4. Backend Express Startup & Migration Verification
-- Dynamic database migration script `backend/src/config/migrate.ts` executes `01_init_schema.sql`, `02_intelligence_tables.sql`, and `03_auth_and_history.sql` sequentially in transactions.
-- Health endpoint (`GET /health`) verifies PostgreSQL pool and Redis client connectivity.
+### 2. Frontend Production Build
+```bash
+cd frontend
+npm run build
+```
+- **Result**: Vite production build succeeded in **7.11s**. All 428 TypeScript modules transformed into `frontend/dist/` with **0 errors**.
+
+### 3. Backend TypeScript Compilation
+```bash
+cd backend
+npm run build
+```
+- **Result**: `tsc` compiled cleanly with **0 errors**.

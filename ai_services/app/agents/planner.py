@@ -13,6 +13,7 @@ from app.agents.personas import engineer_registry
 from app.core.logger import logger
 from app.core.providers import reliable_llm_provider
 from app.prompts.loader import load_prompt
+from app.agents.context_builder import context_builder_node, build_structured_context
 
 # Try importing LLM libraries
 try:
@@ -1047,6 +1048,7 @@ workflow.add_node("plan", plan_node)
 workflow.add_node("execute", execute_node)
 workflow.add_node("reflect", reflect_node)
 workflow.add_node("judge", judge_node)
+workflow.add_node("context_builder", context_builder_node)
 workflow.add_node("synthesize", synthesize_node)
 
 # Set entry point
@@ -1068,8 +1070,9 @@ workflow.add_conditional_edges(
     }
 )
 
-# Connect judge to synthesize
-workflow.add_edge("judge", "synthesize")
+# Connect judge to context_builder, and context_builder to synthesize
+workflow.add_edge("judge", "context_builder")
+workflow.add_edge("context_builder", "synthesize")
 workflow.add_edge("synthesize", END)
 
 # Compile graph
