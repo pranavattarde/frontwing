@@ -538,8 +538,21 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
         else:
             return step, {}
 
-    session_id = state.get("session_id")
-    driver_id = state.get("driver_id")
+    from app.core.entity_resolver import EntityResolver
+    resolved = EntityResolver.resolve(q, state)
+    
+    if resolved.get("status") == "entity_not_found":
+        return {
+            "next_step_idx": len(plan),
+            "tools_used": [],
+            "evidence": {"status": "entity_not_found"},
+            "errors": ["Entity not found"],
+            "intelligence_trace": trace,
+            "collaboration_graph": collaboration_graph
+        }
+        
+    session_id = resolved.get("session_id") or state.get("session_id")
+    driver_id = resolved.get("driver_id") or state.get("driver_id")
 
     skipped_tools = []
     executed_tools = []
@@ -549,6 +562,31 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
     print("========== EXECUTION ==========")
     for idx, step in enumerate(plan):
         name, args = parse_step(step)
+        
+        # Replace plan step args with resolved database IDs
+        for k in list(args.keys()):
+            k_lower = k.lower()
+            if "driver" in k_lower or k_lower in ["driver_id", "driver_a", "driver_b", "drivers"]:
+                if resolved.get("driver_ids"):
+                    val_str = str(args[k]).lower().strip()
+                    matched_drv = None
+                    for drv in resolved["driver_ids"]:
+                        if drv in val_str or val_str in drv:
+                            matched_drv = drv
+                            break
+                    args[k] = matched_drv or resolved["driver_id"]
+                elif resolved.get("driver_id"):
+                    args[k] = resolved["driver_id"]
+            elif "session" in k_lower:
+                if resolved.get("session_id"):
+                    args[k] = resolved["session_id"]
+            elif "race" in k_lower:
+                if resolved.get("race_id"):
+                    args[k] = resolved["race_id"]
+            elif "constructor" in k_lower or k_lower == "team":
+                if resolved.get("constructor_id"):
+                    args[k] = resolved["constructor_id"]
+                    
         if "session_id" not in args and session_id:
             args["session_id"] = session_id
         if "driver_id" not in args and driver_id:

@@ -573,3 +573,21 @@ We configured `ReliableLLMProvider` exception logging to output provider, model,
 - Prevented UI duplicate blocks by rendering only the single latest response in `InvestigationThread.tsx`.
 - Filtered out `fallback_plan` internal command formats from suggestion cards to block raw agent state leakages to clients.
 
+---
+
+## 21. Phase 1 Core Backend Foundation Insights
+
+> **Date**: 2026-08-05
+> **Author**: Lead Backend Architect
+> **Key Learning**: Implement production-ready JWT authentication, PostgreSQL investigation history tracking, and Redis hot response caching under a clean API architecture without modifying existing AI services or state machines.
+
+### 1. Dual Authentication Pattern (Strict & Optional)
+- **Strict Middleware (`authenticateToken`)**: Validates `Bearer <token>` headers via `jsonwebtoken` and attaches the `JwtPayload` to `req.user`. Used for protected history endpoints (`GET /history`, `DELETE /history/:id`, `POST /history/save/:id`).
+- **Optional Middleware (`optionalAuth`)**: Extracts the user context if a token is present, but allows unauthenticated visitors to query the AI engineer. Enables seamless user experience while linking investigation history to user accounts when authenticated.
+
+### 2. High-Performance Investigation Caching
+- **Deterministic Cache Keying**: Normalizes user input and computes a SHA-256 hash across `${session}:${question}`.
+- **Cache Hits**: Instantly returns cached investigation responses with `_cached: true` indicator, eliminating expensive AI pipeline calls.
+- **PostgreSQL Persistence**: Saves all completed investigation queries and responses into PostgreSQL `investigations` table asynchronously.
+
+

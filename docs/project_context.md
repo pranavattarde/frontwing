@@ -856,6 +856,7 @@ There is **no persistent sidebar**. Navigation flows through:
 - [x] **Set up local database and cache storage infrastructure services (PostgreSQL 17 and Redis 7) via Docker Compose (Sprint 5.5).**
 - [x] **Audit backend startup lifecycle, configure package.json run scripts, execute SQL schema DDL and seeds sequentially, and launch active Express and WebSockets server (Integration Phase).**
 - [x] **Stabilize execution pipeline, eliminate legacy automatic execution logic, align registry mappings, structure evidence, and fix duplicates and intermediate state leaks on the frontend (Sprint 6).**
+- [x] **Implement Phase 1 Core Backend Foundation: JWT Authentication (login/register/middleware), PostgreSQL Investigation History (users, investigations, saved_investigations), History APIs (GET /history, GET /history/:id, DELETE /history/:id), and Redis Investigation Caching.**
 
 ### Pending Tasks
 - [ ] Execute Express server setup and connect WebSocket handlers.
@@ -874,5 +875,20 @@ There is **no persistent sidebar**. Navigation flows through:
 - `docs/component_library.md` defines the full component API surface. Frontend implementation must conform to this specification exactly.
 - Frontend V1 code (`Landing.tsx`, `Shell.tsx`, `Header.tsx`, `TimingGrid.tsx`, `DataBadge.tsx`, `ConsoleInput.tsx`) remains in the repository but is classified as deprecated. It must not be referenced in the redesign.
 - `docs/ui_architecture.md` documents the old Jotai atom/widget architecture. This file remains for reference but the new investigation-thread architecture supersedes it entirely.
+
+---
+
+## 17. Phase 1 — Core Backend Foundation Integration
+
+### Architecture Overview
+The backend API Gateway (`backend/src`) implements a clean architecture with:
+- **Authentication**: JWT token generation and bcrypt password hashing. Middleware (`authenticateToken` and `optionalAuth`) enforces authentication state.
+- **Investigation History**: PostgreSQL relational tables (`users`, `investigations`, `saved_investigations`) store query details, session IDs, AI response payloads, and provider metadata.
+- **Redis Caching Layer**: SHA-256 caching key (`cache:investigation:<hash>`) based on session and question text. Returns cached responses with sub-millisecond latencies for identical user prompts.
+- **API Endpoints**:
+  - `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`
+  - `GET /history`, `GET /history/:id`, `DELETE /history/:id`, `POST /history/save/:id`
+  - `POST /engineer/query` (with Redis cache lookup and PostgreSQL auto-persistence)
+
 
 ---
