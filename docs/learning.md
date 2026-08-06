@@ -670,3 +670,19 @@ We configured `ReliableLLMProvider` exception logging to output provider, model,
 - **Zero Hallucination Guarantee**: Every step in the reasoning graph and every section in the investigation report directly cites source tool items from `structured_context`.
 - **Frontend Narrative Rendering**: `InvestigationThread.tsx` renders the explicit `Root-Cause Reasoning Graph` prominently in narrative debrief messages.
 
+---
+
+## 27. Adaptive Planning System Insights
+
+> **Date**: 2026-08-06
+> **Author**: Lead AI Platform Architect
+> **Key Learning**: Replace keyword planner routing with adaptive extraction (`intent`, `entities`, `required_evidence`, `missing_evidence`, `confidence`). Dynamically choose the minimal required toolset based on missing evidence to eliminate unnecessary tool execution overhead.
+
+### 1. Dynamic Tool Selection & Overhead Reduction
+- **Evidence-Based Routing**: Rather than relying on hardcoded keyword maps, the planner extracts required vs missing evidence and maps only the minimum necessary tools.
+- **Query Optimization Examples**:
+  - Simple factual query (`"Who won Monaco GP?"`): Runs ONLY `race_results_tool` (1 call).
+  - Driver comparison (`"Compare Verstappen vs Norris"`): Runs `race_results_tool`, `telemetry_tool`, and `scoring_tool` (3 calls).
+  - Deep root-cause investigation (`"Why Ferrari failed"`): Runs `race_results_tool`, `telemetry_tool`, `knowledge_tool`, and `simulation_tool` (4 calls).
+
+

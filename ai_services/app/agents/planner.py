@@ -171,30 +171,126 @@ def extract_entities(question: str) -> Dict[str, Any]:
     }
 
 
+def adaptive_plan_extract(question: str, session_id: Optional[str] = None, driver_id: Optional[str] = None) -> Dict[str, Any]:
+    """Adaptive Planner Extractor: Extracts intent, entities, required evidence, missing evidence,
+
+    and confidence, then dynamically selects the minimum set of required tools.
+    """
+    entities = extract_entities(question)
+    q_lower = question.lower()
+
+    intent = "race_result"
+    required_evidence = []
+    missing_evidence = []
+    confidence = 0.95
+    tools = []
+
+    # 1. Who won / Race results queries (e.g. "Who won Monaco GP?") -> Race Results Tool only
+    if any(k in q_lower for k in ["won", "winner", "who won", "finish position", "p1", "podium"]):
+        intent = "race_result"
+        required_evidence = ["race_winner", "classification"]
+        missing_evidence = ["race_winner", "classification"]
+        confidence = 0.98
+        tools = ["race_results_tool"]
+
+    # 2. Driver vs Driver Comparison queries (e.g. "Compare Verstappen vs Norris") -> Race Results, Telemetry, Scoring
+    elif any(k in q_lower for k in ["compare", "vs", "versus", "comparison", "telemetry delta"]):
+        intent = "comparison"
+        required_evidence = ["race_results", "telemetry_comparison", "driver_scores"]
+        missing_evidence = ["race_results", "telemetry_comparison", "driver_scores"]
+        confidence = 0.95
+        tools = ["race_results_tool", "telemetry_tool", "scoring_tool"]
+
+    # 3. Root-cause / Failure investigation queries (e.g. "Why did Ferrari fail?") -> Race Results, Telemetry, Knowledge, Strategy
+    elif any(k in q_lower for k in ["why", "fail", "failed", "reason", "investigate", "crash", "retire", "drop"]):
+        intent = "investigation"
+        required_evidence = ["race_results", "telemetry_degradation", "regulations_incidents", "strategy_simulation"]
+        missing_evidence = ["race_results", "telemetry_degradation", "regulations_incidents", "strategy_simulation"]
+        confidence = 0.95
+        tools = ["race_results_tool", "telemetry_tool", "knowledge_tool", "simulation_tool"]
+
+    # 4. Simulation / What-If queries (e.g. "What if Sainz pitted on lap 20?") -> Simulation Tool
+    elif any(k in q_lower for k in ["simulate", "what if", "pitted on", "pit lap"]):
+        intent = "simulation"
+        required_evidence = ["stint_laps", "pit_window_simulation"]
+        missing_evidence = ["stint_laps", "pit_window_simulation"]
+        confidence = 0.95
+        tools = ["simulation_tool"]
+
+    # 5. Telemetry queries (e.g. "What was Sainz's telemetry on lap 42?") -> Telemetry Tool
+    elif any(k in q_lower for k in ["telemetry", "speed", "throttle", "brake", "apex"]):
+        intent = "telemetry"
+        required_evidence = ["telemetry_points", "speed_trace"]
+        missing_evidence = ["telemetry_points", "speed_trace"]
+        confidence = 0.95
+        tools = ["telemetry_tool"]
+
+    # 6. Performance Scoring queries (e.g. "Analyze Sainz's race performance scores.") -> Scoring Tool + Explain Mode Tool
+    elif any(k in q_lower for k in ["score", "scoring", "rating", "grade"]):
+        intent = "scoring"
+        required_evidence = ["performance_grades", "formula_definitions"]
+        missing_evidence = ["performance_grades", "formula_definitions"]
+        confidence = 0.95
+        tools = ["scoring_tool", "explain_mode_tool"]
+
+    # 7. Explanation / Regulation queries (e.g. "What is CAR?", "Article 40.8 safety car") -> Explain Mode Tool / Knowledge Tool
+    elif any(k in q_lower for k in ["explain", "what is", "drs", "undercut", "overcut", "rule", "regulation"]):
+        intent = "explanation"
+        required_evidence = ["formula_definition", "fia_regulations"]
+        missing_evidence = ["formula_definition", "fia_regulations"]
+        confidence = 0.95
+        if any(r in q_lower for r in ["rule", "regulation", "article"]):
+            tools = ["knowledge_tool"]
+        else:
+            tools = ["explain_mode_tool"]
+
+    # 8. Research / Database queries (e.g. "Tell me about Ferrari team", "Leclerc driver info") -> Constructor / Driver Database Tool
+    elif any(k in q_lower for k in ["info", "bio", "database", "stats", "team info"]):
+        intent = "research"
+        if entities.get("team"):
+            required_evidence = ["constructor_info"]
+            missing_evidence = ["constructor_info"]
+            tools = ["constructor_database_tool"]
+        else:
+            required_evidence = ["driver_info"]
+            missing_evidence = ["driver_info"]
+            tools = ["driver_database_tool"]
+        confidence = 0.95
+
+    else:
+        intent = "race_result"
+        required_evidence = ["race_classification"]
+        missing_evidence = ["race_classification"]
+        confidence = 0.90
+        tools = ["race_results_tool"]
+
+    return {
+        "intent": intent,
+        "entities": entities,
+        "required_evidence": required_evidence,
+        "missing_evidence": missing_evidence,
+        "confidence": confidence,
+        "tools": tools
+    }
+
+
 def get_tools_for_intent(intent: str, parameters: Dict[str, Any]) -> List[str]:
-    """Maps intent to the required F1 planner tools list."""
-    if intent == "simulation":
-        return ["simulation_tool"]
-    if intent == "telemetry":
-        return ["telemetry_tool"]
-    if intent == "explanation":
-        return ["knowledge_tool"]
-    if intent == "strategy":
-        return ["simulation_tool"]
-    if intent == "scoring":
-        return ["scoring_tool", "explain_mode_tool"]
-    if intent == "comparison":
-        return ["historical_results_tool"]
-    if intent == "race_result":
-        return ["race_results_tool"]
-    if intent == "investigation":
-        return ["race_results_tool", "telemetry_tool", "knowledge_tool"]
-    if intent == "research":
-        if parameters.get("team"):
-            return ["constructor_database_tool"]
-        return ["driver_database_tool"]
-        
-    return ["race_results_tool"]
+    """Maps intent to the required F1 planner tools list using adaptive extraction logic."""
+    if parameters and isinstance(parameters, dict) and parameters.get("question"):
+        extracted = adaptive_plan_extract(parameters["question"])
+        return extracted["tools"]
+    defaults = {
+        "simulation": ["simulation_tool"],
+        "telemetry": ["telemetry_tool"],
+        "explanation": ["explain_mode_tool"],
+        "strategy": ["simulation_tool"],
+        "scoring": ["scoring_tool", "explain_mode_tool"],
+        "comparison": ["race_results_tool", "telemetry_tool", "scoring_tool"],
+        "race_result": ["race_results_tool"],
+        "investigation": ["race_results_tool", "telemetry_tool", "knowledge_tool", "simulation_tool"],
+        "research": ["driver_database_tool"]
+    }
+    return defaults.get(intent, ["race_results_tool"])
 
 
 def get_engineers_for_tools(tools: List[str]) -> List[str]:
@@ -229,8 +325,7 @@ def get_engineers_for_tools(tools: List[str]) -> List[str]:
 # =====================================================================
 def validate_plan_schema(plan: Dict[str, Any]) -> bool:
     required_keys = [
-        "intent", "complexity", "required_engineers", "required_tools",
-        "execution_order", "expected_evidence", "fallback_plan"
+        "intent", "execution_order", "fallback_plan"
     ]
     return all(k in plan for k in required_keys)
 
@@ -249,9 +344,13 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
     session_id = state.get("session_id")
     driver_id = state.get("driver_id")
     
-    # Classify intent strictly into the 9 supported intents
-    intent_norm = classify_intent(question)
-    entities = extract_entities(question)
+    adaptive_plan = adaptive_plan_extract(question, session_id, driver_id)
+    intent_norm = adaptive_plan["intent"]
+    entities = adaptive_plan["entities"]
+    req_ev = adaptive_plan["required_evidence"]
+    miss_ev = adaptive_plan["missing_evidence"]
+    conf = adaptive_plan["confidence"]
+    tools = adaptive_plan["tools"]
     
     logger.info(f"[Chief Race Engineer] Generating structured plan for question: '{question}' | Classified Intent: '{intent_norm}'")
     
@@ -281,6 +380,7 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         parsed, metrics = reliable_llm_provider.generate_plan(system_prompt, user_content)
         if validate_plan_schema(parsed):
             structured_plan = parsed
+            tools = parsed.get("required_tools", tools)
             llm_provider = metrics["llm_provider"]
             llm_model = metrics["llm_model"]
             prompt_tokens = metrics["prompt_tokens"]
@@ -339,8 +439,6 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
     }
     mapped_intent = intent_mapping.get(intent_norm, intent_norm)
     
-    tools = get_tools_for_intent(intent_norm, entities)
-    
     # Rebuild execution order to guarantee NO invented/hallucinated parameters are passed
     execution_order = []
     for t in tools:
@@ -378,18 +476,29 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         arg_str = ",".join(f"{k}={v}" for k, v in args.items())
         execution_order.append(f"{t}|{arg_str}")
         
-    # Populate the structured plan dictionary to fully satisfy Requirement 5 format and diagnostic logging
-    structured_plan = {
-        "intent": mapped_intent,
-        "tools": tools,
-        "parameters": cleaned_params,
-        "complexity": "intermediate",
-        "required_engineers": get_engineers_for_tools(tools),
-        "required_tools": tools,
-        "execution_order": execution_order,
-        "expected_evidence": ["metrics binned data"],
-        "fallback_plan": execution_order
-    }
+    if not structured_plan:
+        structured_plan = {
+            "intent": mapped_intent,
+            "entities": entities,
+            "required_evidence": req_ev,
+            "missing_evidence": miss_ev,
+            "confidence": conf,
+            "tools": tools,
+            "complexity": "intermediate",
+            "required_engineers": get_engineers_for_tools(tools),
+            "required_tools": tools,
+            "execution_order": execution_order,
+            "expected_evidence": req_ev,
+            "fallback_plan": execution_order
+        }
+    else:
+        structured_plan["entities"] = structured_plan.get("entities", entities)
+        structured_plan["required_evidence"] = structured_plan.get("required_evidence", req_ev)
+        structured_plan["missing_evidence"] = structured_plan.get("missing_evidence", miss_ev)
+        structured_plan["confidence"] = structured_plan.get("confidence", conf)
+        structured_plan["tools"] = structured_plan.get("tools", tools)
+        structured_plan["required_tools"] = structured_plan.get("required_tools", tools)
+        structured_plan["execution_order"] = structured_plan.get("execution_order", execution_order)
         
     planning_duration_ms = int((time.time() - start_time) * 1000)
     
@@ -474,8 +583,9 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
     
     # Classify intent and extract parameters for the PLANNER debug block
     q = state.get("question", "")
-    intent_norm = classify_intent(q)
-    entities = extract_entities(q)
+    adaptive_plan = adaptive_plan_extract(q)
+    intent_norm = adaptive_plan["intent"]
+    entities = adaptive_plan["entities"]
     cleaned_params = {
         "team": entities.get("team"),
         "grand_prix": entities.get("grand_prix"),
@@ -491,12 +601,16 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
         
     plan_data = state.get("structured_plan") or {}
     
-    # Before Dispatcher starts, print PLANNER debug logger block
+    # Before Dispatcher starts, print PLANNER debug logger block with adaptive extraction metrics
     debug_block = (
         f"================ PLANNER ================\n"
         f"Question: {q}\n"
-        f"Intent: {intent_norm}\n"
-        f"Tools: {plan_data.get('tools', [])}\n"
+        f"Intent: {plan_data.get('intent', intent_norm)}\n"
+        f"Entities: {plan_data.get('entities', entities)}\n"
+        f"Required Evidence: {plan_data.get('required_evidence', adaptive_plan['required_evidence'])}\n"
+        f"Missing Evidence: {plan_data.get('missing_evidence', adaptive_plan['missing_evidence'])}\n"
+        f"Confidence: {plan_data.get('confidence', adaptive_plan['confidence'])}\n"
+        f"Tools: {plan_data.get('required_tools', plan_data.get('tools', adaptive_plan['tools']))}\n"
         f"Parameters: {cleaned_params}\n"
         f"========================================="
     )
