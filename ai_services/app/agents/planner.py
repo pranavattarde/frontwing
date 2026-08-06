@@ -171,13 +171,25 @@ def extract_entities(question: str) -> Dict[str, Any]:
     }
 
 
-def adaptive_plan_extract(question: str, session_id: Optional[str] = None, driver_id: Optional[str] = None) -> Dict[str, Any]:
+def adaptive_plan_extract(question: str, session_id: Optional[str] = None, driver_id: Optional[str] = None, history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     """Adaptive Planner Extractor: Extracts intent, entities, required evidence, missing evidence,
 
-    and confidence, then dynamically selects the minimum set of required tools.
+    and confidence across single or multi-turn conversational history.
     """
     entities = extract_entities(question)
     q_lower = question.lower()
+
+    past_drivers = []
+    past_intent = None
+    if history:
+        for ex in history:
+            ctx = ex.get("context", {})
+            if ctx.get("driver_id") and ctx["driver_id"] not in past_drivers:
+                past_drivers.append(ctx["driver_id"])
+            if ctx.get("comparative_driver_id") and ctx["comparative_driver_id"] not in past_drivers:
+                past_drivers.append(ctx["comparative_driver_id"])
+            if ctx.get("intent"):
+                past_intent = ctx["intent"]
 
     intent = "race_result"
     required_evidence = []
@@ -185,8 +197,32 @@ def adaptive_plan_extract(question: str, session_id: Optional[str] = None, drive
     confidence = 0.95
     tools = []
 
+    # Conversational turn pattern 1: "What about Verstappen?" (follow up question on another driver)
+    if ("what about" in q_lower or "how about" in q_lower) and entities.get("drivers"):
+        intent = past_intent or "investigation"
+        required_evidence = ["race_results", "telemetry_degradation", "driver_comparison"]
+        missing_evidence = ["race_results", "telemetry_degradation", "driver_comparison"]
+        confidence = 0.95
+        tools = ["race_results_tool", "telemetry_tool", "scoring_tool"]
+
+    # Conversational turn pattern 2: "Compare them."
+    elif "compare" in q_lower or "compare them" in q_lower or "versus" in q_lower:
+        intent = "comparison"
+        required_evidence = ["race_results", "telemetry_comparison", "driver_scores"]
+        missing_evidence = ["race_results", "telemetry_comparison", "driver_scores"]
+        confidence = 0.95
+        tools = ["race_results_tool", "telemetry_tool", "scoring_tool"]
+
+    # Conversational turn pattern 3: "Show telemetry."
+    elif "telemetry" in q_lower or "show telemetry" in q_lower:
+        intent = "telemetry"
+        required_evidence = ["telemetry_points", "speed_trace"]
+        missing_evidence = ["telemetry_points", "speed_trace"]
+        confidence = 0.95
+        tools = ["telemetry_tool"]
+
     # 1. Who won / Race results queries (e.g. "Who won Monaco GP?") -> Race Results Tool only
-    if any(k in q_lower for k in ["won", "winner", "who won", "finish position", "p1", "podium"]):
+    elif any(k in q_lower for k in ["won", "winner", "who won", "finish position", "p1", "podium"]):
         intent = "race_result"
         required_evidence = ["race_winner", "classification"]
         missing_evidence = ["race_winner", "classification"]
@@ -258,7 +294,7 @@ def adaptive_plan_extract(question: str, session_id: Optional[str] = None, drive
         confidence = 0.95
 
     else:
-        intent = "race_result"
+        intent = past_intent or "race_result"
         required_evidence = ["race_classification"]
         missing_evidence = ["race_classification"]
         confidence = 0.90
@@ -343,8 +379,8 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
     question = state.get("question", "")
     session_id = state.get("session_id")
     driver_id = state.get("driver_id")
-    
-    adaptive_plan = adaptive_plan_extract(question, session_id, driver_id)
+    history = state.get("history", [])
+    adaptive_plan = adaptive_plan_extract(question, session_id, driver_id, history)
     intent_norm = adaptive_plan["intent"]
     entities = adaptive_plan["entities"]
     req_ev = adaptive_plan["required_evidence"]

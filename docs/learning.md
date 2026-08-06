@@ -700,5 +700,22 @@ We configured `ReliableLLMProvider` exception logging to output provider, model,
 - **Speed Trace**: Renders distance-aligned telemetry speed plots from backend `speed_trace` arrays.
 - **Pit Window Timeline**: Renders target pit window, actual pit lap, and dirty air traffic exit queue from strategy simulation evidence.
 
+---
+
+## 29. Conversational Investigations & PostgreSQL Context Persistence
+
+> **Date**: 2026-08-06
+> **Author**: Lead AI Platform Architect
+> **Key Learning**: Implement multi-turn conversational investigations storing thread exchanges in PostgreSQL database. Extract accumulated entities and intents across turns to resolve relative follow-ups (`"Why Ferrari failed?"` → `"What about Verstappen?"` → `"Compare them."` → `"Show telemetry."`) with full context preservation.
+
+### 1. Multi-Turn Thread Context Resolution
+- **Entity Accumulation**: Tracks accumulated driver entities, active session, and team across turn logs.
+- **Follow-up Pattern Resolution**:
+  - `Turn 1 ("Why Ferrari failed?")`: Resolves `team=Ferrari`, `driver=sainz`, `session=2024_austria_gp_race`.
+  - `Turn 2 ("What about Verstappen?")`: Preserves session context, sets target driver to `verstappen`, preserves previous driver `sainz`.
+  - `Turn 3 ("Compare them.")`: Resolves accumulated pair `sainz` vs `verstappen`, maps intent to `comparison`.
+  - `Turn 4 ("Show telemetry.")`: Preserves driver pair, maps intent to `telemetry`.
+
+
 
 
