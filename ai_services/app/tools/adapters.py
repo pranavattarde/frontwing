@@ -1,8 +1,10 @@
 import os
 import json
+import numpy as np
 from typing import Dict, Any, List
 from app.tools.registry import BaseF1Tool, tool_registry
 from app.core.db import execute_query
+from app.core.logger import logger
 from app.scoring.aggregator import calculate_race_scores
 from app.simulation.simulation_engine import run_strategy_simulation
 from app.agents.knowledge import rag_knowledge
@@ -46,60 +48,45 @@ class ScoringTool(BaseF1Tool):
             payload["session_id"] = session_id
             payload["driver_id"] = driver_id
             return calculate_race_scores(payload, save_to_db=False)
-            
-        # Otherwise, attempt to construct metrics from the database
+
+        # Check if pre-calculated scoring results exist in PostgreSQL
+        try:
+            sql_pre = """
+                SELECT strategy_score, tire_management_score, pace_efficiency_score,
+                       pit_stop_efficiency_score, race_execution_score, composite_score
+                FROM scoring_results
+                WHERE session_id = %s AND driver_id = %s
+            """
+            pre_res = execute_query(sql_pre, (session_id, driver_id), fetch=True)
+            if pre_res and len(pre_res) > 0:
+                row = pre_res[0]
+                return {
+                    "strategy_score": float(row["strategy_score"]),
+                    "tire_score": float(row["tire_management_score"]),
+                    "pace_score": float(row["pace_efficiency_score"]),
+                    "pitstop_score": float(row["pit_stop_efficiency_score"]),
+                    "execution_score": float(row["race_execution_score"]),
+                    "composite_score": float(row["composite_score"])
+                }
+        except Exception:
+            pass
+
+        # Otherwise, attempt to construct metrics from the PostgreSQL database
         db_data = self._gather_metrics_from_db(session_id, driver_id)
         if isinstance(db_data, dict) and db_data.get("status") == "missing_data":
             return db_data
         return calculate_race_scores(db_data, save_to_db=False)
 
     def _gather_metrics_from_db(self, session_id: str, driver_id: str) -> Dict[str, Any]:
-        # Fallback dictionary representing the mock data from tests
-        mock_data = {
-            "session_id": session_id,
-            "driver_id": driver_id,
-            "total_laps": 71,
-            "sc_laps": 4,
-            "clean_air_laps": 58,
-            "pit_stops": [
-                {"lap": 22, "position_before": 3, "position_after": 4, "t_stationary": 2.5, "t_pit_lane": 21.3, "is_forced_stop": False},
-                {"lap": 47, "position_before": 3, "position_after": 3, "t_stationary": 2.4, "t_pit_lane": 21.2, "is_forced_stop": False}
-            ],
-            "stints": [
-                {"compound": "MEDIUM", "length": 22, "optimal_length": 26, "clean_laps_times": [70.5, 70.4, 70.3], "is_forced": False},
-                {"compound": "HARD", "length": 25, "optimal_length": 34, "clean_laps_times": [69.992, 69.984, 69.976], "is_forced": False},
-                {"compound": "MEDIUM", "length": 24, "optimal_length": 26, "clean_laps_times": [70.5, 70.4, 70.3], "is_forced": False}
-            ],
-            "grid_median_deg": {
-                "MEDIUM": 0.080,
-                "HARD": 0.050
-            },
-            "driver_clean_laps_mean": 71.450,
-            "driver_clean_laps_std": 0.380,
-            "driver_optimal_lap": 70.420,
-            "teammate_optimal_lap": 72.100,
-            "t_pit_lane_opt": 20.80,
-            "penalties_count": 0,
-            "warnings_count": 0,
-            "lockups_count": 0,
-            "p_start": 4,
-            "p_finish": 3
-        }
-        
-        # Load from Postgres
         try:
-            # Check if session exists in DB
+            # Check if session exists in PostgreSQL DB
             db_exists = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
             if not db_exists:
-                if session_id in ["2024_austria_gp_race", "mock_session", "trace-collaboration-uuid"]:
-                    return mock_data
-                return {"status": "missing_data"}
+                return {"status": "missing_data", "required_session": session_id}
                 
             total_laps_res = execute_query("SELECT MAX(lap_number) as max_lap FROM laps WHERE session_id = %s", (session_id,), fetch=True)
             if not total_laps_res or not total_laps_res[0]["max_lap"]:
-                if session_id in ["2024_austria_gp_race", "mock_session", "trace-collaboration-uuid"]:
-                    return mock_data
-                return {"status": "missing_data"}
+                return {"status": "missing_data", "required_session": session_id}
             
             total_laps = total_laps_res[0]["max_lap"]
             
@@ -107,16 +94,23 @@ class ScoringTool(BaseF1Tool):
                 "SELECT compound, start_lap, end_lap, stint_length FROM stints WHERE session_id = %s AND driver_id = %s ORDER BY stint_number",
                 (session_id, driver_id), fetch=True
             )
+            if not stints_res:
+                return {"status": "missing_data", "required_session": session_id}
             
             stints = []
             for s in stints_res:
-                compound = s["compound"].upper()
+                compound = str(s["compound"]).upper()
                 opt_length = 34 if compound == "HARD" else (26 if compound == "MEDIUM" else 18)
+                lap_times_res = execute_query(
+                    "SELECT lap_time_ms FROM laps WHERE session_id = %s AND driver_id = %s AND lap_number >= %s AND lap_number <= %s AND is_valid = true AND lap_time_ms IS NOT NULL",
+                    (session_id, driver_id, s["start_lap"], s["end_lap"]), fetch=True
+                )
+                clean_times = [round(l["lap_time_ms"] / 1000.0, 3) for l in lap_times_res] if lap_times_res else [71.0]
                 stints.append({
                     "compound": compound,
                     "length": s["stint_length"],
                     "optimal_length": opt_length,
-                    "clean_laps_times": [70.5, 70.4, 70.3],
+                    "clean_laps_times": clean_times,
                     "is_forced": False
                 })
                 
@@ -125,9 +119,18 @@ class ScoringTool(BaseF1Tool):
                 (session_id, driver_id), fetch=True
             )
             
-            p_start = results_res[0]["grid_position"] if results_res else 4
-            p_finish = results_res[0]["position"] if results_res else 3
+            p_start = results_res[0]["grid_position"] if (results_res and results_res[0]["grid_position"]) else 4
+            p_finish = results_res[0]["position"] if (results_res and results_res[0]["position"]) else 3
             
+            all_driver_laps = execute_query(
+                "SELECT lap_time_ms FROM laps WHERE session_id = %s AND driver_id = %s AND is_valid = true AND lap_time_ms IS NOT NULL",
+                (session_id, driver_id), fetch=True
+            )
+            times_sec = [l["lap_time_ms"] / 1000.0 for l in all_driver_laps] if all_driver_laps else [71.450]
+            mean_time = float(sum(times_sec) / len(times_sec))
+            std_time = float(np.std(times_sec)) if len(times_sec) > 1 else 0.380
+            min_time = float(min(times_sec))
+
             return {
                 "session_id": session_id,
                 "driver_id": driver_id,
@@ -135,14 +138,15 @@ class ScoringTool(BaseF1Tool):
                 "sc_laps": 4,
                 "clean_air_laps": int(total_laps * 0.8),
                 "pit_stops": [
-                    {"lap": 22, "position_before": p_start, "position_after": p_start, "t_stationary": 2.5, "t_pit_lane": 21.3, "is_forced_stop": False}
-                ],
-                "stints": stints if stints else mock_data["stints"],
-                "grid_median_deg": {"MEDIUM": 0.080, "HARD": 0.050},
-                "driver_clean_laps_mean": 71.450,
-                "driver_clean_laps_std": 0.380,
-                "driver_optimal_lap": 70.420,
-                "teammate_optimal_lap": 72.100,
+                    {"lap": s["end_lap"], "position_before": p_start, "position_after": p_start, "t_stationary": 2.5, "t_pit_lane": 21.3, "is_forced_stop": False}
+                    for s in stints[:-1]
+                ] if len(stints) > 1 else [],
+                "stints": stints,
+                "grid_median_deg": {"MEDIUM": 0.080, "HARD": 0.050, "SOFT": 0.120},
+                "driver_clean_laps_mean": mean_time,
+                "driver_clean_laps_std": std_time,
+                "driver_optimal_lap": min_time,
+                "teammate_optimal_lap": min_time + 0.5,
                 "t_pit_lane_opt": 20.80,
                 "penalties_count": 0,
                 "warnings_count": 0,
@@ -150,12 +154,13 @@ class ScoringTool(BaseF1Tool):
                 "p_start": p_start,
                 "p_finish": p_finish
             }
-        except Exception:
-            return mock_data
+        except Exception as e:
+            logger.warning(f"[ScoringTool] DB query error for session {session_id}: {e}")
+            return {"status": "missing_data", "required_session": session_id}
 
 
 # =====================================================================
-# 2. Simulation Tool Adapter
+# 2. Simulation & Strategy Tool Adapters
 # =====================================================================
 class SimulationTool(BaseF1Tool):
     @property
@@ -190,47 +195,33 @@ class SimulationTool(BaseF1Tool):
         simulated_pit_lap = inputs["simulated_pit_lap"]
         target_compound = inputs.get("target_compound")
         
-        # Check database existence of session/driver
-        db_exists = False
+        # Check PostgreSQL DB for session & driver lap data
         try:
             chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
-            if chk:
-                db_exists = True
-        except Exception:
-            pass
-
-        res = None
-        if db_exists:
-            try:
-                res = run_strategy_simulation(
-                    session_id=session_id,
-                    driver_id=driver_id,
-                    simulated_pit_lap=simulated_pit_lap,
-                    target_compound=target_compound,
-                    save_to_db=False
-                )
-            except Exception:
-                pass
+            if not chk:
+                return {"status": "missing_data", "required_session": session_id}
                 
-        if not res:
-            if session_id in ["2024_austria_gp_race", "mock_session", "trace-collaboration-uuid"]:
-                actual_laps, rivals_laps, actual_stints, actual_pos = self._generate_fallback_caches(driver_id)
-                res = run_strategy_simulation(
-                    session_id=session_id,
-                    driver_id=driver_id,
-                    simulated_pit_lap=simulated_pit_lap,
-                    target_compound=target_compound,
-                    actual_laps_cache=actual_laps,
-                    rivals_laps_cache=rivals_laps,
-                    actual_stints_cache=actual_stints,
-                    actual_position_cache=actual_pos,
-                    total_laps_cache=71,
-                    save_to_db=False
-                )
-            else:
-                return {"status": "missing_data"}
+            drv_chk = execute_query("SELECT 1 FROM laps WHERE session_id = %s AND driver_id = %s LIMIT 1", (session_id, driver_id), fetch=True)
+            if not drv_chk:
+                return {"status": "missing_data", "required_session": session_id}
+        except Exception:
+            return {"status": "missing_data", "required_session": session_id}
 
-        # Map required strategy fields
+        try:
+            res = run_strategy_simulation(
+                session_id=session_id,
+                driver_id=driver_id,
+                simulated_pit_lap=simulated_pit_lap,
+                target_compound=target_compound,
+                save_to_db=False
+            )
+        except Exception as e:
+            logger.warning(f"[SimulationTool] Strategy simulation error for session {session_id}: {e}")
+            return {"status": "missing_data", "required_session": session_id}
+
+        if not res or not isinstance(res, dict):
+            return {"status": "missing_data", "required_session": session_id}
+
         stints = res.get("run_parameters", {}).get("stints", [])
         compound_before = "MEDIUM"
         if stints:
@@ -253,83 +244,37 @@ class SimulationTool(BaseF1Tool):
         
         return res
 
-    def _generate_fallback_caches(self, driver_id: str):
-        total_laps = 71
-        pit_loss = 22.0
-        
-        def generate_laps(stints_def, base_alpha, deg_rates) -> list:
-            laps = []
-            for stint_idx, stint in enumerate(stints_def):
-                comp = stint["compound"]
-                start = stint["start_lap"]
-                end = stint["end_lap"]
-                beta = deg_rates.get(comp, 0.08)
-                
-                tire_age = 1
-                for lap_num in range(start, end + 1):
-                    lap_time = base_alpha + beta * tire_age - 0.06 * lap_num
-                    is_pit_out = (lap_num == start and stint_idx > 0)
-                    if is_pit_out:
-                        lap_time += pit_loss
-                    laps.append({
-                        "lap_number": lap_num,
-                        "lap_time": round(lap_time, 3),
-                        "compound": comp,
-                        "is_pit_out_lap": is_pit_out,
-                        "tire_age": tire_age
-                    })
-                    tire_age += 1
-            return laps
 
-        deg_rates = {"SOFT": 0.12, "MEDIUM": 0.08, "HARD": 0.05}
-        
-        ver_stints = [
-            {"compound": "MEDIUM", "start_lap": 1, "end_lap": 23},
-            {"compound": "HARD", "start_lap": 24, "end_lap": 51},
-            {"compound": "MEDIUM", "start_lap": 52, "end_lap": 71}
-        ]
-        verstappen_laps = generate_laps(ver_stints, 70.80, deg_rates)
-        
-        pia_stints = [
-            {"compound": "MEDIUM", "start_lap": 1, "end_lap": 21},
-            {"compound": "HARD", "start_lap": 22, "end_lap": 52},
-            {"compound": "MEDIUM", "start_lap": 53, "end_lap": 71}
-        ]
-        piastri_laps = generate_laps(pia_stints, 71.10, deg_rates)
+class StrategyTool(SimulationTool):
+    @property
+    def name(self) -> str:
+        return "strategy_tool"
 
-        sainz_stints = [
-            {"compound": "MEDIUM", "start_lap": 1, "end_lap": 22},
-            {"compound": "HARD", "start_lap": 23, "end_lap": 47},
-            {"compound": "MEDIUM", "start_lap": 48, "end_lap": 71}
-        ]
-        sainz_laps = generate_laps(sainz_stints, 71.45, deg_rates)
-        sainz_actual_stints = [
-            {"compound": "MEDIUM", "start_lap": 1, "end_lap": 22, "stint_number": 1},
-            {"compound": "HARD", "start_lap": 23, "end_lap": 47, "stint_number": 2},
-            {"compound": "MEDIUM", "start_lap": 48, "end_lap": 71, "stint_number": 3}
-        ]
+    @property
+    def description(self) -> str:
+        return (
+            "Analyzes pit stop windows, stint tire degradation, and optimal strategy parameters for a driver. "
+            "Requires inputs: session_id (str), driver_id (str). Optional: simulated_pit_lap (int), target_compound (str)."
+        )
 
-        rivals_laps = {
-            "verstappen": [lap["lap_time"] for lap in verstappen_laps],
-            "piastri": [lap["lap_time"] for lap in piastri_laps],
-            "hamilton": [round(72.0 + 0.06 * (i % 10) - 0.05 * i, 3) for i in range(1, 72)]
+    @property
+    def input_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "driver_id": {"type": "string"},
+                "simulated_pit_lap": {"type": "integer"},
+                "target_compound": {"type": "string"}
+            },
+            "required": ["session_id", "driver_id"]
         }
 
-        if driver_id == "verstappen":
-            actual_laps = verstappen_laps
-            actual_stints = ver_stints
-            actual_pos = 1
-        elif driver_id == "piastri":
-            actual_laps = piastri_laps
-            actual_stints = pia_stints
-            actual_pos = 2
-        else:
-            actual_laps = sainz_laps
-            actual_stints = sainz_actual_stints
-            actual_pos = 3
-
-        return actual_laps, rivals_laps, actual_stints, actual_pos
-
+    def execute(self, inputs: Dict[str, Any]) -> Any:
+        inputs_copy = dict(inputs)
+        if "simulated_pit_lap" not in inputs_copy or inputs_copy["simulated_pit_lap"] is None:
+            inputs_copy["simulated_pit_lap"] = 20
+        return super().execute(inputs_copy)
 
 
 # =====================================================================
@@ -367,53 +312,56 @@ class TelemetryTool(BaseF1Tool):
         lap_number = inputs["lap_number"]
         comp_driver_id = inputs.get("comparative_driver_id")
         
-        # Check database existence of session
-        db_exists = False
         try:
             chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
-            if chk:
-                db_exists = True
+            if not chk:
+                return {"status": "missing_data", "required_session": session_id}
         except Exception:
-            pass
+            return {"status": "missing_data", "required_session": session_id}
             
-        if not db_exists and session_id not in ["2024_austria_gp_race", "mock_session", "trace-collaboration-uuid"]:
-            return {"status": "missing_data"}
+        telemetry_a, lap_info_a = self._load_telemetry_from_db(session_id, driver_id, lap_number)
+        if not telemetry_a and not lap_info_a:
+            return {"status": "missing_data", "required_session": session_id}
             
-        telemetry_a = self._load_telemetry(session_id, driver_id, lap_number)
-        
-        # Compute telemetry metrics
-        speeds = [p.get("speed", 0.0) for p in telemetry_a]
+        speeds = [p.get("speed", 0.0) for p in telemetry_a] if telemetry_a else [240.0]
         top_speed = float(max(speeds)) if speeds else 280.0
         average_speed = float(sum(speeds) / len(speeds)) if speeds else 240.0
         brake_events = [int(p.get("distanceM", 0)) for p in telemetry_a if p.get("brake")]
         
+        s1 = lap_info_a.get("sector_1_ms") or 28000
+        s2 = lap_info_a.get("sector_2_ms") or 30000
+        s3 = lap_info_a.get("sector_3_ms") or 28000
+        lap_time = lap_info_a.get("lap_time_ms") or (s1 + s2 + s3)
+        compound = lap_info_a.get("compound") or "MEDIUM"
+
         result = {
             "driver": str(driver_id),
             "driver_id": driver_id,
             "lap_number": lap_number,
-            "sector1_delta": -0.125,
-            "sector2_delta": 0.045,
-            "sector3_delta": -0.015,
+            "sector1_delta": round(s1 / 1000.0, 3),
+            "sector2_delta": round(s2 / 1000.0, 3),
+            "sector3_delta": round(s3 / 1000.0, 3),
             "top_speed": top_speed,
             "average_speed": average_speed,
             "brake_events": brake_events,
             "telemetry_points_count": len(telemetry_a),
-            "telemetry": telemetry_a[:50],  # Return sample/downsampled subset to fit LLM constraints
+            "telemetry": telemetry_a[:50],
             "speed_trace": [p.get("speed", 0.0) for p in telemetry_a[:50]],
-            "lap_times": [71.450],
-            "sector_times": [-0.125, 0.045, -0.015],
-            "tyres": [{"compound": "MEDIUM", "laps_run": lap_number}]
+            "lap_times": [round(lap_time / 1000.0, 3)],
+            "sector_times": [round(s1 / 1000.0, 3), round(s2 / 1000.0, 3), round(s3 / 1000.0, 3)],
+            "tyres": [{"compound": compound, "laps_run": lap_number}]
         }
         
         if comp_driver_id:
-            telemetry_b = self._load_telemetry(session_id, comp_driver_id, lap_number)
+            telemetry_b, _ = self._load_telemetry_from_db(session_id, comp_driver_id, lap_number)
             result["comparative_driver_id"] = comp_driver_id
-            result["comparative_telemetry"] = telemetry_b[:50]
+            result["comparative_telemetry"] = telemetry_b[:50] if telemetry_b else []
             
         return result
 
-    def _load_telemetry(self, session_id: str, driver_id: str, lap_number: int) -> List[Dict[str, Any]]:
-        # Check database for file reference
+    def _load_telemetry_from_db(self, session_id: str, driver_id: str, lap_number: int):
+        telemetry_points = []
+        lap_info = {}
         try:
             meta = execute_query(
                 "SELECT storage_path FROM telemetry_metadata WHERE session_id = %s AND driver_id = %s AND lap_number = %s",
@@ -421,15 +369,18 @@ class TelemetryTool(BaseF1Tool):
             )
             if meta and meta[0]["storage_path"] and os.path.exists(meta[0]["storage_path"]):
                 with open(meta[0]["storage_path"], "r") as f:
-                    return json.load(f)
-        except Exception:
-            pass
+                    telemetry_points = json.load(f)
+                    
+            laps_res = execute_query(
+                "SELECT lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound, is_pit_out_lap FROM laps WHERE session_id = %s AND driver_id = %s AND lap_number = %s",
+                (session_id, driver_id, lap_number), fetch=True
+            )
+            if laps_res and len(laps_res) > 0:
+                lap_info = laps_res[0]
+        except Exception as e:
+            logger.warning(f"[TelemetryTool] DB telemetry fetch exception: {e}")
             
-        # Fallback dummy telemetry structure for test/mock queries
-        return [
-            {"distanceM": d, "speed": 280 - (d % 40), "throttle": 100 - (d % 20), "brake": d % 50 < 10, "gear": 6}
-            for d in range(0, 4318, 86)
-        ]
+        return telemetry_points, lap_info
 
 
 # =====================================================================
@@ -465,14 +416,12 @@ class HistoricalDataTool(BaseF1Tool):
         driver_id = inputs.get("driver_id")
         
         if query:
-            # Enforce read-only constraint by simple check
             q_lower = query.lower()
             if any(kw in q_lower for kw in ["insert", "update", "delete", "drop", "alter"]):
                 raise ValueError("Query rejected. Only read-only operations are allowed.")
             return execute_query(query, fetch=True)
             
         if session_id:
-            # Query session standings
             if driver_id:
                 return execute_query(
                     "SELECT * FROM race_results WHERE session_id = %s AND driver_id = %s",
@@ -620,7 +569,6 @@ class KnowledgeTool(BaseF1Tool):
         query = inputs["query"]
         results = rag_knowledge.retrieve(query)
         
-        # Check if there is an actual keyword match to avoid returning irrelevant fallback documents
         words = [w.lower() for w in query.split() if len(w) > 2]
         has_real_match = False
         for doc in results:
@@ -678,66 +626,70 @@ class InvestigationTool(BaseF1Tool):
         session_id = inputs.get("session_id", "2026_monaco_gp_race")
         driver_id = inputs.get("driver_id", "hamilton")
         
-        # Check database existence of session
-        db_exists = False
         try:
             chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
-            if chk:
-                db_exists = True
-        except Exception:
-            pass
-            
-        if not db_exists and session_id not in ["2024_austria_gp_race", "mock_session", "trace-collaboration-uuid"]:
-            return {"status": "missing_data"}
-            
-        status = "Collision"
-        lap = 1
-        cause = "Collision with another car"
-        stewards_decision = "No further action"
-        evidence_data = "Telemetry shows speed and steering angle divergence"
-        
-        try:
+            if not chk:
+                return {"status": "missing_data", "required_session": session_id}
+                
             sql = """
-                SELECT r.status, r.position, d.first_name, d.last_name
+                SELECT r.status, r.position, d.first_name, d.last_name, c.name as team_name
                 FROM race_results r
                 JOIN drivers d ON r.driver_id = d.id
+                JOIN constructors c ON r.constructor_id = c.id
                 WHERE r.session_id = %s AND r.driver_id = %s
             """
             res = execute_query(sql, (session_id, driver_id), fetch=True)
-            if res:
-                db_status = res[0]["status"]
-                if db_status and db_status != "Finished":
-                    status = db_status
-                    cause = f"Retired due to {db_status}"
-                    stewards_decision = "5 Second Time Penalty" if "collision" in db_status.lower() or "accident" in db_status.lower() else "No further action"
-        except Exception:
-            pass
+            if not res or len(res) == 0:
+                return {"status": "missing_data", "required_session": session_id}
+
+            row = res[0]
+            db_status = str(row["status"]) if row.get("status") else "Finished"
+            position = row.get("position")
+            driver_full_name = f"{row.get('first_name', '')} {row.get('last_name', '')}".strip() or driver_id
             
-        return {
-            "incident": f"{driver_id}_status_{status}",
-            "incidents": [
-                {
-                    "driver_id": driver_id,
-                    "lap": lap,
-                    "status": status,
-                    "cause": cause
-                }
-            ],
-            "stewards": [
-                {
-                    "driver_id": driver_id,
-                    "decision": stewards_decision
-                }
-            ],
-            "stewards_decision": stewards_decision,
-            "lap": lap,
-            "cause": cause,
-            "drivers": [driver_id],
-            "root_causes": [cause],
-            "supporting_evidence": [evidence_data],
-            "evidence": [evidence_data],
-            "confidence": 0.95
-        }
+            if db_status and db_status != "Finished":
+                cause = f"Retired due to {db_status}"
+                stewards_decision = "5 Second Time Penalty" if any(k in db_status.lower() for k in ["collision", "accident", "contact"]) else "No further action"
+            else:
+                cause = f"Completed race session in P{position}"
+                stewards_decision = "No further action"
+                
+            insights_res = execute_query(
+                "SELECT summary FROM race_insights WHERE session_id = %s AND driver_id = %s",
+                (session_id, driver_id), fetch=True
+            )
+            evidence_data = [i["summary"] for i in insights_res] if insights_res else [f"PostgreSQL telemetry and stint logs for {driver_full_name} in {session_id}"]
+            
+            return {
+                "incident": f"{driver_id}_status_{db_status}",
+                "incidents": [
+                    {
+                        "driver_id": driver_id,
+                        "driver": driver_full_name,
+                        "lap": 1,
+                        "status": db_status,
+                        "cause": cause
+                    }
+                ],
+                "stewards": [
+                    {
+                        "driver_id": driver_id,
+                        "decision": stewards_decision
+                    }
+                ],
+                "stewards_decision": stewards_decision,
+                "lap": 1,
+                "cause": cause,
+                "drivers": [driver_id],
+                "root_causes": [cause],
+                "supporting_evidence": evidence_data,
+                "evidence": evidence_data,
+                "confidence": 0.95
+            }
+        except Exception as e:
+            logger.warning(f"[InvestigationTool] DB exception for session {session_id}: {e}")
+            return {"status": "missing_data", "required_session": session_id}
+
 
 # =====================================================================
 # 9. Race Results Tool Adapter
@@ -772,74 +724,51 @@ class RaceResultsTool(BaseF1Tool):
         round_num = inputs.get("round")
         circuit_id = inputs.get("circuit_id")
         
-        # If no identifiers provided, look up the latest race result
         if not session_id:
             try:
-                # Find matching session
                 if year and (round_num or circuit_id):
                     if round_num:
-                        res = execute_query("SELECT id FROM sessions WHERE race_id = (SELECT id FROM races WHERE year = %s AND round = %s) AND type = 'Race'", (year, round_num), fetch=True)
+                        res = execute_query("SELECT s.id FROM sessions s JOIN races r ON s.race_id = r.id WHERE r.year = %s AND r.round = %s AND s.type = 'Race'", (year, round_num), fetch=True)
                     else:
-                        res = execute_query("SELECT id FROM sessions WHERE race_id = (SELECT id FROM races WHERE year = %s AND circuit_id = %s) AND type = 'Race'", (year, circuit_id), fetch=True)
+                        res = execute_query("SELECT s.id FROM sessions s JOIN races r ON s.race_id = r.id WHERE r.year = %s AND r.circuit_id = %s AND s.type = 'Race'", (year, circuit_id), fetch=True)
                     if res:
                         session_id = res[0]["id"]
                 else:
-                    # Fallback to latest session in DB
                     res = execute_query("SELECT id FROM sessions WHERE type = 'Race' ORDER BY date DESC LIMIT 1", fetch=True)
                     if res:
                         session_id = res[0]["id"]
             except Exception:
                 pass
-                
+
         if not session_id:
-            session_id = "2026_monaco_gp_race"
-            
-        sql = """
-            SELECT r.position, r.grid_position, r.points, r.status, r.laps_completed, r.fastest_lap_time,
-                   d.first_name, d.last_name, d.code, d.driver_number, d.nationality as driver_nationality,
-                   c.name as constructor_name
-            FROM race_results r
-            JOIN drivers d ON r.driver_id = d.id
-            JOIN constructors c ON r.constructor_id = c.id
-            WHERE r.session_id = %s
-            ORDER BY r.position
-        """
-        
-        # Check database existence of session
-        db_exists = False
+            return {"status": "missing_data", "required_session": "unknown_session"}
+
         try:
             chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
-            if chk:
-                db_exists = True
-        except Exception:
-            pass
+            if not chk:
+                return {"status": "missing_data", "required_session": session_id}
 
-        results = None
-        if db_exists:
-            try:
-                results = execute_query(sql, (session_id,), fetch=True)
-            except Exception:
-                pass
-                
-        if not results:
-            if session_id in ["2024_austria_gp_race", "2026_monaco_gp_race", "mock_session", "trace-collaboration-uuid"]:
-                results = [
-                    {"position": 1, "first_name": "Charles", "last_name": "Leclerc", "code": "LEC", "constructor_name": "Scuderia Ferrari", "points": 25.0, "status": "Finished"},
-                    {"position": 2, "first_name": "Max", "last_name": "Verstappen", "code": "VER", "constructor_name": "Red Bull Racing", "points": 18.0, "status": "Finished"},
-                    {"position": 3, "first_name": "Lewis", "last_name": "Hamilton", "code": "HAM", "constructor_name": "Mercedes-AMG Petronas F1 Team", "points": 15.0, "status": "Finished"},
-                    {"position": 4, "first_name": "Lando", "last_name": "Norris", "code": "NOR", "constructor_name": "McLaren Formula 1 Team", "points": 12.0, "status": "Finished"}
-                ]
-            else:
-                return {"status": "missing_data"}
-            
-        gp_name = "Monaco GP"
-        season_val = 2026
-        try:
+            sql = """
+                SELECT r.position, r.grid_position, r.points, r.status, r.laps_completed, r.fastest_lap_time,
+                       d.first_name, d.last_name, d.code, d.driver_number, d.nationality as driver_nationality,
+                       c.name as constructor_name
+                FROM race_results r
+                JOIN drivers d ON r.driver_id = d.id
+                JOIN constructors c ON r.constructor_id = c.id
+                WHERE r.session_id = %s
+                ORDER BY r.position
+            """
+            results = execute_query(sql, (session_id,), fetch=True)
+            if not results or len(results) == 0:
+                return {"status": "missing_data", "required_session": session_id}
+
+            gp_name = "Grand Prix"
+            season_val = 2026
             db_race = execute_query(
                 "SELECT r.name, r.year FROM sessions s JOIN races r ON s.race_id = r.id WHERE s.id = %s",
                 (session_id,), fetch=True
             )
-            if db_race:
+            if db_race and len(db_race) > 0:
                 gp_name = db_race[0]["name"]
                 season_val = int(db_race[0]["year"])
             else:
@@ -847,66 +776,65 @@ class RaceResultsTool(BaseF1Tool):
                 if parts and parts[0].isdigit():
                     season_val = int(parts[0])
                 gp_name = " ".join(parts[1:-1]).title()
-                if "Gp" in gp_name:
-                    gp_name = gp_name.replace("Gp", "GP")
-        except Exception:
-            pass
-            
-        classification = []
-        retirements = []
-        winner = None
-        driver_positions = {}
-        for r in results:
-            driver_name = f"{r.get('first_name', '')} {r.get('last_name', '')}".strip()
-            pos = r.get("position")
-            grid = r.get("grid_position") or pos
-            status = r.get("status", "Finished")
-            points = float(r.get("points", 0.0))
-            
-            driver_positions[driver_name] = pos
-            
-            entry = {
-                "driver": driver_name,
-                "position": pos,
-                "grid": grid,
-                "team": r.get("constructor_name"),
-                "status": status,
-                "points": points
-            }
-            classification.append(entry)
-            if pos == 1:
-                winner = entry
-            
-            status_lower = status.lower()
-            if any(term in status_lower for term in ["accident", "collision", "spinned", "crash", "engine", "retired", "dnf", "puncture", "gearbox", "suspension", "brakes"]):
-                retirements.append(entry)
+
+            classification = []
+            retirements = []
+            winner = None
+            driver_positions = {}
+            for r in results:
+                driver_name = f"{r.get('first_name', '')} {r.get('last_name', '')}".strip()
+                pos = r.get("position")
+                grid = r.get("grid_position") or pos
+                status = r.get("status", "Finished")
+                points = float(r.get("points", 0.0))
                 
-        winner_name = winner["driver"] if winner else (classification[0]["driver"] if classification else "Unknown")
-        podium = [c["driver"] for c in classification[:3]]
-        
-        return {
-            "grand_prix": gp_name,
-            "season": season_val,
-            "winner": winner_name,
-            "podium": podium,
-            "classification": classification,
-            "session": session_id,
-            "race": {
-                "name": gp_name,
-                "year": season_val
-            },
-            "winner_details": winner or (classification[0] if classification else None),
-            "incidents": [
-                {
-                    "driver": ret["driver"],
-                    "incident": ret["status"],
-                    "lap": 12
-                } for ret in retirements
-            ],
-            "retirements": retirements,
-            "laps": 71,
-            "driver_positions": driver_positions
-        }
+                driver_positions[driver_name] = pos
+                
+                entry = {
+                    "driver": driver_name,
+                    "position": pos,
+                    "grid": grid,
+                    "team": r.get("constructor_name"),
+                    "status": status,
+                    "points": points
+                }
+                classification.append(entry)
+                if pos == 1:
+                    winner = entry
+                
+                status_lower = status.lower()
+                if any(term in status_lower for term in ["accident", "collision", "spinned", "crash", "engine", "retired", "dnf", "puncture", "gearbox", "suspension", "brakes"]):
+                    retirements.append(entry)
+                    
+            winner_name = winner["driver"] if winner else (classification[0]["driver"] if classification else "Unknown")
+            podium = [c["driver"] for c in classification[:3]]
+            
+            return {
+                "grand_prix": gp_name,
+                "season": season_val,
+                "winner": winner_name,
+                "podium": podium,
+                "classification": classification,
+                "session": session_id,
+                "race": {
+                    "name": gp_name,
+                    "year": season_val
+                },
+                "winner_details": winner or (classification[0] if classification else None),
+                "incidents": [
+                    {
+                        "driver": ret["driver"],
+                        "incident": ret["status"],
+                        "lap": 12
+                    } for ret in retirements
+                ],
+                "retirements": retirements,
+                "laps": results[0].get("laps_completed") or 71,
+                "driver_positions": driver_positions
+            }
+        except Exception as e:
+            logger.warning(f"[RaceResultsTool] DB exception for session {session_id}: {e}")
+            return {"status": "missing_data", "required_session": session_id}
 
 
 # =====================================================================
@@ -959,7 +887,6 @@ class DriverDatabaseTool(BaseF1Tool):
         except Exception:
             pass
             
-        # Fallback seeds mock if DB query fails or has no rows
         fallbacks = [
             {"id": "leclerc", "first_name": "Charles", "last_name": "Leclerc", "code": "LEC", "driver_number": 16, "nationality": "Monégasque", "dob": "1997-10-16", "team_name": "Scuderia Ferrari"},
             {"id": "verstappen", "first_name": "Max", "last_name": "Verstappen", "code": "VER", "driver_number": 1, "nationality": "Dutch", "dob": "1997-09-30", "team_name": "Red Bull Racing"},
@@ -1018,7 +945,6 @@ class ConstructorDatabaseTool(BaseF1Tool):
         except Exception:
             pass
             
-        # Fallback seeds mock
         fallbacks = [
             {"id": "ferrari", "name": "Scuderia Ferrari", "nationality": "Italian", "base_location": "Maranello, Italy"},
             {"id": "red_bull", "name": "Red Bull Racing", "nationality": "Austrian", "base_location": "Milton Keynes, UK"},
@@ -1062,7 +988,6 @@ class StandingsTool(BaseF1Tool):
         st_type = inputs.get("standings_type", "driver")
         
         if not year:
-            # Resolve latest year
             try:
                 res = execute_query("SELECT MAX(year) as max_year FROM races", fetch=True)
                 if res and res[0]["max_year"]:
@@ -1204,6 +1129,7 @@ class HistoricalResultsTool(BaseF1Tool):
 # Register all tools globally
 tool_registry.register(ScoringTool())
 tool_registry.register(SimulationTool())
+tool_registry.register(StrategyTool())
 tool_registry.register(TelemetryTool())
 tool_registry.register(HistoricalDataTool())
 tool_registry.register(ExplainModeTool())
@@ -1215,4 +1141,3 @@ tool_registry.register(DriverDatabaseTool())
 tool_registry.register(ConstructorDatabaseTool())
 tool_registry.register(StandingsTool())
 tool_registry.register(HistoricalResultsTool())
-

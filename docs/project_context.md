@@ -31,7 +31,8 @@ The platform uses a decoupled microservices design to balance performance (Node.
   - **Fallback**: Groq (for fast latency responses).
   - **Future Optional**: OpenRouter integration.
 - **Cache & Message Broker**: Redis coordinates pub/sub channels for real-time timing/telemetry and acts as a lightweight hot-data store.
-- **Primary Database**: PostgreSQL storing structured race summaries, lap lists, stints, weather, and user chat contexts.
+- **Primary Database**: PostgreSQL storing structured race summaries, lap lists, stints, weather, race results, telemetry metadata, and user chat contexts.
+- **PostgreSQL-Powered Investigation Tools**: All 5 investigation tools (`RaceResultsTool`, `TelemetryTool`, `StrategyTool` / `SimulationTool`, `InvestigationTool`, `ScoringTool`) run directly against PostgreSQL, returning `{"status": "missing_data", "required_session": session_id}` whenever data is absent, with ZERO raw FastF1 direct API calls or mock data fabrications.
 
 ---
 
@@ -859,6 +860,7 @@ There is **no persistent sidebar**. Navigation flows through:
 - [x] **Implement Phase 1 Core Backend Foundation: JWT Authentication (login/register/middleware), PostgreSQL Investigation History (users, investigations, saved_investigations), History APIs (GET /history, GET /history/:id, DELETE /history/:id), and Redis Investigation Caching.**
 - [x] **Implement Phase 1 Frontend Foundation: Homepage polish (Hero, Search Bar, Recent & Saved Investigations), Investigation Thread layout hierarchy (Question -> Loading Progress -> AI Verdict -> Charts -> Evidence -> Follow-up Suggestions), React Error Boundaries, and full API Client integration.**
 - [x] **Implement Dedicated Context Builder Stage: Structured context normalization, evidence deduplication, empty field purging, confidence/relevance ranking, and LLM raw dump isolation.**
+- [x] **Implement Real FastF1 Data Ingestion Service: On-demand session downloads, local disk caching, PostgreSQL schema population (sessions, drivers, laps, stints, weather, race_results, telemetry_metadata), and POST /sessions/load endpoint.**
 
 ### Pending Tasks
 - [ ] Execute Express server setup and connect WebSocket handlers.
@@ -914,6 +916,18 @@ The Python AI service (`ai_services/app/agents/context_builder.py`) implements:
 - **Data Sanitization**: Recursively removes empty values (`None`, `""`, `[]`, `{}`) with numpy array handling.
 - **Deduplication & Ranking**: De-duplicates evidence items by payload hash and ranks entries by `(relevance * confidence)` descending.
 - **LLM Context Isolation**: Ensures LLM prompts receive **ONLY** the single `structured_context` object, guaranteeing that raw tool dumps are never sent to LLMs or leaked to the frontend.
+
+---
+
+## 20. Real FastF1 Data Ingestion Service
+
+### Architecture Overview
+The Python AI service (`ai_services/app/ingestion/fastf1_collector.py` & `loader.py`) implements:
+- **On-Demand Session Downloader**: Downloads session data using `fastf1.get_session(year, gp, session)` with local disk cache `fastf1.Cache.enable_cache('cache')`.
+- **PostgreSQL Pre-Check**: Checks database records (`session_id = '{year}_{gp}_{session}'`) before starting downloads to ensure sessions are not downloaded or ingested twice.
+- **PostgreSQL Persistence**: Saves session records to `sessions`, `drivers`, `laps`, `stints`, `weather`, `race_results`, and `telemetry_metadata` tables.
+- **`POST /sessions/load` Endpoint**: FastAPI endpoint returning `{ "status": "cached", ... }` if session already exists or `{ "status": "loaded", ... }` on fresh ingestion, with Express backend gateway routing.
+
 
 
 

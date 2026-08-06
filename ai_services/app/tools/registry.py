@@ -58,23 +58,23 @@ class BaseF1Tool(ABC):
                 if not (isinstance(val, (int, float)) or hasattr(val, "dtype")):
                     raise ToolValidationError(f"scoring_tool field {r} must be a number, got {type(val)}")
                     
-        elif name == "simulation_tool":
+        elif name in ["simulation_tool", "strategy_tool"]:
             if not isinstance(output, dict):
-                raise ToolValidationError("simulation_tool output must be a dictionary")
+                raise ToolValidationError(f"{name} output must be a dictionary")
             required = ["pit_stop_lap", "compound_before", "compound_after", "traffic_loss", "undercut_gain"]
             for r in required:
                 if r not in output:
-                    raise ToolValidationError(f"simulation_tool missing required field: {r}")
+                    raise ToolValidationError(f"{name} missing required field: {r}")
             if not isinstance(output["pit_stop_lap"], int):
-                raise ToolValidationError(f"simulation_tool pit_stop_lap must be an int")
+                raise ToolValidationError(f"{name} pit_stop_lap must be an int")
             if not isinstance(output["compound_before"], str):
-                raise ToolValidationError(f"simulation_tool compound_before must be a string")
+                raise ToolValidationError(f"{name} compound_before must be a string")
             if not isinstance(output["compound_after"], str):
-                raise ToolValidationError(f"simulation_tool compound_after must be a string")
+                raise ToolValidationError(f"{name} compound_after must be a string")
             for f in ["traffic_loss", "undercut_gain"]:
                 val = output[f]
                 if not (isinstance(val, (int, float)) or hasattr(val, "dtype")):
-                    raise ToolValidationError(f"simulation_tool {f} must be a number")
+                    raise ToolValidationError(f"{name} {f} must be a number")
                     
         elif name == "telemetry_tool":
             if not isinstance(output, dict):

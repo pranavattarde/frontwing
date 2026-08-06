@@ -27,6 +27,11 @@ class SimulationRequest(BaseModel):
     target_compound: Optional[str] = None
     save_to_db: Optional[bool] = True
 
+class SessionLoadRequest(BaseModel):
+    year: int
+    gp: str
+    session: str = "R"
+
 from app.core.startup import run_startup_health_checks
 
 # Run validation checks on FastAPI boot
@@ -102,6 +107,18 @@ def simulate_strategy(req: SimulationRequest):
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         logger.error(f"Error running strategy simulation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/sessions/load")
+def load_session(req: SessionLoadRequest):
+    """Downloads or loads an F1 session on demand via FastF1 and persists into PostgreSQL."""
+    try:
+        from app.ingestion.fastf1_collector import FastF1Collector
+        collector = FastF1Collector()
+        result = collector.load_session(req.year, req.gp, req.session)
+        return result
+    except Exception as e:
+        logger.error(f"Error loading session: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 class QueryRequest(BaseModel):

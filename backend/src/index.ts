@@ -8,6 +8,7 @@ import { connectRedis, redisClient } from './config/redis';
 import authRoutes from './routes/auth.routes';
 import historyRoutes from './routes/history.routes';
 import engineerRoutes from './routes/engineer.routes';
+import sessionRoutes from './routes/session.routes';
 
 // Load environment variables
 dotenv.config();
@@ -52,6 +53,9 @@ app.use('/history', historyRoutes); // Direct specification compliance (GET /his
 
 app.use('/api/engineer', engineerRoutes);
 app.use('/engineer', engineerRoutes); // Direct specification compliance (/engineer/query)
+
+app.use('/api/sessions', sessionRoutes);
+app.use('/sessions', sessionRoutes); // Direct specification compliance (POST /sessions/load)
 
 // Create HTTP server
 const server = http.createServer(app);

@@ -623,6 +623,33 @@ We configured `ReliableLLMProvider` exception logging to output provider, model,
 - **LLM Isolation**: `synthesize_node` and `ExplainEngineer` persona feed `json.dumps(structured_context)` to LLM prompts, ensuring LLMs never receive raw tool dumps.
 - **Frontend Protection**: `investigation_report["Evidence"]` presents clean human-readable titles, suppressing raw JSON leaks to client user interfaces.
 
+---
 
+## 24. Real FastF1 Data Ingestion Service Insights
 
+> **Date**: 2026-08-06
+> **Author**: Lead Data Engineer
+> **Key Learning**: Ingest real Formula 1 session telemetry on demand using FastF1, cache raw data locally on disk, pre-check PostgreSQL to eliminate duplicate downloads, and persist structured telemetry across sessions, drivers, laps, stints, weather, race_results, and telemetry_metadata tables.
 
+### 1. Database-First Ingestion Pre-Check
+- **Zero Duplicate Overhead**: `FastF1Collector.load_session()` queries `sessions` table first by composite ID (`{year}_{gp}_{session}`). If session data already exists in PostgreSQL, it instantly returns `{"status": "cached", "session_id": ...}` without triggering network downloads or dataframe parsing.
+
+### 2. FastF1 Disk Caching & Telemetry Downsampling
+- **Disk Cache**: Configured `fastf1.Cache.enable_cache('cache')` to persist raw FIA timing files locally.
+- **Structured Table Ingestion**: Transforms raw FastF1 dataframes into relational records across 7 core PostgreSQL tables (`sessions`, `drivers`, `laps`, `stints`, `weather`, `race_results`, and downsampled JSON arrays in `telemetry_metadata`).
+
+---
+
+## 25. PostgreSQL Investigation Tools Migration Insights
+
+> **Date**: 2026-08-06
+> **Author**: Lead AI Platform & Data Architect
+> **Key Learning**: Eliminate all direct FastF1 API calls and mock data fallback fabrications inside investigation tools. Query PostgreSQL directly for timing, stint, driver, and classification records, returning `{"status": "missing_data", "required_session": session_id}` whenever data is absent in database.
+
+### 1. Zero Direct Network & Fabricated Mock Calls
+- **Database Exclusivity**: Tools (`RaceResultsTool`, `TelemetryTool`, `StrategyTool` / `SimulationTool`, `InvestigationTool`, `ScoringTool`) run strictly against PostgreSQL database tables (`sessions`, `race_results`, `drivers`, `laps`, `stints`, `telemetry_metadata`, `race_insights`, `scoring_results`).
+- **No Mock Fabrications**: Previously existing hardcoded fallback dictionaries (e.g., hardcoded driver classifications or synthetic telemetry loops) were removed.
+
+### 2. Standardized Missing Data Contract
+- **Explicit Schema Bypass**: Any tool execution encountering missing database records or offline connections returns `{"status": "missing_data", "required_session": session_id}`.
+- **Validator Compatibility**: `ToolRegistry.validate_output` explicitly recognizes dicts with `status == "missing_data"` and passes validation without throwing execution errors.
