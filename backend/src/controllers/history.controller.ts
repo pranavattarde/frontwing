@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { AuthRequest } from '../types/auth.types';
 import { HistoryService } from '../services/history.service';
 
+const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
 export class HistoryController {
   static async getHistory(req: AuthRequest, res: Response) {
     try {
@@ -34,8 +36,8 @@ export class HistoryController {
       const { id } = req.params;
       const userId = req.user?.id;
 
-      if (!id) {
-        return res.status(400).json({ error: 'Investigation ID is required' });
+      if (!id || !isUUID(id)) {
+        return res.status(400).json({ error: 'Valid investigation UUID is required' });
       }
 
       const investigation = await HistoryService.getInvestigationById(id, userId);
@@ -59,8 +61,8 @@ export class HistoryController {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      if (!id) {
-        return res.status(400).json({ error: 'Investigation ID is required' });
+      if (!id || !isUUID(id)) {
+        return res.status(400).json({ error: 'Valid investigation UUID is required' });
       }
 
       const deleted = await HistoryService.deleteInvestigation(id, userId);
@@ -82,6 +84,10 @@ export class HistoryController {
 
       if (!userId) {
         return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      if (!id || !isUUID(id)) {
+        return res.status(400).json({ error: 'Valid investigation UUID is required' });
       }
 
       const result = await HistoryService.toggleSaveInvestigation(userId, id);

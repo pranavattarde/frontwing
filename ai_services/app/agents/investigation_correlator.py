@@ -147,7 +147,7 @@ class InvestigationCorrelator:
         else:
             reasoning_graph.append("Final position")
             
-        reasoning_graph_text = "\n↓\n".join(reasoning_graph)
+        reasoning_graph_text = "\n->\n".join(reasoning_graph)
         
         # 6. Executive Summary Synthesis
         exec_summary = (

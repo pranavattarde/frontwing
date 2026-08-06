@@ -1,34 +1,50 @@
-# FrontWing Stabilization Task Checklist
+# FrontWing MVP Stabilization Sprint Task Checklist
 
-- [x] **1. Conversational Thread Context Persistence**
-  - [x] Multi-turn entity & context resolution implemented
-  - [x] PostgreSQL conversation persistence via `conversations` table
-  - [x] Circuit-breaker in-memory fallback for offline scenarios
+- [x] **1. Planner as Single Source of Truth**
+  - [x] Planner parameters (`season`, `grand_prix`, `driver_id`, `session_type`, `lap`) strictly preserved downstream
+  - [x] Zero downstream overrides or silent parameter replacements
 
-- [x] **2. Database Auto-Migration**
-  - [x] `backend/src/services/migration.service.ts` — Runs all SQL migrations on backend startup
-  - [x] `ai_services/app/core/startup.py` — Runs all SQL migrations on Python AI service startup
-  - [x] Ensures `users`, `investigations`, `saved_investigations`, `conversations` tables always exist
+- [x] **2. Entity Resolver Parameter Preservation**
+  - [x] EntityResolver converts NL names to DB IDs (`race_id`, `session_id`, `driver_id`) without altering requested season/year
+  - [x] Removed `return 2026` defaults; explicitly targets requested season (e.g. 2024)
 
-- [x] **3. Dynamic Session Ingestion (On-Demand)**
-  - [x] `ai_services/app/ingestion/loader.py` — Added `ensure_session_in_db()` for on-demand session fetching
-  - [x] `ai_services/app/agents/resolver.py` — `_compute_session_id()` triggers `ensure_session_in_db()` on missing sessions
-  - [x] `ai_services/app/core/entity_resolver.py` — Dynamic ingestion triggered on entity-not-found race/session lookup
-  - [x] Tools (`ScoringTool`, `SimulationTool`, `TelemetryTool`, `InvestigationTool`, `RaceResultsTool`) — all call `ensure_session_in_db()` before returning missing_data
+- [x] **3. Removal of All Hardcoded Fallbacks**
+  - [x] Removed `2026_monaco_gp_race`, `2024_austria_gp_race`, `ORDER BY date DESC LIMIT 1` from `loader.py`
+  - [x] Removed hardcoded fake drivers, constructors, and 2026 Monaco GP arrays from tool adapters
+  - [x] Removed static `TELEMETRY_PIA_LAP42` / `TELEMETRY_SAI_LAP42` fallbacks from frontend
 
-- [x] **4. GP-Specific Synthetic Fallback Data**
-  - [x] `ai_services/app/ingestion/fastf1_collector.py` — `_populate_synthetic_session()` now uses GP-specific correct race results for Monaco, Hungary, Austria
-  - [x] Monaco 2024: Leclerc 1st, Piastri 2nd, Sainz 3rd
-  - [x] Hungary 2024: Piastri 1st, Norris 2nd, Hamilton 3rd
-  - [x] Austria 2024: Russell 1st, Piastri 2nd, Sainz 3rd (Norris collision)
+- [x] **4. Automatic FastF1 Ingestion**
+  - [x] `ensure_session_in_db()` automatically fetches missing sessions via `FastF1Collector.load_session()`
+  - [x] Auto-populates and caches session data in PostgreSQL without requiring user intervention
+  - [x] Removed error message instructing user to POST `/sessions/load`
 
-- [x] **5. Clean Human-Readable Answers (No Raw JSON)**
-  - [x] `ai_services/app/agents/personas.py` — `ExplainEngineer` fallback rewritten to format evidence into clean prose
-  - [x] Tool-specific formatters for `race_results_tool`, `telemetry_tool`, `strategy_tool`, `scoring_tool`, `investigation_tool`
+- [x] **5. Execution Tools Argument Integrity**
+  - [x] Tools consume planner parameters strictly as received
+  - [x] Return honest `missing_data` responses when session data is missing, never substituted races
 
-- [x] **6. Frontend Production Build Verified**
-  - [x] `npm run build` passes (431 modules, 5.32s)
+- [x] **6. Intent-Driven Response Formatting**
+  - [x] Factual queries ("Who won Monaco GP?") return concise answer + standings + evidence (no reasoning graph or telemetry findings)
+  - [x] Analytical queries ("Why did Ferrari fail?") return full reasoning graph + telemetry findings + evidence + recommendations
 
-- [x] **7. End-to-End Validation Tests**
-  - [x] `tests/test_end_to_end_validation.py` — 10 queries validated, all PASS
-  - [x] Queries: Hungary GP winner, Monaco GP 2024, Verstappen vs Norris, Sainz tyre deg, Hamilton fastest lap, Norris pit stop, Ferrari vs McLaren, strategy, lap 25 telemetry, Austria GP summary
+- [x] **7. Evidence-Driven Telemetry Charts**
+  - [x] Telemetry chart section renders ONLY when valid backend telemetry data exists
+  - [x] Completely hidden when telemetry is unavailable; zero placeholder/fake charts
+
+- [x] **8. Authentication Enforcement**
+  - [x] Enforced `authenticateToken` on `/history`, `/save`, `/delete`, `/me`, `/bookmarks` (returns 401 Unauthorized without JWT)
+  - [x] `/engineer/query` investigation endpoint remains public
+
+- [x] **9. History UUID Bug Resolution**
+  - [x] Backend attaches generated PostgreSQL UUID `id` to `/engineer/query` response
+  - [x] Frontend stores and reuses backend UUID for all history/save/delete actions
+  - [x] Backend validates UUID format (`isUUID`) and returns 400 Bad Request on invalid format
+
+- [x] **10. Frontend Structure Optimization**
+  - [x] Exactly 1 Question, 1 Verdict, 1 Reasoning, 1 Evidence section, 1 Chart section (if data exists), 1 Follow-up section per turn
+  - [x] Zero duplicate renders
+
+- [x] **11. Validation Suite**
+  - [x] Express Backend build (`npm run build`) — PASS
+  - [x] React Frontend build (`npm run build`) — PASS (431 modules, 21.35s)
+  - [x] Python Unit Test Suite (`python -m unittest discover tests/`) — PASS
+  - [x] 5 Target Query Validations (`test_sprint_validation.py`) — PASS

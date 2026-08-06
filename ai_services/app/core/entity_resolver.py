@@ -150,6 +150,15 @@ class EntityResolver:
             except Exception:
                 resolved_ids["constructor_id"] = matched_constructor
 
+            if not matched_drivers:
+                try:
+                    drv_rows = execute_query("SELECT id FROM drivers WHERE constructor_id = %s LIMIT 2", (matched_constructor,), fetch=True)
+                    if drv_rows:
+                        resolved_ids["driver_id"] = drv_rows[0]["id"]
+                        resolved_ids["driver_ids"] = [d["id"] for d in drv_rows]
+                except Exception:
+                    pass
+
         # 4. Extract and resolve Circuit / GP & Session
         circuits_map = {
             "monaco": ["monaco", "monte carlo"],
@@ -194,44 +203,33 @@ class EntityResolver:
 
             # Look up matching race for year flexibly
             race_res = None
+            target_year = year or state.get("season") or 2024
             try:
-                if year:
-                    race_res = execute_query(
-                        """
-                        SELECT r.id, r.year, r.round, r.name FROM races r
-                        LEFT JOIN circuits c ON r.circuit_id = c.id
-                        WHERE (c.id ILIKE %s OR c.name ILIKE %s OR r.name ILIKE %s OR r.id ILIKE %s) AND r.year = %s
-                        """,
-                        (f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%", year),
-                        fetch=True
-                    )
-                else:
-                    race_res = execute_query(
-                        """
-                        SELECT r.id, r.year, r.round, r.name FROM races r
-                        LEFT JOIN circuits c ON r.circuit_id = c.id
-                        WHERE (c.id ILIKE %s OR c.name ILIKE %s OR r.name ILIKE %s OR r.id ILIKE %s)
-                        ORDER BY r.year DESC LIMIT 1
-                        """,
-                        (f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%"),
-                        fetch=True
-                    )
+                race_res = execute_query(
+                    """
+                    SELECT r.id, r.year, r.round, r.name FROM races r
+                    LEFT JOIN circuits c ON r.circuit_id = c.id
+                    WHERE (c.id ILIKE %s OR c.name ILIKE %s OR r.name ILIKE %s OR r.id ILIKE %s) AND r.year = %s
+                    """,
+                    (f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%", target_year),
+                    fetch=True
+                )
             except Exception:
                 pass
 
             if not race_res:
                 # Trigger dynamic ingestion for missing GP session
                 from app.ingestion.loader import ensure_session_in_db
-                ensure_session_in_db(None, year=year or 2024, gp_name=matched_circuit, session_type=session_type)
+                target_year = year or 2024
+                ensure_session_in_db(None, year=target_year, gp_name=matched_circuit, session_type=session_type)
                 try:
                     race_res = execute_query(
                         """
                         SELECT r.id, r.year, r.round, r.name FROM races r
                         LEFT JOIN circuits c ON r.circuit_id = c.id
-                        WHERE (c.id ILIKE %s OR c.name ILIKE %s OR r.name ILIKE %s OR r.id ILIKE %s)
-                        ORDER BY r.year DESC LIMIT 1
+                        WHERE (c.id ILIKE %s OR c.name ILIKE %s OR r.name ILIKE %s OR r.id ILIKE %s) AND r.year = %s
                         """,
-                        (f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%"),
+                        (f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%", target_year),
                         fetch=True
                     )
                 except Exception:
@@ -249,7 +247,7 @@ class EntityResolver:
             db_matches.append(dict(race_res[0]))
             race_id = race_res[0]["id"]
             resolved_ids["race_id"] = race_id
-            resolved_ids["season"] = race_res[0]["year"]
+            resolved_ids["season"] = year or race_res[0]["year"]
             
             # Query session
             sess_res = execute_query(

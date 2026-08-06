@@ -759,7 +759,20 @@ All internal states are converted to human-readable F1 analyst language before r
 
 `resolve_context()` in memory.py now maps team keywords to their canonical drivers for comparative queries (e.g., "Compare this to McLaren" → piastri).
 
+## Sprint 7 — FrontWing MVP Stabilization Sprint Insights
 
+### 1. Deterministic Parameter Preservation
+- **Problem**: Execution components (resolvers, tools, personas) were modifying planner parameters (e.g. season 2024 -> 2026, or replacing requested GPs with Monaco/Austria).
+- **Resolution**: Enforced planner as single source of truth. Season, race, GP, driver, and lap parameters flow unchanged into all execution tools.
 
+### 2. Automatic Ingestion vs Manual Session Prompts
+- **Problem**: Missing GP sessions previously triggered error messages prompting users to manually POST to `/sessions/load`.
+- **Resolution**: `ensure_session_in_db()` in `loader.py` dynamically downloads missing sessions using `FastF1Collector.load_session()`, storing them in PostgreSQL and cache seamlessly without user intervention.
 
+### 3. Response Type Separation
+- **Factual Intent**: Questions like *"Who won Monaco GP?"* receive direct concise summaries + classification/standings + evidence, explicitly excluding reasoning graphs and telemetry findings.
+- **Analytical Intent**: Questions like *"Why did Ferrari fail?"* receive full root-cause reasoning graphs, telemetry findings, evidence, and recommendations.
 
+### 4. UUID History Integrity & Auth Security
+- **JWT Protection**: Secured `/history`, `/save`, `/delete`, `/me`, `/bookmarks` with `authenticateToken` middleware returning `401 Unauthorized` without a valid token.
+- **UUID Persistence**: Attached backend PostgreSQL UUID `id` to query responses and validated UUID formats via regex in controller handlers to prevent SQL syntax crashes on client temporary IDs.

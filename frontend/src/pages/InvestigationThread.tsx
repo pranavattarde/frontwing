@@ -129,47 +129,33 @@ function mapResponseToMessages(id: string, response: any, timestamp: number, isL
     }
   ];
 
-  // Push 5 Production Visualizations (Lap Time Graph, Tyre Degradation, Sector Comparison, Speed Trace, Pit Window Timeline)
-  const telemData = evidence.telemetry_tool || {};
-  const simData = evidence.simulation_tool || {};
-  const driverCode = (telemData.driver_id || simData.driver_id || 'SAI').toUpperCase();
+  // Push Production Visualizations ONLY if real telemetry evidence exists in response
+  const telemData = evidence.telemetry_tool;
+  const simData = evidence.simulation_tool;
 
-  messages.push({
-    id: `visualizations-${id}-${timestamp}`,
-    type: 'production-visualizations',
-    content: 'Production Telemetry Visualizations',
-    evidenceData: {
-      lapTimes: telemData.lap_times || [
-        { lap: 1, lap_time: 71.2, compound: 'MEDIUM' },
-        { lap: 10, lap_time: 71.6, compound: 'MEDIUM' },
-        { lap: 20, lap_time: 72.4, compound: 'MEDIUM' }
-      ],
-      tyreDeg: telemData.tyre_degradation || [
-        { lap: 1, wear_pct: 100, pace_loss_s: 0.0, compound: 'MEDIUM' },
-        { lap: 10, wear_pct: 78, pace_loss_s: 0.4, compound: 'MEDIUM' },
-        { lap: 20, wear_pct: 52, pace_loss_s: 0.9, compound: 'MEDIUM' }
-      ],
-      sectorTimes: telemData.sector_times || [
-        { sector: 'S1', driver_time: telemData.sector1_delta || 16.2, benchmark_time: 16.0, delta: 0.2 },
-        { sector: 'S2', driver_time: telemData.sector2_delta || 28.5, benchmark_time: 28.1, delta: 0.4 },
-        { sector: 'S3', driver_time: telemData.sector3_delta || 23.8, benchmark_time: 23.9, delta: -0.1 }
-      ],
-      pitWindow: {
-        pittingDriver: {
-          code: driverCode,
-          exitLap: simData.actual_pit_lap || simData.pit_stop_lap || 22,
-          pitLossTime: simData.traffic_loss || 22.0
-        },
-        rivals: [
-          { code: 'NOR', gapAtExit: -1.2, position: 2, isDirtyAir: true },
-          { code: 'VER', gapAtExit: -8.5, position: 1, isDirtyAir: false },
-          { code: 'HAM', gapAtExit: +4.2, position: 4, isDirtyAir: false }
-        ]
+  if (telemData && (telemData.lap_times || telemData.telemetry || telemData.sector_times)) {
+    const driverCode = (telemData.driver_id || (simData && simData.driver_id) || 'DRV').toUpperCase();
+    messages.push({
+      id: `visualizations-${id}-${timestamp}`,
+      type: 'production-visualizations',
+      content: 'Production Telemetry Visualizations',
+      evidenceData: {
+        lapTimes: telemData.lap_times || [],
+        tyreDeg: telemData.tyre_degradation || [],
+        sectorTimes: telemData.sector_times || [],
+        pitWindow: simData && simData.pit_windows ? {
+          pittingDriver: {
+            code: driverCode,
+            exitLap: simData.actual_pit_lap || simData.pit_stop_lap || 22,
+            pitLossTime: simData.traffic_loss || 22.0
+          },
+          rivals: simData.rivals || []
+        } : null,
+        driverCode: driverCode
       },
-      driverCode: driverCode
-    },
-    timestamp: timestamp + 1200,
-  });
+      timestamp: timestamp + 1200,
+    });
+  }
 
   if (isLast) {
     const suggestedFollowups = [
@@ -378,9 +364,13 @@ export function InvestigationThread() {
         model: model
       });
 
+      // Persist Backend UUID if returned
+      const backendUuid = (apiResponse as any).id;
+      const targetId = backendUuid || id;
+
       // Update local storage
-      const stored = localStorage.getItem(`frontwing_investigation_${id}`);
-      const data = stored ? JSON.parse(stored) : { id, question: queryText, exchanges: [] };
+      const stored = localStorage.getItem(`frontwing_investigation_${targetId}`);
+      const data = stored ? JSON.parse(stored) : { id: targetId, question: queryText, exchanges: [] };
       if (!data.exchanges) {
         data.exchanges = [];
       }
@@ -391,13 +381,17 @@ export function InvestigationThread() {
         timestamp: Date.now()
       });
       data.status = 'completed';
-      localStorage.setItem(`frontwing_investigation_${id}`, JSON.stringify(data));
+      localStorage.setItem(`frontwing_investigation_${targetId}`, JSON.stringify(data));
+
+      if (backendUuid && backendUuid !== id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(backendUuid)) {
+        navigate(`/investigation/${backendUuid}`, { replace: true });
+      }
 
       setIsLoading(false);
       setAbortController(null);
 
       // Stream blocks progressively
-      await streamResponseProgressively(apiResponse, id!, Date.now());
+      await streamResponseProgressively(apiResponse, targetId, Date.now());
 
     } catch (error: any) {
       if (error.name === 'AbortError') {

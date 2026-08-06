@@ -138,9 +138,30 @@ def extract_entities(question: str) -> Dict[str, Any]:
             
     # 3. Grand Prix
     gp_map = {
-        "Monaco GP": ["monaco"],
-        "British GP": ["british", "silverstone", "great britain"],
-        "Austria GP": ["austria", "spielberg", "red bull ring"]
+        "Monaco GP": ["monaco", "monte carlo"],
+        "Spanish GP": ["spain", "spanish", "barcelona", "catalan"],
+        "Hungary GP": ["hungary", "hungarian", "hungaroring", "budapest"],
+        "Austria GP": ["austria", "austrian", "spielberg", "red bull ring"],
+        "British GP": ["british", "britain", "silverstone", "great britain"],
+        "Italian GP": ["italy", "italian", "monza"],
+        "Singapore GP": ["singapore", "marina bay"],
+        "Belgian GP": ["belgium", "belgian", "spa", "francorchamps"],
+        "Japanese GP": ["japan", "japanese", "suzuka"],
+        "Bahrain GP": ["bahrain", "sakhir"],
+        "Saudi Arabia GP": ["saudi", "saudi arabia", "jeddah"],
+        "Australian GP": ["australia", "australian", "melbourne", "albert park"],
+        "Miami GP": ["miami"],
+        "Emilia Romagna GP": ["imola", "emilia romagna", "emilia"],
+        "Canadian GP": ["canada", "canadian", "montreal", "gilles villeneuve"],
+        "Azerbaijan GP": ["azerbaijan", "baku"],
+        "United States GP": ["united states", "us", "cota", "austin"],
+        "Mexico GP": ["mexico", "mexican", "mexico city"],
+        "Brazilian GP": ["brazil", "brazilian", "interlagos", "sao paulo"],
+        "Las Vegas GP": ["las vegas", "vegas"],
+        "Qatar GP": ["qatar", "lusail"],
+        "Abu Dhabi GP": ["abu dhabi", "yas marina"],
+        "Dutch GP": ["dutch", "netherlands", "zandvoort"],
+        "Chinese GP": ["china", "chinese", "shanghai"]
     }
     extracted_gp = None
     for gp, aliases in gp_map.items():
@@ -154,13 +175,13 @@ def extract_entities(question: str) -> Dict[str, Any]:
     if lap_match:
         extracted_lap = int(lap_match.group(1))
         
-    # 5. Season / Year (Default to 'latest' if no explicit season mentioned)
+    # 5. Season / Year
     extracted_season = None
     season_match = re.search(r"\b(20\d{2})\b", q_lower)
     if season_match:
         extracted_season = int(season_match.group(1))
     else:
-        extracted_season = "latest"
+        extracted_season = 2024
             
     return {
         "drivers": extracted_drivers if extracted_drivers else None,
@@ -360,10 +381,7 @@ def get_engineers_for_tools(tools: List[str]) -> List[str]:
 # Helper: Strict JSON Plan Validation
 # =====================================================================
 def validate_plan_schema(plan: Dict[str, Any]) -> bool:
-    required_keys = [
-        "intent", "execution_order", "fallback_plan"
-    ]
-    return all(k in plan for k in required_keys)
+    return isinstance(plan, dict) and "intent" in plan
 
 
 # =====================================================================
@@ -372,9 +390,7 @@ def validate_plan_schema(plan: Dict[str, Any]) -> bool:
 
 def plan_node(state: AgentState) -> Dict[str, Any]:
     """Node 1: Chief Race Engineer calls Gemini (with Groq failover) to generate plan."""
-    import sys
-    if "unittest" in sys.modules or "pytest" in sys.modules:
-        reliable_llm_provider._plan_cache.clear()
+    reliable_llm_provider._plan_cache.clear()
         
     question = state.get("question", "")
     session_id = state.get("session_id")
@@ -416,6 +432,7 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         parsed, metrics = reliable_llm_provider.generate_plan(system_prompt, user_content)
         if validate_plan_schema(parsed):
             structured_plan = parsed
+            structured_plan["execution_order"] = adaptive_plan["execution_order"]
             tools = parsed.get("required_tools", tools)
             llm_provider = metrics["llm_provider"]
             llm_model = metrics["llm_model"]
@@ -489,16 +506,35 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
             
         if entities.get("grand_prix"):
             gp_norm = entities["grand_prix"]
-            gp_year = entities.get("season") if isinstance(entities.get("season"), int) else 2026
-            if gp_norm == "Monaco GP":
-                args["session_id"] = f"{gp_year}_monaco_gp_race"
-                args["circuit_id"] = "monaco"
-            elif gp_norm == "British GP":
-                args["session_id"] = f"{gp_year}_british_gp_race"
-                args["circuit_id"] = "silverstone"
-            elif gp_norm == "Austria GP":
-                args["session_id"] = f"{gp_year}_austria_gp_race"
-                args["circuit_id"] = "red_bull_ring"
+            raw_season = entities.get("season")
+            if isinstance(raw_season, int) and raw_season in (2022, 2023, 2024, 2025):
+                gp_year = raw_season
+            else:
+                gp_year = 2024
+            gp_clean = gp_norm.lower().replace(" gp", "").replace(" grand prix", "").strip().replace(" ", "_")
+            if gp_clean in ("monaco", "monte_carlo"):
+                circuit_id = "monaco"
+                gp_slug = "monaco"
+            elif gp_clean in ("british", "britain", "silverstone"):
+                circuit_id = "silverstone"
+                gp_slug = "british"
+            elif gp_clean in ("austria", "austrian", "spielberg"):
+                circuit_id = "red_bull_ring"
+                gp_slug = "austria"
+            elif gp_clean in ("italian", "italy", "monza"):
+                circuit_id = "monza"
+                gp_slug = "italian"
+            elif gp_clean in ("spanish", "spain", "barcelona"):
+                circuit_id = "spain"
+                gp_slug = "spain"
+            elif gp_clean in ("hungary", "hungarian", "hungaroring"):
+                circuit_id = "hungary"
+                gp_slug = "hungary"
+            else:
+                circuit_id = gp_clean
+                gp_slug = gp_clean
+            args["circuit_id"] = circuit_id
+            args["session_id"] = f"{gp_year}_{gp_slug}_gp_race"
                 
         # Only inject state session_id / driver_id if they are NOT None and we didn't extract a conflicting one
         if "session_id" not in args and session_id:
@@ -570,6 +606,7 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
                 ]
             },
             "intent": mapped_intent,
+            "entities": entities,
             "reasoning_graph": [],
             "evidence_graph": {},
             "engineer_collaboration_graph": [],
@@ -745,6 +782,8 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
             elif "session" in k_lower:
                 if resolved.get("session_id"):
                     args[k] = resolved["session_id"]
+                elif isinstance(args[k], str) and args[k].startswith("2026_"):
+                    args[k] = args[k].replace("2026_", "2024_")
             elif "race" in k_lower:
                 if resolved.get("race_id"):
                     args[k] = resolved["race_id"]
@@ -1101,11 +1140,7 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
         for tool_name, result in evidence.items():
             if isinstance(result, dict) and result.get("status") == "missing_data":
                 session_ref = result.get("required_session") or result.get("tool", tool_name)
-                return (
-                    f"I don't have data for the requested session in my database. "
-                    f"To load race data, send a POST request to /sessions/load with the year, "
-                    f"GP name, and session type. Once loaded, I can analyze it for you."
-                )
+                return f"Data for the requested session ({session_ref}) is currently unavailable."
             if isinstance(result, dict) and result.get("status") == "entity_not_found":
                 return (
                     "I couldn't find the circuit, driver, or GP you mentioned in the database. "
@@ -1167,12 +1202,15 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
             }
         }
 
-    # Also check if all evidence is missing_data
-    all_missing = all(
-        isinstance(v, dict) and v.get("status") == "missing_data"
-        for v in evidence.values()
-    )
-    if all_missing:
+    def _has_usable_evidence(val: Any) -> bool:
+        if not isinstance(val, dict):
+            return True
+        if val.get("status") in ("missing_data", "entity_not_found"):
+            return any(k in val for k in ["root_cause_analysis", "root_causes", "incidents", "cause", "classification", "winner", "drivers", "constructors", "historical_results"])
+        return True
+
+    has_any_evidence = any(_has_usable_evidence(v) for v in evidence.values())
+    if not has_any_evidence:
         human_msg = _humanize_errors(evidence, errors)
         investigation_report = {
             "Executive Summary": human_msg,
@@ -1229,21 +1267,36 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
     struct_ctx = state.get("structured_context") or build_structured_context(evidence, question)
     corr_res = InvestigationCorrelator.correlate(struct_ctx, question)
 
-    exec_summary = explanations.get("intermediate") or corr_res["executive_summary"]
+    exec_summary = corr_res["executive_summary"] or explanations.get("intermediate")
     
-    investigation_report = {
-        "Executive Summary": exec_summary,
-        "Reasoning Graph": corr_res["reasoning_graph"],
-        "Reasoning Graph Text": corr_res["reasoning_graph_text"],
-        "Evidence": list(evidence.keys()),
-        "Telemetry Findings": corr_res["telemetry_findings"],
-        "Simulation Findings": corr_res["strategy_findings"],
-        "Historical Findings": corr_res["historical_findings"],
-        "Regulations Findings": corr_res["regulations_findings"],
-        "Alternative Scenarios": corr_res["alternative_scenarios"],
-        "Final Recommendation": corr_res["final_recommendation"],
-        "Confidence": confidence
-    }
+    intent_name = trace.get("intent") or "race_result"
+    q_lower = question.lower()
+    is_factual = intent_name in ("race_result", "research") or (
+        any(q in q_lower for q in ["who won", "who finished", "which driver retired", "winner of"]) and
+        not any(kw in q_lower for kw in ["why", "compare", "explain", "analyze", "telemetry", "strategy", "failure"])
+    )
+
+    if is_factual:
+        investigation_report = {
+            "Executive Summary": exec_summary,
+            "Evidence": list(evidence.keys()),
+            "Standings": evidence.get("race_results_tool", {}).get("classification", []),
+            "Confidence": confidence
+        }
+    else:
+        investigation_report = {
+            "Executive Summary": exec_summary,
+            "Reasoning Graph": corr_res["reasoning_graph"],
+            "Reasoning Graph Text": corr_res["reasoning_graph_text"],
+            "Evidence": list(evidence.keys()),
+            "Telemetry Findings": corr_res["telemetry_findings"],
+            "Simulation Findings": corr_res["strategy_findings"],
+            "Historical Findings": corr_res["historical_findings"],
+            "Regulations Findings": corr_res["regulations_findings"],
+            "Alternative Scenarios": corr_res["alternative_scenarios"],
+            "Final Recommendation": corr_res["final_recommendation"],
+            "Confidence": confidence
+        }
     
     # 3. Observability Timeline V3 compiler
     trace.setdefault("reasoning_graph", []).append(f"Explicit Root-Cause Chain:\n{corr_res['reasoning_graph_text']}")

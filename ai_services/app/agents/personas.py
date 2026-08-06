@@ -224,6 +224,8 @@ class ExplainEngineer(BaseEngineer):
         parts = []
         for key, val in evidence.items():
             if isinstance(val, dict):
+                if val.get("status") in ("missing_data", "entity_not_found") and not any(k in val for k in ["root_cause_analysis", "root_causes", "incidents", "cause", "classification", "winner", "drivers", "constructors", "historical_results"]):
+                    continue
                 if key == "race_results_tool":
                     gp = val.get("grand_prix") or val.get("session") or "Grand Prix"
                     winner = val.get("winner") or "the lead driver"

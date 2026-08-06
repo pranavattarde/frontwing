@@ -78,14 +78,6 @@ def ensure_session_in_db(
         except Exception as e:
             logger.warning(f"[Loader] Dynamic session ingestion exception: {e}")
 
-    # Fallback lookup for latest available session in DB
-    try:
-        res = execute_query("SELECT id FROM sessions ORDER BY date DESC LIMIT 1", fetch=True)
-        if res and len(res) > 0:
-            return res[0]["id"]
-    except Exception:
-        pass
-
     return session_id
 
 

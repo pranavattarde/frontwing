@@ -22,7 +22,7 @@ def get_latest_f1_season() -> int:
             return int(res[0]["max_year"])
     except Exception:
         pass
-    return 2026
+    return 2024
 
 
 # ---------------------------------------------------------------------------

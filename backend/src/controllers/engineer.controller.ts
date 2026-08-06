@@ -59,7 +59,7 @@ export class EngineerController {
 
       // 4. Save to PostgreSQL Investigation History
       try {
-        await HistoryService.saveInvestigation({
+        const saved = await HistoryService.saveInvestigation({
           user_id: req.user?.id || null,
           question: queryText,
           ai_response: data,
@@ -70,6 +70,9 @@ export class EngineerController {
             trace_id: data.trace?.trace_id,
           },
         });
+        if (saved && saved.id) {
+          data.id = saved.id;
+        }
       } catch (histErr: any) {
         console.warn('[EngineerController] Failed to save investigation history:', histErr.message);
       }

@@ -44,18 +44,26 @@ app.get('/health', async (req, res) => {
   }
 });
 
+import { authenticateToken } from './middleware/auth.middleware';
+import { AuthController } from './controllers/auth.controller';
+import { HistoryController } from './controllers/history.controller';
+
 // Register Core Backend Foundation API Routes
 app.use('/api/auth', authRoutes);
-app.use('/auth', authRoutes); // Backwards compatibility
+app.use('/auth', authRoutes);
+app.get('/me', authenticateToken, AuthController.me);
 
 app.use('/api/history', historyRoutes);
-app.use('/history', historyRoutes); // Direct specification compliance (GET /history, GET /history/:id, DELETE /history/:id)
+app.use('/history', historyRoutes);
+app.get('/bookmarks', authenticateToken, HistoryController.getHistory);
+app.post('/save/:id', authenticateToken, HistoryController.toggleSave);
+app.delete('/delete/:id', authenticateToken, HistoryController.deleteHistory);
 
 app.use('/api/engineer', engineerRoutes);
-app.use('/engineer', engineerRoutes); // Direct specification compliance (/engineer/query)
+app.use('/engineer', engineerRoutes);
 
 app.use('/api/sessions', sessionRoutes);
-app.use('/sessions', sessionRoutes); // Direct specification compliance (POST /sessions/load)
+app.use('/sessions', sessionRoutes);
 
 // Create HTTP server
 const server = http.createServer(app);
