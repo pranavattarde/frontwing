@@ -77,15 +77,19 @@ wss.on('connection', (ws: WebSocket) => {
   });
 });
 
+import { runDatabaseMigrations } from './services/migration.service';
+
 async function startServer() {
   console.log('[Server] Initializing FrontWing Express Backend...');
   
   try {
-    // 1. Validate Database connectivity
+    // 1. Validate Database connectivity & run migrations
     console.log('[Server] Connecting to PostgreSQL database...');
     const dbClient = await pool.connect();
     console.log('[Server] PostgreSQL database connected successfully');
     dbClient.release();
+
+    await runDatabaseMigrations();
 
     // 2. Validate Redis connectivity
     console.log('[Server] Connecting to Redis...');

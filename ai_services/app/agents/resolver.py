@@ -125,39 +125,52 @@ def _compute_session_id(circuit_id: Optional[str], year: Optional[int],
                          session_type: str) -> Optional[str]:
     """
     Computes session_id by querying PostgreSQL.
-    Returns None if any required piece is missing or the session doesn't exist in DB.
+    If session is missing from DB, dynamically triggers ingestion via ensure_session_in_db.
+    Returns None only if no circuit is specified or unresolvable.
     """
     if not circuit_id:
         return None
 
-    # Resolve year: use explicit year or fallback to latest from DB
+    # Resolve year: use explicit year or fallback to latest
     resolved_year = year or get_latest_f1_season()
 
     try:
-        # Look up race for this circuit + year
+        # Look up race for this circuit + year flexibly matching circuit_id, circuit name, or race name
         race_rows = execute_query(
-            "SELECT id FROM races WHERE circuit_id = %s AND year = %s",
-            (circuit_id, resolved_year), fetch=True
+            """
+            SELECT r.id FROM races r
+            LEFT JOIN circuits c ON r.circuit_id = c.id
+            WHERE (c.id ILIKE %s OR c.name ILIKE %s OR r.name ILIKE %s OR r.id ILIKE %s) AND r.year = %s
+            """,
+            (f"%{circuit_id}%", f"%{circuit_id}%", f"%{circuit_id}%", f"%{circuit_id}%", resolved_year),
+            fetch=True
         )
-        if not race_rows:
-            # Try most recent season for this circuit if no year specified
-            if not year:
-                race_rows = execute_query(
-                    "SELECT id FROM races WHERE circuit_id = %s ORDER BY year DESC LIMIT 1",
-                    (circuit_id,), fetch=True
-                )
-            if not race_rows:
-                return None
+        if not race_rows and not year:
+            race_rows = execute_query(
+                """
+                SELECT r.id FROM races r
+                LEFT JOIN circuits c ON r.circuit_id = c.id
+                WHERE (c.id ILIKE %s OR c.name ILIKE %s OR r.name ILIKE %s OR r.id ILIKE %s)
+                ORDER BY r.year DESC LIMIT 1
+                """,
+                (f"%{circuit_id}%", f"%{circuit_id}%", f"%{circuit_id}%", f"%{circuit_id}%"),
+                fetch=True
+            )
 
-        race_id = race_rows[0]["id"]
+        if race_rows:
+            race_id = race_rows[0]["id"]
+            sess_rows = execute_query(
+                "SELECT id FROM sessions WHERE race_id = %s AND type ILIKE %s",
+                (race_id, f"%{session_type}%"), fetch=True
+            )
+            if sess_rows:
+                return sess_rows[0]["id"]
 
-        # Look up session for this race + session_type
-        sess_rows = execute_query(
-            "SELECT id FROM sessions WHERE race_id = %s AND type = %s",
-            (race_id, session_type), fetch=True
-        )
-        if sess_rows:
-            return sess_rows[0]["id"]
+        # Dynamic Ingestion Fallback
+        from app.ingestion.loader import ensure_session_in_db
+        fetched_id = ensure_session_in_db(None, year=resolved_year, gp_name=circuit_id, session_type=session_type)
+        if fetched_id:
+            return fetched_id
 
     except Exception:
         pass

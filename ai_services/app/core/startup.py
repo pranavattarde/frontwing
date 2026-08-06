@@ -126,7 +126,7 @@ def run_startup_health_checks() -> Dict[str, Any]:
         "planner_compatibility": compatibility
     }
 
-    # 5. Database Ping & Session/Driver Counts
+    # 5. Database Ping & Migrations
     db_connected = False
     sessions_count = 0
     drivers_count = 0
@@ -137,6 +137,43 @@ def run_startup_health_checks() -> Dict[str, Any]:
         cur.execute("SELECT 1;")
         db_connected = True
         
+        # Execute database migrations automatically
+        try:
+            import os
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+            mig_dirs = [
+                os.path.join(base_dir, "database", "migrations"),
+                os.path.join(os.getcwd(), "database", "migrations"),
+                os.path.join(os.getcwd(), "..", "database", "migrations"),
+                "/app/database/migrations",
+            ]
+            mig_dir = next((d for d in mig_dirs if os.path.exists(d)), None)
+            if mig_dir:
+                for sql_file in ["01_init_schema.sql", "02_intelligence_tables.sql", "03_auth_and_history.sql"]:
+                    fpath = os.path.join(mig_dir, sql_file)
+                    if os.path.exists(fpath):
+                        with open(fpath, "r", encoding="utf-8") as sf:
+                            cur.execute(sf.read())
+                            conn.commit()
+                        logger.info(f"[Startup Migrations] Executed {sql_file}")
+            
+            # Ensure conversations table exists
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS conversations (
+                    id SERIAL PRIMARY KEY,
+                    conversation_id VARCHAR(255) NOT NULL,
+                    question TEXT NOT NULL,
+                    answer TEXT,
+                    context JSONB,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_conversations_cid ON conversations(conversation_id);
+            """)
+            conn.commit()
+        except Exception as mig_err:
+            logger.warning(f"[Startup Migrations] Migration check notice: {mig_err}")
+            conn.rollback()
+
         # Query counts
         try:
             cur.execute("SELECT COUNT(*) FROM sessions;")
@@ -150,7 +187,7 @@ def run_startup_health_checks() -> Dict[str, Any]:
             
         cur.close()
         conn.close()
-        print("[OK] PostgreSQL reachable")
+        print("[OK] PostgreSQL reachable & schemas migrated")
         print(f"[OK] Sessions loaded: {sessions_count} in database")
         print(f"[OK] Drivers loaded: {drivers_count} in database")
         print(f"[OK] Telemetry dataset count: {telemetry_count} metadata cache records")

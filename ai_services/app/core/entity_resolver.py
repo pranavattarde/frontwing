@@ -177,37 +177,6 @@ class EntityResolver:
             if circ_res:
                 db_matches.append(dict(circ_res[0]))
             
-            # Look up matching race for year
-            race_res = None
-            try:
-                if year:
-                    race_res = execute_query(
-                        "SELECT id, year, round, name FROM races WHERE circuit_id = %s AND year = %s",
-                        (matched_circuit, year), fetch=True
-                    )
-                else:
-                    # If multiple exist, choose latest season
-                    race_res = execute_query(
-                        "SELECT id, year, round, name FROM races WHERE circuit_id = %s ORDER BY year DESC LIMIT 1",
-                        (matched_circuit,), fetch=True
-                    )
-            except Exception:
-                pass
-                
-            if not race_res:
-                print(f"=========== ENTITY RESOLUTION ===========")
-                print(f"Question: {question}")
-                print(f"Entities Found: {entities_found}")
-                print(f"Database Matches: {db_matches}")
-                print(f"Resolved IDs: {{}}")
-                print("=========================================")
-                return {"status": "entity_not_found"}
-                
-            db_matches.append(dict(race_res[0]))
-            race_id = race_res[0]["id"]
-            resolved_ids["race_id"] = race_id
-            resolved_ids["season"] = race_res[0]["year"]
-            
             # Determine Session Type
             session_type = "Race"
             if any(kw in q_lower for kw in ["qualifying", "qualy", "q1", "q2", "q3"]):
@@ -222,12 +191,79 @@ class EntityResolver:
                 session_type = "FP3"
                 
             entities_found["session_type"] = session_type
+
+            # Look up matching race for year flexibly
+            race_res = None
+            try:
+                if year:
+                    race_res = execute_query(
+                        """
+                        SELECT r.id, r.year, r.round, r.name FROM races r
+                        LEFT JOIN circuits c ON r.circuit_id = c.id
+                        WHERE (c.id ILIKE %s OR c.name ILIKE %s OR r.name ILIKE %s OR r.id ILIKE %s) AND r.year = %s
+                        """,
+                        (f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%", year),
+                        fetch=True
+                    )
+                else:
+                    race_res = execute_query(
+                        """
+                        SELECT r.id, r.year, r.round, r.name FROM races r
+                        LEFT JOIN circuits c ON r.circuit_id = c.id
+                        WHERE (c.id ILIKE %s OR c.name ILIKE %s OR r.name ILIKE %s OR r.id ILIKE %s)
+                        ORDER BY r.year DESC LIMIT 1
+                        """,
+                        (f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%"),
+                        fetch=True
+                    )
+            except Exception:
+                pass
+
+            if not race_res:
+                # Trigger dynamic ingestion for missing GP session
+                from app.ingestion.loader import ensure_session_in_db
+                ensure_session_in_db(None, year=year or 2024, gp_name=matched_circuit, session_type=session_type)
+                try:
+                    race_res = execute_query(
+                        """
+                        SELECT r.id, r.year, r.round, r.name FROM races r
+                        LEFT JOIN circuits c ON r.circuit_id = c.id
+                        WHERE (c.id ILIKE %s OR c.name ILIKE %s OR r.name ILIKE %s OR r.id ILIKE %s)
+                        ORDER BY r.year DESC LIMIT 1
+                        """,
+                        (f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%", f"%{matched_circuit}%"),
+                        fetch=True
+                    )
+                except Exception:
+                    pass
+
+            if not race_res:
+                print(f"=========== ENTITY RESOLUTION ===========")
+                print(f"Question: {question}")
+                print(f"Entities Found: {entities_found}")
+                print(f"Database Matches: {db_matches}")
+                print(f"Resolved IDs: {{}}")
+                print("=========================================")
+                return {"status": "entity_not_found"}
+                
+            db_matches.append(dict(race_res[0]))
+            race_id = race_res[0]["id"]
+            resolved_ids["race_id"] = race_id
+            resolved_ids["season"] = race_res[0]["year"]
             
             # Query session
             sess_res = execute_query(
-                "SELECT id, type, status FROM sessions WHERE race_id = %s AND type = %s",
-                (race_id, session_type), fetch=True
+                "SELECT id, type, status FROM sessions WHERE race_id = %s AND type ILIKE %s",
+                (race_id, f"%{session_type}%"), fetch=True
             )
+            if not sess_res:
+                from app.ingestion.loader import ensure_session_in_db
+                ensure_session_in_db(None, year=race_res[0]["year"], gp_name=matched_circuit, session_type=session_type)
+                sess_res = execute_query(
+                    "SELECT id, type, status FROM sessions WHERE race_id = %s AND type ILIKE %s",
+                    (race_id, f"%{session_type}%"), fetch=True
+                )
+                
             if not sess_res:
                 print(f"=========== ENTITY RESOLUTION ===========")
                 print(f"Question: {question}")

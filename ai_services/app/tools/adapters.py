@@ -82,7 +82,11 @@ class ScoringTool(BaseF1Tool):
             # Check if session exists in PostgreSQL DB
             db_exists = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
             if not db_exists:
-                return {"status": "missing_data", "required_session": session_id}
+                from app.ingestion.loader import ensure_session_in_db
+                ensure_session_in_db(session_id)
+                db_exists = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
+                if not db_exists:
+                    return {"status": "missing_data", "required_session": session_id}
                 
             total_laps_res = execute_query("SELECT MAX(lap_number) as max_lap FROM laps WHERE session_id = %s", (session_id,), fetch=True)
             if not total_laps_res or not total_laps_res[0]["max_lap"]:
@@ -199,11 +203,19 @@ class SimulationTool(BaseF1Tool):
         try:
             chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
             if not chk:
-                return {"status": "missing_data", "required_session": session_id}
+                from app.ingestion.loader import ensure_session_in_db
+                ensure_session_in_db(session_id)
+                chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
+                if not chk:
+                    return {"status": "missing_data", "required_session": session_id}
                 
             drv_chk = execute_query("SELECT 1 FROM laps WHERE session_id = %s AND driver_id = %s LIMIT 1", (session_id, driver_id), fetch=True)
             if not drv_chk:
-                return {"status": "missing_data", "required_session": session_id}
+                from app.ingestion.loader import ensure_session_in_db
+                ensure_session_in_db(session_id)
+                drv_chk = execute_query("SELECT 1 FROM laps WHERE session_id = %s AND driver_id = %s LIMIT 1", (session_id, driver_id), fetch=True)
+                if not drv_chk:
+                    return {"status": "missing_data", "required_session": session_id}
         except Exception:
             return {"status": "missing_data", "required_session": session_id}
 
@@ -315,7 +327,11 @@ class TelemetryTool(BaseF1Tool):
         try:
             chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
             if not chk:
-                return {"status": "missing_data", "required_session": session_id}
+                from app.ingestion.loader import ensure_session_in_db
+                ensure_session_in_db(session_id)
+                chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
+                if not chk:
+                    return {"status": "missing_data", "required_session": session_id}
         except Exception:
             return {"status": "missing_data", "required_session": session_id}
             
@@ -672,7 +688,11 @@ class InvestigationTool(BaseF1Tool):
         try:
             chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
             if not chk:
-                return {"status": "missing_data", "required_session": session_id}
+                from app.ingestion.loader import ensure_session_in_db
+                ensure_session_in_db(session_id)
+                chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
+                if not chk:
+                    return {"status": "missing_data", "required_session": session_id}
                 
             sql = """
                 SELECT r.status, r.position, d.first_name, d.last_name, c.name as team_name
@@ -683,7 +703,11 @@ class InvestigationTool(BaseF1Tool):
             """
             res = execute_query(sql, (session_id, driver_id), fetch=True)
             if not res or len(res) == 0:
-                return {"status": "missing_data", "required_session": session_id}
+                from app.ingestion.loader import ensure_session_in_db
+                ensure_session_in_db(session_id)
+                res = execute_query(sql, (session_id, driver_id), fetch=True)
+                if not res or len(res) == 0:
+                    return {"status": "missing_data", "required_session": session_id}
 
             row = res[0]
             db_status = str(row["status"]) if row.get("status") else "Finished"
@@ -784,12 +808,17 @@ class RaceResultsTool(BaseF1Tool):
                 pass
 
         if not session_id:
-            return {"status": "missing_data", "required_session": "unknown_session"}
+            from app.ingestion.loader import ensure_session_in_db
+            session_id = ensure_session_in_db(None, year=year, gp_name=circuit_id)
 
         try:
-            chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
+            chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True) if session_id else None
             if not chk:
-                return {"status": "missing_data", "required_session": session_id}
+                from app.ingestion.loader import ensure_session_in_db
+                session_id = ensure_session_in_db(session_id, year=year, gp_name=circuit_id)
+                chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True) if session_id else None
+                if not chk:
+                    return {"status": "missing_data", "required_session": session_id or "unknown_session"}
 
             sql = """
                 SELECT r.position, r.grid_position, r.points, r.status, r.laps_completed, r.fastest_lap_time,
@@ -803,7 +832,11 @@ class RaceResultsTool(BaseF1Tool):
             """
             results = execute_query(sql, (session_id,), fetch=True)
             if not results or len(results) == 0:
-                return {"status": "missing_data", "required_session": session_id}
+                from app.ingestion.loader import ensure_session_in_db
+                session_id = ensure_session_in_db(session_id, year=year, gp_name=circuit_id)
+                results = execute_query(sql, (session_id,), fetch=True) if session_id else None
+                if not results or len(results) == 0:
+                    return {"status": "missing_data", "required_session": session_id or "unknown_session"}
 
             gp_name = "Grand Prix"
             season_val = 2026
