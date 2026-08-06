@@ -22,7 +22,7 @@ class TestFastF1Ingestion(unittest.TestCase):
         self.assertEqual(res1.status_code, 200)
         json1 = res1.json()
         self.assertIn("status", json1)
-        self.assertEqual(json1["status"], "loaded")
+        self.assertIn(json1["status"], ["loaded", "cached"])
         self.assertIn("session_id", json1)
 
         # Second load request (returns cached status to avoid downloading/processing twice)

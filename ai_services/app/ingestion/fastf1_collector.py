@@ -439,8 +439,11 @@ class FastF1Collector(BaseCollector):
                     (session_id, drv_id, lap, 50, t_path, f"telemetry:cache:{session_id}:{drv_id}:{lap}")
                 )
 
-        for minute in range(0, 100, 10):
-            w_timestamp = f"{year}-07-14 14:{minute:02d}:00"
+        import datetime
+        base_time = datetime.datetime(year, 7, 14, 14, 0, 0)
+        for idx in range(10):
+            w_dt = base_time + datetime.timedelta(minutes=idx * 10)
+            w_timestamp = w_dt.strftime("%Y-%m-%d %H:%M:%S")
             safe_execute_query(
                 "INSERT INTO weather (session_id, timestamp, air_temperature, track_temperature, humidity, rainfall, wind_direction, wind_speed) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (session_id, timestamp) DO NOTHING",
                 (session_id, w_timestamp, 22.5, 38.0, 45.0, False, 180, 12.5)
