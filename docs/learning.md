@@ -716,6 +716,50 @@ We configured `ReliableLLMProvider` exception logging to output provider, model,
   - `Turn 3 ("Compare them.")`: Resolves accumulated pair `sainz` vs `verstappen`, maps intent to `comparison`.
   - `Turn 4 ("Show telemetry.")`: Preserves driver pair, maps intent to `telemetry`.
 
+---
+
+## Sprint 6 — Execution Pipeline Stabilization
+
+### Architecture Decisions
+
+**Entity Resolution Design (Critical Rule)**
+
+The `SessionResolver` (resolver.py) and `EntityResolver` (entity_resolver.py) must never invent entities. All resolution is independent:
+- `driver_id`: Only resolved if driver name explicitly appears in question. Returns `None` otherwise.
+- `session_id`: Only resolved if a GP/circuit keyword appears. Computed dynamically from (circuit_id × year × session_type) via PostgreSQL. Returns `None` if no GP mentioned.
+- `circuit_id`: Only resolved if GP keyword appears. Returns `None` otherwise.
+
+**Why the old behavior was wrong**: `SessionResolver` had hardcoded fallback `"leclerc"` and `"2026_monaco_gp_race"`. This caused answers to questions like "Who won Hungary GP?" to incorrectly inject `driver_id=leclerc` into tool calls, biasing results.
+
+**Planner Output Immutability**
+
+`execute_node` previously re-ran `adaptive_plan_extract()` on every execution call, ignoring the planner's frozen `structured_plan`. This was removed. The planner output is now the single source of truth.
+
+Entity injection priority:
+1. Entity Resolver (from question text via PostgreSQL)
+2. Caller-explicitly-provided `session_id`/`driver_id` in initial state
+3. Nothing (null) — tools must return `missing_data`, not execute with fabricated values
+
+**LangGraph parse_step Unpack Bug**
+
+`pair.split("=")` raised `ValueError: too many values to unpack` when argument values contained `=` (e.g. base64 strings). Fixed to `pair.split("=", 1)`.
+
+**Tool Execution Validation**
+
+`validate_and_execute()` now returns `{"status": "missing_data", "required_parameter": "..."}` instead of executing with hallucinated parameter values. `infer_parameter()` returns `None` for all unknown parameters.
+
+**Synthesizer Error Humanization**
+
+All internal states are converted to human-readable F1 analyst language before reaching the frontend:
+- `missing_data` → "I don't have data for the requested session. Load it via POST /sessions/load."
+- `entity_not_found` → "I couldn't find that circuit/driver in the database."
+- Exception → "Something went wrong. Please try again."
+
+**Memory Team-Driver Mapping**
+
+`resolve_context()` in memory.py now maps team keywords to their canonical drivers for comparative queries (e.g., "Compare this to McLaren" → piastri).
+
+
 
 
 

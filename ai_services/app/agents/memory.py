@@ -167,13 +167,40 @@ class PostgresConversationMemory(BaseConversationMemory):
             elif "ferrari" in q_lower:
                 resolved_team = "Ferrari"
                 resolved_driver_id = "sainz"
+            elif "mclaren" in q_lower:
+                resolved_team = "McLaren"
+                resolved_driver_id = "piastri"
+            elif "red bull" in q_lower or "redbull" in q_lower:
+                resolved_team = "Red Bull"
+                resolved_driver_id = "verstappen"
+            elif "mercedes" in q_lower:
+                resolved_team = "Mercedes"
+                resolved_driver_id = "russell"
+            elif "alpine" in q_lower:
+                resolved_team = "Alpine"
+                resolved_driver_id = "ocon"
 
         # Turn Pattern: "Compare them." / "Compare"
         if "compare" in q_lower or "compare them" in q_lower or "versus" in q_lower:
-            if len(past_drivers) >= 2:
+            # Resolve team-to-driver for comparative queries (e.g. "Compare this to McLaren")
+            _team_driver_map = {
+                "mclaren": "piastri",
+                "ferrari": "sainz",
+                "red bull": "verstappen",
+                "mercedes": "russell",
+                "alpine": "ocon",
+                "aston martin": "alonso",
+            }
+            for team_kw, team_drv in _team_driver_map.items():
+                if team_kw in q_lower and not current_entities.get("drivers"):
+                    resolved_comparative_driver_id = resolved_driver_id
+                    resolved_driver_id = team_drv
+                    resolved_team = team_kw.title()
+                    break
+            if not resolved_comparative_driver_id and len(past_drivers) >= 2:
                 resolved_driver_id = past_drivers[0]
                 resolved_comparative_driver_id = past_drivers[1]
-            elif len(past_drivers) == 1 and resolved_driver_id:
+            elif not resolved_comparative_driver_id and len(past_drivers) == 1 and resolved_driver_id:
                 resolved_comparative_driver_id = past_drivers[0]
 
         # Turn Pattern: "Show telemetry." / "Telemetry"

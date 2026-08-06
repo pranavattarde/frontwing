@@ -91,17 +91,12 @@ class EntityResolver:
         
         matched_drivers = []
         for drv_id, aliases in drivers_map.items():
-            if any(alias in q_lower for alias in aliases):
+            # Use word-boundary matching to avoid false positives
+            if any(re.search(r"\b" + re.escape(alias) + r"\b", q_lower) for alias in aliases):
                 matched_drivers.append(drv_id)
-                
-        # Also check state/history driver
-        state_drv = state.get("driver_id") or state.get("driver")
-        if state_drv and state_drv.lower() not in matched_drivers:
-            # check if state_drv maps to any alias
-            for drv_id, aliases in drivers_map.items():
-                if state_drv.lower() == drv_id or state_drv.lower() in aliases:
-                    matched_drivers.append(drv_id)
-                    break
+        # NOTE: We deliberately do NOT fall back to state.get("driver_id") here.
+        # If the question doesn't mention a driver, driver_id must remain None.
+        # Context injection is handled by the planner/memory layer, not by entity resolution.
                     
         if matched_drivers:
             entities_found["drivers"] = matched_drivers
@@ -245,9 +240,11 @@ class EntityResolver:
             db_matches.append(dict(sess_res[0]))
             resolved_ids["session_id"] = sess_res[0]["id"]
             
-        # If the query had named F1 entities but none of them could be matched/resolved in PostgreSQL
-        is_drs_query = "drs" in q_lower and not matched_circuit and not matched_drivers and not matched_constructor
-        if not is_drs_query and not resolved_ids and (matched_circuit or matched_drivers or matched_constructor):
+        # If nothing was resolved at all (no circuit, no driver, no constructor found in question),
+        # return empty resolved_ids — not an error. The question may be a follow-up or general query.
+        # Only return entity_not_found when we FOUND an entity keyword but COULDN'T resolve it in the DB.
+        entity_keywords_found = bool(matched_circuit or matched_drivers or matched_constructor)
+        if entity_keywords_found and not resolved_ids:
             print(f"=========== ENTITY RESOLUTION ===========")
             print(f"Question: {question}")
             print(f"Entities Found: {entities_found}")

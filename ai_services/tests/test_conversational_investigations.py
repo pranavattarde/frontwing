@@ -4,6 +4,33 @@ from app.agents.planner import adaptive_plan_extract
 
 class TestConversationalInvestigations(unittest.TestCase):
 
+    _CONV_ID = "test_thread_conv_4_turn"
+
+    def setUp(self):
+        """Clear the test conversation from PostgreSQL before each run."""
+        try:
+            from app.core.db import execute_query
+            execute_query(
+                "DELETE FROM conversations WHERE conversation_id = %s",
+                (self._CONV_ID,)
+            )
+        except Exception:
+            pass
+        # Also clear in-memory fallback store
+        if hasattr(conversation_memory, "_fallback_store"):
+            conversation_memory._fallback_store.pop(self._CONV_ID, None)
+
+    def tearDown(self):
+        """Clean up test conversation after each run."""
+        try:
+            from app.core.db import execute_query
+            execute_query(
+                "DELETE FROM conversations WHERE conversation_id = %s",
+                (self._CONV_ID,)
+            )
+        except Exception:
+            pass
+
     def test_conversational_investigation_4_turn_sequence(self):
         """Verifies the exact 4-turn conversational sequence:
 
@@ -13,7 +40,8 @@ class TestConversationalInvestigations(unittest.TestCase):
         Turn 4: Show telemetry.
         Persists context and stores exchanges in PostgreSQL conversation memory.
         """
-        conv_id = "test_thread_conv_4_turn"
+        conv_id = self._CONV_ID
+
 
         # Turn 1: "Why Ferrari failed?"
         q1 = "Why Ferrari failed?"

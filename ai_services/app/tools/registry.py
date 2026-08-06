@@ -202,19 +202,25 @@ class BaseF1Tool(ABC):
         logger.info(f"\n{debug_block}")
 
     def validate_and_execute(self, inputs: Dict[str, Any], question: str = "") -> Any:
-        """Validates input payload properties, infers missing required parameters, and executes the tool safely."""
+        """Validates input payload properties. If required params are missing, returns missing_data.
+        
+        CRITICAL: This method NEVER fabricates parameter values. If a required parameter
+        is missing and cannot be resolved from the question, returns a structured missing_data
+        response instead of executing the tool with hallucinated values.
+        """
         schema = self.input_schema
         required = schema.get("required", [])
-        
-        # Fill missing required parameters
+        properties = schema.get("properties", {})
+
+        # Attempt to infer only from question text — never from hardcoded defaults
         for req_param in required:
             if req_param not in inputs or inputs[req_param] is None:
                 inferred_val = self.infer_parameter(req_param, inputs, question)
-                logger.info(f"[Tool Parameter Inference] Tool '{self.name}' inferred missing required parameter '{req_param}' = '{inferred_val}'")
-                inputs[req_param] = inferred_val
-                
-        # Validate types according to schema properties
-        properties = schema.get("properties", {})
+                if inferred_val is not None:
+                    logger.info(f"[Tool Parameter Inference] Tool '{self.name}' inferred '{req_param}' = '{inferred_val}' from question.")
+                    inputs[req_param] = inferred_val
+
+        # Validate types for provided parameters
         for k, v in list(inputs.items()):
             if k in properties:
                 prop_type = properties[k].get("type")
@@ -222,9 +228,22 @@ class BaseF1Tool(ABC):
                     try:
                         inputs[k] = int(v)
                     except (ValueError, TypeError):
-                        inputs[k] = 1 # fallback integer
-                elif prop_type == "string" and not isinstance(v, str):
+                        inputs[k] = None  # do NOT guess
+                elif prop_type == "string" and not isinstance(v, str) and v is not None:
                     inputs[k] = str(v)
+
+        # Final check: if required params are still None, refuse to execute
+        missing_params = [r for r in required if inputs.get(r) is None]
+        if missing_params:
+            logger.warning(f"[Tool Validation] Tool '{self.name}' missing required params: {missing_params}. Returning missing_data.")
+            return {
+                "status": "missing_data",
+                "required_parameter": missing_params[0],
+                "required_parameters": missing_params,
+                "tool": self.name,
+                "message": f"Cannot execute {self.name}: missing required parameter(s): {', '.join(missing_params)}"
+            }
+
         try:
             output = self.execute(inputs)
             self.validate_output(output)
@@ -235,55 +254,53 @@ class BaseF1Tool(ABC):
             raise e
 
     def infer_parameter(self, param_name: str, inputs: Dict[str, Any], question: str = "") -> Any:
-        """Infers missing required parameters using contextual hints and database checks."""
-        q_lower = question.lower()
+        """
+        Infers missing parameters strictly from the question text.
         
+        CRITICAL: Returns None if the parameter cannot be inferred from the question.
+        Never returns hardcoded fallback values like 'leclerc', '2026_monaco_gp_race', 42, 'CAR'.
+        """
+        q_lower = question.lower()
+
         if param_name == "session_id":
-            # Attempt to resolve latest session from the database
-            try:
-                from app.core.db import execute_query
-                res = execute_query("SELECT id FROM sessions ORDER BY date DESC, start_time DESC LIMIT 1", fetch=True)
-                if res:
-                    return res[0]["id"]
-            except Exception:
-                pass
-            return "2026_monaco_gp_race"
-            
+            # Attempt to resolve latest session from the database ONLY if a GP was mentioned
+            # If no GP mentioned, return None — do not invent a session.
+            from app.agents.resolver import _extract_circuit, _compute_session_id, _extract_year, _extract_session_type
+            circuit_id = _extract_circuit(q_lower)
+            if not circuit_id:
+                return None  # No GP mentioned — cannot resolve session
+            year = _extract_year(q_lower)
+            session_type = _extract_session_type(q_lower)
+            return _compute_session_id(circuit_id, year, session_type)
+
         elif param_name == "driver_id":
-            drivers_map = {
-                "leclerc": ["leclerc", "charles", "lec"],
-                "verstappen": ["verstappen", "max", "ves"],
-                "norris": ["norris", "lando", "nor"],
-                "hamilton": ["hamilton", "lewis", "ham"],
-                "sainz": ["sainz", "carlos"]
-            }
-            for drv, aliases in drivers_map.items():
-                if any(alias in q_lower for alias in aliases):
-                    return drv
-            return "leclerc"
-            
+            # Only resolve driver if explicitly mentioned in question
+            from app.agents.resolver import _extract_driver
+            return _extract_driver(q_lower)  # Returns None if no driver mentioned
+
         elif param_name == "lap_number":
             match = re.search(r"\blap\s+(\d+)\b", q_lower)
             if match:
                 return int(match.group(1))
-            return 42
-            
+            return None  # No lap number mentioned
+
         elif param_name == "simulated_pit_lap":
             match = re.search(r"\blap\s+(\d+)\b", q_lower)
             if match:
                 return int(match.group(1))
-            return 20
-            
+            return None  # No pit lap mentioned
+
         elif param_name == "term":
+            # Only extract if explicitly mentioned
             for term in ["CAR", "SPG", "TSE"]:
                 if term.lower() in q_lower:
                     return term
-            return "CAR"
-            
+            return None  # No specific formula term mentioned
+
         elif param_name in ["query", "sql_query"]:
-            return question if question else "Formula 1"
-            
-        return "unknown"
+            return question if question else None
+
+        return None  # Unknown parameter — never invent
 
 
 class ToolRegistry:
