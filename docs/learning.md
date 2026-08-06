@@ -653,3 +653,20 @@ We configured `ReliableLLMProvider` exception logging to output provider, model,
 ### 2. Standardized Missing Data Contract
 - **Explicit Schema Bypass**: Any tool execution encountering missing database records or offline connections returns `{"status": "missing_data", "required_session": session_id}`.
 - **Validator Compatibility**: `ToolRegistry.validate_output` explicitly recognizes dicts with `status == "missing_data"` and passes validation without throwing execution errors.
+
+---
+
+## 26. Upgraded Investigation Agent & Root-Cause Reasoning Graph Insights
+
+> **Date**: 2026-08-06
+> **Author**: Lead AI Platform Architect
+> **Key Learning**: Upgrade the Investigation Agent from simple tool output summarization to multi-domain evidence correlation across Telemetry, Race Results, Regulations, and Strategy, producing an explicit step-by-step root-cause reasoning graph (`↓` step chain) grounded strictly in retrieved tool outputs without hallucinations.
+
+### 1. Multi-Domain Evidence Correlation
+- **Cross-Domain Integration**: Extracts and correlates facts from Telemetry (tyre degradation, sector deltas), Race Results (grid/finish deltas, status), Regulations (FIA sporting rules, safety car deltas), and Strategy (pit windows, traffic loss, undercut net time deltas).
+- **Explicit Root-Cause Graph**: Constructs step-by-step causal chains (`"Tyre degradation → Late pit stop → Traffic after pit exit → Lost undercut → Final position"`).
+
+### 2. Strict Grounding & UI Rendering
+- **Zero Hallucination Guarantee**: Every step in the reasoning graph and every section in the investigation report directly cites source tool items from `structured_context`.
+- **Frontend Narrative Rendering**: `InvestigationThread.tsx` renders the explicit `Root-Cause Reasoning Graph` prominently in narrative debrief messages.
+

@@ -103,7 +103,16 @@ class InvestigationEngineer(BaseEngineer):
             
         t_name = tool_name or "investigation_tool"
         tool = tool_registry.get_tool(t_name)
-        return tool.validate_and_execute(tool_inputs, state.get("question", ""))
+        res = tool.validate_and_execute(tool_inputs, state.get("question", ""))
+        
+        # Attach root-cause analysis correlation if structured_context is present
+        from app.agents.context_builder import build_structured_context
+        from app.agents.investigation_correlator import InvestigationCorrelator
+        struct_ctx = state.get("structured_context") or build_structured_context(state.get("evidence", {}), state.get("question", ""))
+        corr_res = InvestigationCorrelator.correlate(struct_ctx, state.get("question", ""))
+        if isinstance(res, dict):
+            res["root_cause_analysis"] = corr_res
+        return res
 
 
 class KnowledgeEngineer(BaseEngineer):

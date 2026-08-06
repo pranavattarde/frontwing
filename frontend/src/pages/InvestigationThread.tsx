@@ -75,6 +75,9 @@ function mapResponseToMessages(id: string, response: any, timestamp: number, isL
   if (response.investigation_report) {
     const rep = response.investigation_report;
     const parts = [];
+    if (rep["Reasoning Graph Text"]) {
+      parts.push(`**Root-Cause Reasoning Graph:**\n${rep["Reasoning Graph Text"]}`);
+    }
     if (rep["Telemetry Findings"] && rep["Telemetry Findings"] !== "Unavailable" && rep["Telemetry Findings"] !== "No telemetry anomalies detected.") {
       parts.push(`**Telemetry Findings:** ${rep["Telemetry Findings"]}`);
     }
@@ -83,6 +86,9 @@ function mapResponseToMessages(id: string, response: any, timestamp: number, isL
     }
     if (rep["Historical Findings"] && rep["Historical Findings"] !== "Unavailable" && rep["Historical Findings"] !== "No historical standings parsed.") {
       parts.push(`**Historical Findings:** ${rep["Historical Findings"]}`);
+    }
+    if (rep["Regulations Findings"] && rep["Regulations Findings"] !== "Unavailable") {
+      parts.push(`**Regulations Findings:** ${rep["Regulations Findings"]}`);
     }
     if (rep["Alternative Scenarios"] && rep["Alternative Scenarios"] !== "Unavailable" && rep["Alternative Scenarios"] !== "Maintain current compound stint guidelines.") {
       parts.push(`**Alternative Scenarios:** ${rep["Alternative Scenarios"]}`);

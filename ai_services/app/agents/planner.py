@@ -982,27 +982,32 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
         }
 
     # =====================================================================
-    # 3. Deep Investigation Report Structures
+    # 3. Deep Multi-Domain Investigation Report & Root-Cause Graph Correlation
     # =====================================================================
-    exec_summary = explanations["intermediate"]
-    telemetry_findings = "Unavailable"
-    simulation_findings = "Unavailable"
-    historical_findings = "Unavailable"
-    alternative_scenarios = "Unavailable"
-    final_recommendation = "Unavailable"
+    from app.agents.context_builder import build_structured_context
+    from app.agents.investigation_correlator import InvestigationCorrelator
+
+    struct_ctx = state.get("structured_context") or build_structured_context(evidence, question)
+    corr_res = InvestigationCorrelator.correlate(struct_ctx, question)
+
+    exec_summary = explanations.get("intermediate") or corr_res["executive_summary"]
     
     investigation_report = {
         "Executive Summary": exec_summary,
+        "Reasoning Graph": corr_res["reasoning_graph"],
+        "Reasoning Graph Text": corr_res["reasoning_graph_text"],
         "Evidence": list(evidence.keys()),
-        "Telemetry Findings": telemetry_findings,
-        "Simulation Findings": simulation_findings,
-        "Historical Findings": historical_findings,
-        "Alternative Scenarios": alternative_scenarios,
-        "Final Recommendation": final_recommendation,
+        "Telemetry Findings": corr_res["telemetry_findings"],
+        "Simulation Findings": corr_res["strategy_findings"],
+        "Historical Findings": corr_res["historical_findings"],
+        "Regulations Findings": corr_res["regulations_findings"],
+        "Alternative Scenarios": corr_res["alternative_scenarios"],
+        "Final Recommendation": corr_res["final_recommendation"],
         "Confidence": confidence
     }
     
     # 3. Observability Timeline V3 compiler
+    trace.setdefault("reasoning_graph", []).append(f"Explicit Root-Cause Chain:\n{corr_res['reasoning_graph_text']}")
     trace.update({
         "total_latency_ms": sum(t["duration_ms"] for t in trace["timelines"].get("planning", [])) + 
                             sum(t["duration_ms"] for t in trace["timelines"].get("engineers", [])) + 
