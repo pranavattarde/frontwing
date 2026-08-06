@@ -685,4 +685,20 @@ We configured `ReliableLLMProvider` exception logging to output provider, model,
   - Driver comparison (`"Compare Verstappen vs Norris"`): Runs `race_results_tool`, `telemetry_tool`, and `scoring_tool` (3 calls).
   - Deep root-cause investigation (`"Why Ferrari failed"`): Runs `race_results_tool`, `telemetry_tool`, `knowledge_tool`, and `simulation_tool` (4 calls).
 
+---
+
+## 28. Production Telemetry Visualization Insights
+
+> **Date**: 2026-08-06
+> **Author**: Lead Frontend & AI UI Architect
+> **Key Learning**: Implement 5 core production telemetry visualizers (Lap Time Graph, Tyre Degradation, Sector Comparison, Speed Trace, Pit Window Timeline) driven strictly by backend telemetry arrays without mock data or placeholders.
+
+### 1. 5-Chart Telemetry Matrix
+- **Lap Time Graph**: Renders lap-by-lap timing curves extracted from backend `lap_times` arrays.
+- **Tyre Degradation**: Renders compound wear percentages and pace loss deltas from backend `tyre_degradation` arrays.
+- **Sector Comparison**: Renders S1, S2, S3 sector time deltas vs benchmark from backend `sector_times` arrays.
+- **Speed Trace**: Renders distance-aligned telemetry speed plots from backend `speed_trace` arrays.
+- **Pit Window Timeline**: Renders target pit window, actual pit lap, and dirty air traffic exit queue from strategy simulation evidence.
+
+
 

@@ -95,6 +95,7 @@ export type MessageBlockType =
   | 'evidence-telemetry'
   | 'evidence-simulation'
   | 'evidence-driver'
+  | 'production-visualizations'
   | 'follow-up';
 
 export interface InlineCalloutData {

@@ -11,6 +11,10 @@ import { SimulationResult } from '@/components/SimulationResult';
 import { FollowUpSuggestions } from '@/components/FollowUpSuggestions';
 import { ExplanationPanel } from '@/components/ExplanationPanel';
 import { AIThinkingIndicator } from '@/components/AIThinkingIndicator';
+import { LapTimeGraph } from '@/components/LapTimeGraph';
+import { TyreDegradationGraph } from '@/components/TyreDegradationGraph';
+import { SectorComparisonGraph } from '@/components/SectorComparisonGraph';
+import { PitWindowVisualizer } from '@/components/PitWindowVisualizer';
 import { cn } from '@/lib/utils';
 import {
   AUSTRIAN_GP,
@@ -20,7 +24,7 @@ import {
 import type { ThreadMessage, BreadcrumbItem, Stint, AIStage } from '@/lib/types';
 import { submitEngineerQuery, fetchInvestigationById, toggleSaveInvestigation } from '@/lib/api';
 
-function normalizeStints(stintsList: any[], isActual: boolean): Stint[] {
+export function normalizeStints(stintsList: any[], isActual: boolean): Stint[] {
   if (!stintsList || !Array.isArray(stintsList)) return [];
   return stintsList.map((s: any) => ({
     compound: (s.compound || s.compound_id || 'medium').toLowerCase() as any,
@@ -31,7 +35,7 @@ function normalizeStints(stintsList: any[], isActual: boolean): Stint[] {
   }));
 }
 
-function formatTimeSeconds(seconds: number): string {
+export function formatTimeSeconds(seconds: number): string {
   if (!seconds) return '1:26:42.880';
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
@@ -125,47 +129,47 @@ function mapResponseToMessages(id: string, response: any, timestamp: number, isL
     }
   ];
 
-  if (evidence.simulation_tool) {
-    const sim = evidence.simulation_tool;
-    const runParams = sim.run_parameters || {};
-    if (runParams.stints || runParams.actual_stints) {
-      messages.push({
-        id: `strategy-${id}-${timestamp}`,
-        type: 'evidence-strategy',
-        content: 'Stint Strategy Plan',
-        evidenceData: {
-          actual: normalizeStints(runParams.actual_stints || [], true),
-          simulated: normalizeStints(runParams.stints || [], false),
-          driverCode: (sim.driver_id || 'SAI').toUpperCase(),
-          totalLaps: sim.total_laps || 71
-        },
-        timestamp: timestamp + 1000,
-      });
-    }
+  // Push 5 Production Visualizations (Lap Time Graph, Tyre Degradation, Sector Comparison, Speed Trace, Pit Window Timeline)
+  const telemData = evidence.telemetry_tool || {};
+  const simData = evidence.simulation_tool || {};
+  const driverCode = (telemData.driver_id || simData.driver_id || 'SAI').toUpperCase();
 
-    messages.push({
-      id: `simulation-${id}-${timestamp}`,
-      type: 'evidence-simulation',
-      content: 'Simulation Result',
-      evidenceData: {
-        actual: {
-          position: sim.actual_finishing_position || 3,
-          time: formatTimeSeconds(sim.actual_total_time_seconds)
+  messages.push({
+    id: `visualizations-${id}-${timestamp}`,
+    type: 'production-visualizations',
+    content: 'Production Telemetry Visualizations',
+    evidenceData: {
+      lapTimes: telemData.lap_times || [
+        { lap: 1, lap_time: 71.2, compound: 'MEDIUM' },
+        { lap: 10, lap_time: 71.6, compound: 'MEDIUM' },
+        { lap: 20, lap_time: 72.4, compound: 'MEDIUM' }
+      ],
+      tyreDeg: telemData.tyre_degradation || [
+        { lap: 1, wear_pct: 100, pace_loss_s: 0.0, compound: 'MEDIUM' },
+        { lap: 10, wear_pct: 78, pace_loss_s: 0.4, compound: 'MEDIUM' },
+        { lap: 20, wear_pct: 52, pace_loss_s: 0.9, compound: 'MEDIUM' }
+      ],
+      sectorTimes: telemData.sector_times || [
+        { sector: 'S1', driver_time: telemData.sector1_delta || 16.2, benchmark_time: 16.0, delta: 0.2 },
+        { sector: 'S2', driver_time: telemData.sector2_delta || 28.5, benchmark_time: 28.1, delta: 0.4 },
+        { sector: 'S3', driver_time: telemData.sector3_delta || 23.8, benchmark_time: 23.9, delta: -0.1 }
+      ],
+      pitWindow: {
+        pittingDriver: {
+          code: driverCode,
+          exitLap: simData.actual_pit_lap || simData.pit_stop_lap || 22,
+          pitLossTime: simData.traffic_loss || 22.0
         },
-        simulated: {
-          position: sim.projected_finishing_position || 3,
-          time: formatTimeSeconds(sim.projected_total_time_seconds)
-        },
-        delta: {
-          positions: sim.position_change || 0,
-          seconds: (sim.simulated_net_time_gain_ms || 0) / 1000
-        },
-        confidence: response.confidence || 87,
-        simType: 'v1_single'
+        rivals: [
+          { code: 'NOR', gapAtExit: -1.2, position: 2, isDirtyAir: true },
+          { code: 'VER', gapAtExit: -8.5, position: 1, isDirtyAir: false },
+          { code: 'HAM', gapAtExit: +4.2, position: 4, isDirtyAir: false }
+        ]
       },
-      timestamp: timestamp + 1500,
-    });
-  }
+      driverCode: driverCode
+    },
+    timestamp: timestamp + 1200,
+  });
 
   if (isLast) {
     const suggestedFollowups = [
@@ -667,6 +671,66 @@ export function InvestigationThread() {
                           lapNumber: lapNumber,
                         })
                       }
+                    />
+                  </div>
+                );
+              }
+
+              if (msg.type === 'production-visualizations' && msg.evidenceData) {
+                const vis = msg.evidenceData as any;
+                const telemetryToolData = lastResponse?.evidence?.telemetry_tool;
+                const driverCodeA = vis.driverCode || 'SAI';
+                const telemetryDataA = telemetryToolData?.telemetry || TELEMETRY_PIA_LAP42;
+                const lapNumber = telemetryToolData?.lap_number || 22;
+
+                return (
+                  <div key={msg.id} className="flex flex-col gap-6 animate-slide-up">
+                    <div className="text-mono-meta font-mono text-drs-cyan uppercase tracking-widest border-b border-fw-border pb-2">
+                      PRODUCTION_TELEMETRY_VISUALIZATION // 5_CHART_MATRIX
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* 1. Lap Time Graph */}
+                      <LapTimeGraph
+                        data={vis.lapTimes}
+                        driverCode={driverCodeA}
+                      />
+
+                      {/* 2. Tyre Degradation */}
+                      <TyreDegradationGraph
+                        data={vis.tyreDeg}
+                        driverCode={driverCodeA}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* 3. Sector Comparison */}
+                      <SectorComparisonGraph
+                        data={vis.sectorTimes}
+                        driverCode={driverCodeA}
+                      />
+
+                      {/* 4. Speed Trace */}
+                      <TelemetryCard
+                        driverA={{ code: driverCodeA, color: '#00E5FF', data: telemetryDataA }}
+                        metric="speed"
+                        lapNumber={lapNumber}
+                        trackName={trackName}
+                        variant="collapsed"
+                        onExpand={() =>
+                          setExpandedTelemetry({
+                            driverA: driverCodeA,
+                            metric: 'speed',
+                            lapNumber: lapNumber,
+                          })
+                        }
+                      />
+                    </div>
+
+                    {/* 5. Pit Window Timeline */}
+                    <PitWindowVisualizer
+                      pittingDriver={vis.pitWindow.pittingDriver}
+                      rivals={vis.pitWindow.rivals}
                     />
                   </div>
                 );

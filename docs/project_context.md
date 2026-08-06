@@ -35,6 +35,7 @@ The platform uses a decoupled microservices design to balance performance (Node.
 - **PostgreSQL-Powered Investigation Tools**: All 5 investigation tools (`RaceResultsTool`, `TelemetryTool`, `StrategyTool` / `SimulationTool`, `InvestigationTool`, `ScoringTool`) run directly against PostgreSQL, returning `{"status": "missing_data", "required_session": session_id}` whenever data is absent, with ZERO raw FastF1 direct API calls or mock data fabrications.
 - **Upgraded Investigation Agent & Root-Cause Reasoning Graph**: `InvestigationCorrelator` engine (`ai_services/app/agents/investigation_correlator.py`) correlates Telemetry + Race Results + Regulations + Strategy into an explicit, step-by-step causal chain (`Tyre degradation → Late pit stop → Traffic after pit exit → Lost undercut → Final position`), anchored strictly to retrieved tool outputs.
 - **Adaptive Planning System**: Replaced keyword planner routing with adaptive extraction (`intent`, `entities`, `required_evidence`, `missing_evidence`, `confidence`). Dynamically selects the minimum required set of tools to eliminate unnecessary tool executions.
+- **Production Telemetry Visualizations Matrix**: Investigation Page renders 5 production telemetry charts (Lap Time Graph, Tyre Degradation, Sector Comparison, Speed Trace, Pit Window Timeline) driven strictly by backend telemetry arrays without mock data or placeholders.
 
 ---
 

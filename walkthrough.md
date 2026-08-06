@@ -1,48 +1,45 @@
-# Phase 1 Walkthrough — Adaptive Planning Architecture & Upgraded Investigation Agent
+# Phase 1 Walkthrough — Production Telemetry Visualization & Adaptive Planning Architecture
 
 ## Summary of Completed Implementation
 
-Keyword-based planner routing has been completely replaced with **Adaptive Planning**. The Lead F1 Planner now adaptively extracts **intent**, **entities**, **required evidence**, **missing evidence**, and **confidence**, and dynamically chooses the exact set of required tools to minimize unnecessary tool executions.
+Production visualization for the **Investigation Page** has been implemented using real backend telemetry arrays without mock data or placeholders. The page renders:
+1. **Lap Time Graph**
+2. **Tyre Degradation**
+3. **Sector Comparison**
+4. **Speed Trace**
+5. **Pit Window Timeline**
 
 ---
 
 ## Architectural & Feature Highlights
 
-### 1. Adaptive Planning System (`ai_services/app/agents/planner.py` & `app/prompts/planning.md`)
-- **Adaptive Extraction**: Analyzes user questions to extract:
-  - `intent`: (e.g. `race_result`, `comparison`, `investigation`, `telemetry`, `strategy`, `simulation`, `scoring`, `explanation`, `research`)
-  - `entities`: drivers, team, grand_prix, season, lap
-  - `required_evidence`: list of evidence needed to resolve query
-  - `missing_evidence`: list of missing evidence fields
-  - `confidence`: confidence score estimate
-- **Dynamic Tool Selection & Minimizing Unnecessary Calls**:
-  - Example 1: `"Who won Monaco GP?"` → `["race_results_tool"]` (Only 1 tool call required!)
-  - Example 2: `"Compare Verstappen vs Norris"` → `["race_results_tool", "telemetry_tool", "scoring_tool"]` (3 tools)
-  - Example 3: `"Why Ferrari failed"` → `["race_results_tool", "telemetry_tool", "knowledge_tool", "simulation_tool"]` (4 tools)
+### 1. Production Telemetry Visualizations Matrix
+- **Lap Time Graph** (`frontend/src/components/LapTimeGraph.tsx`): Interactive SVG line chart displaying lap-by-lap timing evolution for driver & comparative driver driven by backend `lap_times` arrays.
+- **Tyre Degradation** (`frontend/src/components/TyreDegradationGraph.tsx`): Stint wear curve & pace loss progression chart driven by backend `tyre_degradation` arrays.
+- **Sector Comparison** (`frontend/src/components/SectorComparisonGraph.tsx`): S1, S2, S3 sector deltas vs benchmark driven by backend `sector_times` arrays.
+- **Speed Trace** (`frontend/src/components/TelemetryCard.tsx`): Distance-aligned speed trace plot driven by backend telemetry points array (`speed_trace`).
+- **Pit Window Timeline** (`frontend/src/components/PitWindowVisualizer.tsx`): Target pit window, actual pit stop lap, and dirty air traffic exit queue driven by backend strategy simulation evidence.
 
-### 2. Multi-Domain Root-Cause Investigation Agent (`ai_services/app/agents/investigation_correlator.py`)
-- Correlates Telemetry + Race Results + Regulations + Strategy into an explicit, step-by-step causal chain (`Tyre degradation → Late pit stop → Traffic after pit exit → Lost undercut → Final position`), anchored strictly to retrieved tool outputs.
-
-### 3. Frontend Narrative Rendering (`frontend/src/pages/InvestigationThread.tsx`)
-- Displays the explicit **Root-Cause Reasoning Graph** prominently in narrative debrief messages inside the investigation thread UI.
+### 2. Adaptive Planning Architecture (`ai_services/app/agents/planner.py`)
+- Replaced keyword planner routing with adaptive extraction (`intent`, `entities`, `required_evidence`, `missing_evidence`, `confidence`). Dynamically chooses the minimal required toolset to eliminate unnecessary tool execution overhead.
 
 ---
 
 ## Verification & Test Results
 
-### 1. Adaptive Planner Unit Test Suite
-```bash
-cd ai_services
-.\venv\Scripts\python.exe -m unittest tests/test_adaptive_planner.py
-```
-- **Result**: Adaptive planning tests passed cleanly in **3.58s** with 0 errors.
-
-### 2. Frontend Production Build
+### 1. Frontend Production Build
 ```bash
 cd frontend
 npm run build
 ```
-- **Result**: Vite production build succeeded in **7.24s**. All 428 TypeScript modules compiled cleanly to `dist/index.html` with **0 errors**.
+- **Result**: Vite production build succeeded in **5.97s**. All 431 TypeScript modules compiled cleanly to `dist/index.html` with **0 errors**.
+
+### 2. Adaptive Planner Unit Test Suite
+```bash
+cd ai_services
+.\venv\Scripts\python.exe -m unittest tests/test_adaptive_planner.py
+```
+- **Result**: Unit tests passed cleanly in **2.26s** with 0 errors.
 
 ### 3. Backend TypeScript Compilation
 ```bash
