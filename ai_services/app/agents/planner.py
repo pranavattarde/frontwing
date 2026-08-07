@@ -1136,23 +1136,14 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
     # =====================================================================
     def _humanize_errors(evidence: dict, errors: list) -> str:
         """Converts internal error states into human-readable analyst language."""
-        # Check for missing_data status from any tool
         for tool_name, result in evidence.items():
-            if isinstance(result, dict) and result.get("status") == "missing_data":
-                session_ref = result.get("required_session") or result.get("tool", tool_name)
-                return f"Data for the requested session ({session_ref}) is currently unavailable."
+            if isinstance(result, dict) and result.get("status") in ("missing_data", "DATA_UNAVAILABLE"):
+                return "No verified race data exists for this request."
             if isinstance(result, dict) and result.get("status") == "entity_not_found":
-                return (
-                    "I couldn't find the circuit, driver, or GP you mentioned in the database. "
-                    "Check the spelling or try a different query — for example, "
-                    "\"Who won the Austrian GP?\" or \"Compare Verstappen vs Norris.\""
-                )
+                return "No verified race data exists for this request."
         if errors:
-            return (
-                "Something went wrong during the investigation. "
-                "Please rephrase your question or try a different race."
-            )
-        return "No evidence was available for this investigation. Try asking about a specific race or driver."
+            return "No verified race data exists for this request."
+        return "No verified race data exists for this request."
 
     if not evidence:
         human_msg = _humanize_errors(evidence, errors)
@@ -1205,7 +1196,7 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
     def _has_usable_evidence(val: Any) -> bool:
         if not isinstance(val, dict):
             return True
-        if val.get("status") in ("missing_data", "entity_not_found"):
+        if val.get("status") in ("missing_data", "DATA_UNAVAILABLE", "entity_not_found"):
             return any(k in val for k in ["root_cause_analysis", "root_causes", "incidents", "cause", "classification", "winner", "drivers", "constructors", "historical_results"])
         return True
 
@@ -1267,8 +1258,6 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
     struct_ctx = state.get("structured_context") or build_structured_context(evidence, question)
     corr_res = InvestigationCorrelator.correlate(struct_ctx, question)
 
-    exec_summary = corr_res["executive_summary"] or explanations.get("intermediate")
-    
     intent_name = trace.get("intent") or "race_result"
     q_lower = question.lower()
     is_factual = intent_name in ("race_result", "research") or (
@@ -1277,13 +1266,23 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
     )
 
     if is_factual:
+        race_data = evidence.get("race_results_tool") or {}
+        winner_name = race_data.get("winner")
+        gp_name = race_data.get("grand_prix") or "Grand Prix"
+        season_val = race_data.get("season") or 2024
+        if winner_name:
+            exec_summary = f"{winner_name} won the {season_val} {gp_name}."
+        else:
+            exec_summary = explanations.get("intermediate") or "No verified race data exists for this request."
+
         investigation_report = {
             "Executive Summary": exec_summary,
             "Evidence": list(evidence.keys()),
-            "Standings": evidence.get("race_results_tool", {}).get("classification", []),
+            "Standings": race_data.get("classification", []),
             "Confidence": confidence
         }
     else:
+        exec_summary = corr_res["executive_summary"] or explanations.get("intermediate")
         investigation_report = {
             "Executive Summary": exec_summary,
             "Reasoning Graph": corr_res["reasoning_graph"],

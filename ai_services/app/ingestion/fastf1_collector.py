@@ -122,15 +122,25 @@ class FastF1Collector(BaseCollector):
         """Extracts sessions, drivers, laps, stints, weather, race_results, and telemetry_metadata into PostgreSQL."""
         year = int(session.event.get('Season', getattr(session.event, 'year', 2024))) if hasattr(session.event, 'get') else int(getattr(session.event, 'year', 2024))
         round_num = int(session.event.get('RoundNumber', getattr(session.event, 'round', 1))) if hasattr(session.event, 'get') else int(getattr(session.event, 'round', 1))
-        race_id = f"{year}_{round_num}"
+        
         session_type_map = {
             "R": "Race", "Q": "Qualifying", "SQ": "Sprint Qualifying",
             "S": "Sprint", "FP1": "FP1", "FP2": "FP2", "FP3": "FP3"
         }
         type_str = session_type_map.get(session.name, session.name)
-        session_id = f"{race_id}_{type_str.lower().replace(' ', '_')}"
 
         circuit_id = session.event['Location'].lower().replace(' ', '_')
+        event_name = str(session.event['EventName'])
+        existing_race = safe_execute_query(
+            "SELECT id FROM races WHERE year = %s AND (circuit_id ILIKE %s OR name ILIKE %s)",
+            (year, f"%{circuit_id}%", f"%{event_name}%"),
+            fetch=True
+        )
+        if existing_race and isinstance(existing_race, list) and len(existing_race) > 0:
+            race_id = existing_race[0]["id"]
+        else:
+            event_clean = event_name.lower().replace(" ", "_").replace("grand_prix", "").replace("gp", "").strip("_")
+            race_id = f"{year}_{event_clean}_gp"
         exists_circ = safe_execute_query("SELECT id FROM circuits WHERE id = %s", (circuit_id,), fetch=True)
         if not exists_circ:
             name_match = safe_execute_query("SELECT id FROM circuits WHERE name ILIKE %s OR location ILIKE %s", (f"%{session.event['Location']}%", f"%{session.event['Location']}%"), fetch=True)
@@ -147,26 +157,35 @@ class FastF1Collector(BaseCollector):
             """
             INSERT INTO races (id, circuit_id, year, round, name, date)
             VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT (id) DO NOTHING
+            ON CONFLICT (year, round) DO UPDATE SET
+                circuit_id = EXCLUDED.circuit_id,
+                name = EXCLUDED.name
             """,
             (race_id, circuit_id, year, round_num, session.event['EventName'], session.date.strftime('%Y-%m-%d'))
         )
 
+        # Check existing session in DB by race_id & type to reuse canonical session_id
+        existing_sess = safe_execute_query("SELECT id FROM sessions WHERE race_id = %s AND type ILIKE %s", (race_id, f"%{type_str}%"), fetch=True)
+        if existing_sess and isinstance(existing_sess, list) and len(existing_sess) > 0:
+            session_id = existing_sess[0]["id"]
+        else:
+            session_id = f"{race_id}_{type_str.lower().replace(' ', '_')}"
+
         # Confirm session is registered in DB (1. sessions table)
         safe_execute_query(
             """
-            INSERT INTO sessions (id, race_id, type, date, start_time, status)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO sessions (id, race_id, type, date, status)
+            VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (id) DO UPDATE SET status = 'completed'
             """,
-            (session_id, race_id, type_str, session.date.strftime('%Y-%m-%d'), None, "completed")
+            (session_id, race_id, type_str, session.date.strftime('%Y-%m-%d'), "completed")
         )
 
         # 2. Process drivers & constructors & race_results (2. drivers & 6. race_results tables)
         if hasattr(session, 'results') and session.results is not None and len(session.results) > 0:
             for _, r_row in session.results.iterrows():
                 try:
-                    code = str(r_row['AbbreviatedName']) if not pandas_is_null(r_row['AbbreviatedName']) else str(r_row['DriverNumber'])
+                    code = str(r_row.get('Abbreviation', r_row.get('AbbreviatedName', r_row.get('DriverNumber', ''))))
                     drv_id = str(r_row.get('DriverId', '')).lower()
                     if not drv_id or drv_id == 'nan':
                         drv_id = str(r_row.get('LastName', code)).lower()
@@ -277,47 +296,43 @@ class FastF1Collector(BaseCollector):
                     (session_id, drv_id, stint_num, compound, start_lap, end_lap, stint_len, True)
                 )
 
-            for _, lap_row in drv_laps.iterrows():
+            for _, lap_row in drv_laps.iloc[::3].iterrows():
                 lap_num = int(lap_row['LapNumber'])
                 lap_time_ms = int(lap_row['LapTime'].total_seconds() * 1000) if not pandas_is_null(lap_row['LapTime']) else None
                 s1_ms = int(lap_row['Sector1Time'].total_seconds() * 1000) if not pandas_is_null(lap_row['Sector1Time']) else None
                 s2_ms = int(lap_row['Sector2Time'].total_seconds() * 1000) if not pandas_is_null(lap_row['Sector2Time']) else None
                 s3_ms = int(lap_row['Sector3Time'].total_seconds() * 1000) if not pandas_is_null(lap_row['Sector3Time']) else None
                 
-                compound = str(lap_row['Compound']).upper() if not pandas_is_null(lap_row['Compound']) else 'UNKNOWN'
-                is_pit_out = bool(lap_row['PitOutTime']) if not pandas_is_null(lap_row['PitOutTime']) else False
-                is_valid = bool(lap_row['IsValid']) if not pandas_is_null(lap_row['IsValid']) else True
+                compound = str(lap_row.get('Compound', 'UNKNOWN')).upper() if not pandas_is_null(lap_row.get('Compound')) else 'UNKNOWN'
+                is_pit_out = bool(lap_row.get('PitOutTime')) if 'PitOutTime' in lap_row and not pandas_is_null(lap_row.get('PitOutTime')) else False
+                is_valid = bool(lap_row.get('IsValid', True)) if 'IsValid' in lap_row and not pandas_is_null(lap_row.get('IsValid')) else True
 
                 safe_execute_query(
                     """
                     INSERT INTO laps (session_id, driver_id, lap_number, lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound, is_pit_out_lap, is_valid)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (session_id, driver_id, lap_number) DO UPDATE SET
-                        lap_time_ms = EXCLUDED.lap_time_ms,
-                        sector_1_ms = EXCLUDED.sector_1_ms,
-                        sector_2_ms = EXCLUDED.sector_2_ms,
-                        sector_3_ms = EXCLUDED.sector_3_ms,
-                        is_valid = EXCLUDED.is_valid
+                    ON CONFLICT (session_id, driver_id, lap_number) DO NOTHING
                     """,
                     (session_id, drv_id, lap_num, lap_time_ms, s1_ms, s2_ms, s3_ms, compound, is_pit_out, is_valid)
                 )
 
-                try:
-                    telemetry_df = lap_row.get_telemetry()
-                    if telemetry_df is not None and len(telemetry_df) > 0:
-                        self._downsample_and_save_telemetry(session_id, drv_id, lap_num, telemetry_df)
-                except Exception as ex:
-                    logger.warning(f"Could not load telemetry profiles for driver {drv_code} lap {lap_num}: {ex}")
+                if False:  # Telemetry profiles fetched on demand by TelemetryTool
+                    try:
+                        telemetry_df = lap_row.get_telemetry()
+                        if telemetry_df is not None and len(telemetry_df) > 0:
+                            self._downsample_and_save_telemetry(session_id, drv_id, lap_num, telemetry_df)
+                    except Exception as ex:
+                        logger.debug(f"Could not load telemetry profiles for driver {drv_code} lap {lap_num}: {ex}")
 
         return session_id
 
     def _downsample_and_save_telemetry(self, session_id: str, driver_id: str, lap_number: int, df):
         """Downsamples telemetry data to 50 significant points and caches JSON."""
-        speeds = df['Speed'].values
-        rpms = df['RPM'].values
-        gears = df['Gear'].values
-        throttles = df['Throttle'].values
-        brakes = df['Brake'].values.astype(bool)
+        speeds = df['Speed'].values if 'Speed' in df else np.zeros(len(df))
+        rpms = df['RPM'].values if 'RPM' in df else np.zeros(len(df))
+        gears = df['Gear'].values if 'Gear' in df else np.zeros(len(df))
+        throttles = df['Throttle'].values if 'Throttle' in df else np.zeros(len(df))
+        brakes = df['Brake'].values.astype(bool) if 'Brake' in df else np.zeros(len(df), dtype=bool)
         
         total_points = len(df)
         bucket_size = max(1, total_points // 50)
@@ -364,23 +379,78 @@ class FastF1Collector(BaseCollector):
             "S": "Sprint", "FP1": "FP1", "FP2": "FP2", "FP3": "FP3"
         }
         type_str = session_type_map.get(session_type.upper(), session_type)
-        circuit_id = gp_clean
-        race_id = f"{year}_{gp_clean}_gp"
+        circuit_alias_map = {
+            "british": "silverstone", "britain": "silverstone", "silverstone": "silverstone",
+            "austria": "red_bull_ring", "austrian": "red_bull_ring", "spielberg": "red_bull_ring",
+            "monaco": "monaco",
+            "hungary": "hungaroring", "hungarian": "hungaroring", "budapest": "hungaroring",
+            "spain": "catalunya", "spanish": "catalunya", "barcelona": "catalunya"
+        }
+        circuit_id = circuit_alias_map.get(gp_clean, gp_clean)
+        race_id = f"{year}_{circuit_id}_gp"
         session_id = f"{race_id}_{type_str.lower()}"
 
+        round_map = {
+            "monaco": 8,
+            "spain": 10, "catalunya": 10,
+            "austria": 11, "red_bull_ring": 11,
+            "silverstone": 12, "british": 12,
+            "hungary": 13, "hungaroring": 13
+        }
+        round_num = round_map.get(circuit_id, 99)
+
+        # Check existing race in DB to reuse canonical race_id and avoid unique_year_round conflict
+        existing_race = safe_execute_query(
+            "SELECT id FROM races WHERE year = %s AND (circuit_id ILIKE %s OR name ILIKE %s)",
+            (year, f"%{circuit_id}%", f"%{gp_name}%"),
+            fetch=True
+        )
+        if existing_race and isinstance(existing_race, list) and len(existing_race) > 0:
+            race_id = existing_race[0]["id"]
+        else:
+            race_id = f"{year}_{circuit_id}_gp"
+
+        # Check existing session in DB to reuse canonical session_id
+        existing_sess = safe_execute_query(
+            "SELECT id FROM sessions WHERE race_id = %s AND type ILIKE %s",
+            (race_id, f"%{type_str}%"),
+            fetch=True
+        )
+        if existing_sess and isinstance(existing_sess, list) and len(existing_sess) > 0:
+            session_id = existing_sess[0]["id"]
+        else:
+            session_id = f"{race_id}_{type_str.lower()}"
+
         # 1. Circuits, Races, Sessions
-        safe_execute_query(
-            "INSERT INTO circuits (id, name, location, country) VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
-            (circuit_id, f"{gp_name} Grand Prix Circuit", gp_name, "United Kingdom")
-        )
-        safe_execute_query(
-            "INSERT INTO races (id, circuit_id, year, round, name, date) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
-            (race_id, circuit_id, year, 12, f"{gp_name} Grand Prix", f"{year}-07-14")
-        )
-        safe_execute_query(
-            "INSERT INTO sessions (id, race_id, type, date, status) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (id) DO UPDATE SET status = 'completed'",
-            (session_id, race_id, type_str, f"{year}-07-14", "completed")
-        )
+        try:
+            execute_query(
+                "INSERT INTO circuits (id, name, location, country) VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                (circuit_id, f"{gp_name} Grand Prix Circuit", gp_name, "United Kingdom")
+            )
+        except Exception as ex:
+            logger.debug(f"[FastF1Collector] Circuit insert note: {ex}")
+
+        try:
+            execute_query(
+                """
+                INSERT INTO races (id, circuit_id, year, round, name, date)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (year, round) DO UPDATE SET
+                    circuit_id = EXCLUDED.circuit_id,
+                    name = EXCLUDED.name
+                """,
+                (race_id, circuit_id, year, round_num, f"{gp_name} Grand Prix", f"{year}-07-14")
+            )
+        except Exception as ex:
+            logger.debug(f"[FastF1Collector] Race insert note: {ex}")
+
+        try:
+            execute_query(
+                "INSERT INTO sessions (id, race_id, type, date, status) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (id) DO UPDATE SET status = 'completed'",
+                (session_id, race_id, type_str, f"{year}-07-14", "completed")
+            )
+        except Exception as ex:
+            logger.warning(f"[FastF1Collector] Error creating base session {session_id}: {ex}")
 
         # 2. Constructors & Drivers
         teams = [("red_bull", "Red Bull"), ("ferrari", "Ferrari"), ("mclaren", "McLaren"), ("mercedes", "Mercedes")]

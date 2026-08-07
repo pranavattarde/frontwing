@@ -10,7 +10,7 @@ REDIS_URL = settings.REDIS_URL
 import time
 
 _db_last_fail = 0.0
-_DB_FAIL_COOLDOWN = 5.0 # Seconds to skip reconnection attempts if DB is offline
+_DB_FAIL_COOLDOWN = 0.5 # Seconds to skip reconnection attempts if DB is offline
 
 def get_db_connection():
     """Returns a new connection to the PostgreSQL database."""
@@ -18,7 +18,7 @@ def get_db_connection():
     if time.time() - _db_last_fail < _DB_FAIL_COOLDOWN:
         raise ConnectionError("PostgreSQL connection circuit-breaker active (offline fallback)")
     try:
-        conn = psycopg2.connect(DATABASE_URL, connect_timeout=1)
+        conn = psycopg2.connect(DATABASE_URL, connect_timeout=5)
         return conn
     except Exception as e:
         _db_last_fail = time.time()

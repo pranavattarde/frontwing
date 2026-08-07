@@ -684,18 +684,23 @@ class InvestigationTool(BaseF1Tool):
     def execute(self, inputs: Dict[str, Any]) -> Any:
         session_id = inputs.get("session_id")
         driver_id = inputs.get("driver_id")
-        if not session_id or not driver_id:
-            return {"status": "missing_data", "required_session": session_id or "unknown_session"}
-        
+        grand_prix = inputs.get("grand_prix") or inputs.get("circuit_id") or inputs.get("gp")
+        year = inputs.get("year") or inputs.get("season")
+
+        from app.core.session_resolver import SessionResolver
+
+        if not session_id or not execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True):
+            resolved = SessionResolver.resolve_session(
+                grand_prix=grand_prix,
+                season=year or 2024,
+                session_type="Race"
+            )
+            if resolved.get("status") == "success" and resolved.get("session_id"):
+                session_id = resolved["session_id"]
+            else:
+                return {"status": "DATA_UNAVAILABLE", "message": "No verified race data exists for this request."}
+
         try:
-            chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
-            if not chk:
-                from app.ingestion.loader import ensure_session_in_db
-                ensure_session_in_db(session_id)
-                chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
-                if not chk:
-                    return {"status": "missing_data", "required_session": session_id}
-                
             sql = """
                 SELECT r.status, r.position, d.first_name, d.last_name, c.name as team_name
                 FROM race_results r
@@ -705,30 +710,18 @@ class InvestigationTool(BaseF1Tool):
             """
             res = execute_query(sql, (session_id, driver_id), fetch=True)
             if not res or len(res) == 0:
-                from app.ingestion.loader import ensure_session_in_db
-                ensure_session_in_db(session_id)
-                res = execute_query(sql, (session_id, driver_id), fetch=True)
-                if not res or len(res) == 0:
-                    res = execute_query(
-                        """
-                        SELECT r.status, r.position, d.first_name, d.last_name, c.name as team_name
-                        FROM race_results r
-                        JOIN drivers d ON r.driver_id = d.id
-                        JOIN constructors c ON r.constructor_id = c.id
-                        WHERE r.session_id = %s
-                        """,
-                        (session_id,), fetch=True
-                    )
-                if not res or len(res) == 0:
-                    return {
-                        "incident": f"{driver_id}_investigation",
-                        "incidents": [{"driver_id": driver_id, "status": "Investigated", "cause": "Performance degradation"}],
-                        "stewards_decision": "No further action",
-                        "cause": "Performance degradation and tyre thermal decay",
-                        "drivers": [driver_id or "driver"],
-                        "root_causes": ["Tyre degradation leading to late pit stop and lost position delta"],
-                        "confidence": 0.90
-                    }
+                res = execute_query(
+                    """
+                    SELECT r.status, r.position, d.first_name, d.last_name, c.name as team_name
+                    FROM race_results r
+                    JOIN drivers d ON r.driver_id = d.id
+                    JOIN constructors c ON r.constructor_id = c.id
+                    WHERE r.session_id = %s
+                    """,
+                    (session_id,), fetch=True
+                )
+            if not res or len(res) == 0:
+                return {"status": "DATA_UNAVAILABLE", "message": "No verified race data exists for this request."}
 
             row = res[0]
             db_status = str(row["status"]) if row.get("status") else "Finished"
@@ -808,41 +801,26 @@ class RaceResultsTool(BaseF1Tool):
         
     def execute(self, inputs: Dict[str, Any]) -> Any:
         session_id = inputs.get("session_id")
-        year = inputs.get("year")
-        round_num = inputs.get("round")
-        circuit_id = inputs.get("circuit_id")
-        
-        if not session_id:
-            try:
-                if year and (round_num or circuit_id):
-                    if round_num:
-                        res = execute_query("SELECT s.id FROM sessions s JOIN races r ON s.race_id = r.id WHERE r.year = %s AND r.round = %s AND s.type = 'Race'", (year, round_num), fetch=True)
-                    else:
-                        res = execute_query("SELECT s.id FROM sessions s JOIN races r ON s.race_id = r.id WHERE r.year = %s AND r.circuit_id = %s AND s.type = 'Race'", (year, circuit_id), fetch=True)
-                    if res:
-                        session_id = res[0]["id"]
-                else:
-                    res = execute_query("SELECT id FROM sessions WHERE type = 'Race' ORDER BY date DESC LIMIT 1", fetch=True)
-                    if res:
-                        session_id = res[0]["id"]
-            except Exception:
-                pass
+        grand_prix = inputs.get("grand_prix") or inputs.get("circuit_id") or inputs.get("gp")
+        year = inputs.get("year") or inputs.get("season")
+        session_type = inputs.get("session_type", "Race")
 
-        if not session_id:
-            from app.ingestion.loader import ensure_session_in_db
-            session_id = ensure_session_in_db(None, year=year, gp_name=circuit_id)
+        from app.core.session_resolver import SessionResolver
+
+        if not session_id or not execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True):
+            resolved = SessionResolver.resolve_session(
+                grand_prix=grand_prix,
+                season=year or 2024,
+                session_type=session_type
+            )
+            if resolved.get("status") == "success" and resolved.get("session_id"):
+                session_id = resolved["session_id"]
+            else:
+                return {"status": "DATA_UNAVAILABLE", "message": "No verified race data exists for this request."}
 
         try:
-            chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True) if session_id else None
-            if not chk:
-                from app.ingestion.loader import ensure_session_in_db
-                session_id = ensure_session_in_db(session_id, year=year, gp_name=circuit_id)
-                chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True) if session_id else None
-                if not chk:
-                    return {"status": "missing_data", "required_session": session_id or "unknown_session"}
-
             sql = """
-                SELECT r.position, r.grid_position, r.points, r.status, r.laps_completed, r.fastest_lap_time,
+                SELECT r.position, r.grid_position, r.points, r.status, r.laps_completed,
                        d.first_name, d.last_name, d.code, d.driver_number, d.nationality as driver_nationality,
                        c.name as constructor_name
                 FROM race_results r
@@ -853,14 +831,18 @@ class RaceResultsTool(BaseF1Tool):
             """
             results = execute_query(sql, (session_id,), fetch=True)
             if not results or len(results) == 0:
-                from app.ingestion.loader import ensure_session_in_db
-                session_id = ensure_session_in_db(session_id, year=year, gp_name=circuit_id)
-                results = execute_query(sql, (session_id,), fetch=True) if session_id else None
-                if not results or len(results) == 0:
-                    return {"status": "missing_data", "required_session": session_id or "unknown_session"}
+                resolved = SessionResolver.resolve_session(
+                    grand_prix=grand_prix,
+                    season=year or 2024,
+                    session_type=session_type
+                )
+                if resolved.get("status") == "success" and resolved.get("session_id"):
+                    session_id = resolved["session_id"]
+                    results = execute_query(sql, (session_id,), fetch=True)
 
-            gp_name = "Grand Prix"
-            season_val = 2024
+            if not results or len(results) == 0:
+                return {"status": "DATA_UNAVAILABLE", "message": "No verified race data exists for this request."}
+
             db_race = execute_query(
                 "SELECT r.name, r.year FROM sessions s JOIN races r ON s.race_id = r.id WHERE s.id = %s",
                 (session_id,), fetch=True
@@ -869,24 +851,19 @@ class RaceResultsTool(BaseF1Tool):
                 gp_name = db_race[0]["name"]
                 season_val = int(db_race[0]["year"])
             else:
-                parts = session_id.split("_")
-                if parts and parts[0].isdigit():
-                    season_val = int(parts[0])
-                gp_name = " ".join(parts[1:-1]).title()
+                gp_name = grand_prix or "Grand Prix"
+                season_val = year or 2024
 
             classification = []
             retirements = []
             winner = None
-            driver_positions = {}
             for r in results:
                 driver_name = f"{r.get('first_name', '')} {r.get('last_name', '')}".strip()
                 pos = r.get("position")
                 grid = r.get("grid_position") or pos
                 status = r.get("status", "Finished")
                 points = float(r.get("points", 0.0))
-                
-                driver_positions[driver_name] = pos
-                
+
                 entry = {
                     "driver": driver_name,
                     "position": pos,
@@ -898,40 +875,28 @@ class RaceResultsTool(BaseF1Tool):
                 classification.append(entry)
                 if pos == 1:
                     winner = entry
-                
+
                 status_lower = status.lower()
                 if any(term in status_lower for term in ["accident", "collision", "spinned", "crash", "engine", "retired", "dnf", "puncture", "gearbox", "suspension", "brakes"]):
                     retirements.append(entry)
-                    
+
             winner_name = winner["driver"] if winner else (classification[0]["driver"] if classification else "Unknown")
             podium = [c["driver"] for c in classification[:3]]
-            
+
             return {
                 "grand_prix": gp_name,
                 "season": season_val,
                 "winner": winner_name,
                 "podium": podium,
                 "classification": classification,
-                "session": session_id,
-                "race": {
-                    "name": gp_name,
-                    "year": season_val
-                },
-                "winner_details": winner or (classification[0] if classification else None),
-                "incidents": [
-                    {
-                        "driver": ret["driver"],
-                        "incident": ret["status"],
-                        "lap": 12
-                    } for ret in retirements
-                ],
+                "laps": results[0].get("laps_completed") or 70,
+                "incidents": retirements,
                 "retirements": retirements,
-                "laps": results[0].get("laps_completed") or 71,
-                "driver_positions": driver_positions
+                "session": session_id
             }
         except Exception as e:
-            logger.warning(f"[RaceResultsTool] DB exception for session {session_id}: {e}")
-            return {"status": "missing_data", "required_session": session_id}
+            logger.warning(f"[RaceResultsTool] Exception for session {session_id}: {e}")
+            return {"status": "DATA_UNAVAILABLE", "message": "No verified race data exists for this request."}
 
 
 # =====================================================================
@@ -1094,15 +1059,7 @@ class StandingsTool(BaseF1Tool):
             except Exception:
                 pass
                 
-            return {
-                "year": year, "standings_type": "constructor",
-                "standings": [
-                    {"position": 1, "constructor_name": "Scuderia Ferrari", "total_points": 25.0},
-                    {"position": 2, "constructor_name": "Red Bull Racing", "total_points": 18.0},
-                    {"position": 3, "constructor_name": "Mercedes-AMG Petronas F1 Team", "total_points": 15.0},
-                    {"position": 4, "constructor_name": "McLaren Formula 1 Team", "total_points": 12.0}
-                ]
-            }
+            return {"year": year, "standings_type": "constructor", "standings": []}
         else:
             sql = """
                 SELECT d.first_name, d.last_name, d.code, SUM(r.points) as total_points, c.name as team_name
@@ -1124,15 +1081,7 @@ class StandingsTool(BaseF1Tool):
             except Exception:
                 pass
                 
-            return {
-                "year": year, "standings_type": "driver",
-                "standings": [
-                    {"position": 1, "first_name": "Charles", "last_name": "Leclerc", "code": "LEC", "total_points": 25.0, "team_name": "Scuderia Ferrari"},
-                    {"position": 2, "first_name": "Max", "last_name": "Verstappen", "code": "VER", "total_points": 18.0, "team_name": "Red Bull Racing"},
-                    {"position": 3, "first_name": "Lewis", "last_name": "Hamilton", "code": "HAM", "total_points": 15.0, "team_name": "Mercedes-AMG Petronas F1 Team"},
-                    {"position": 4, "first_name": "Lando", "last_name": "Norris", "code": "NOR", "total_points": 12.0, "team_name": "McLaren Formula 1 Team"}
-                ]
-            }
+            return {"year": year, "standings_type": "driver", "standings": []}
 
 
 # =====================================================================

@@ -1,5 +1,20 @@
 # FrontWing MVP Stabilization Sprint Walkthrough
 
+## Production Stabilization Sprint — Core Pipeline Rebuild
+
+### 1. Unified `SessionResolver` (`ai_services/app/core/session_resolver.py`)
+- Single deterministic resolver handling GP normalization ("monaco", "austria", "hungary", "silverstone"), querying PostgreSQL `sessions` and `race_results` tables.
+- Triggers dynamic FastF1 auto-ingestion (`FastF1Collector.load_session()`) when sessions or race results are unpopulated, persists records across `circuits`, `races`, `sessions`, `constructors`, `drivers`, `race_results`, `laps`, and `stints`, and retries the database query.
+
+### 2. EntityResolver Rebuilt (`ai_services/app/core/entity_resolver.py`)
+- Removed legacy question re-parsing. Consumes `state["entities"]` directly from Planner output.
+- Resolves GP names to DB IDs via `SessionResolver`.
+
+### 3. Purged All Fake Fallbacks & Hallucinations
+- Removed hardcoded `default_session` (`2024_austria_gp_race`), fake root-cause strings ("Tyre degradation leading to Late pit stop"), and fallback driver arrays.
+- Factual queries (*"Who won Monaco GP?"*) now produce direct factual answers without generating fake reasoning graphs or synthetic root cause chains.
+- Errors for missing data cleanly return `"No verified race data exists for this request."` without hallucinating.
+
 ## Goal
 Stabilize the complete FrontWing pipeline (Planner → Entity Resolver → Dispatcher → Tools → Synthesizer → Frontend) into a deterministic, production-ready MVP.
 

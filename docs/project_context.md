@@ -607,7 +607,9 @@ Every AI response follows this layering:
 | Layer | What | Format | When Visible |
 | :--- | :--- | :--- | :--- |
 | **1. Verdict** | The direct answer in plain language | Text paragraph | Always (immediately) |
-| **2. Explanation** | Why the verdict is true, with key metrics cited inline | Text with highlighted data callouts | Always (follows verdict) |
+| - **Session Resolution Architecture**: `SessionResolver` acts as the single source of truth for session lookup and automatic FastF1 database population.
+- **Pipeline Order**: User Question → Planner → Entity Resolver → Session Resolver → PostgreSQL (Retry FastF1 Ingestion if missing) → Tools → Synthesizer → Frontend.
+- **Zero Hallucination Policy**: Factual queries return direct verified result strings. Error/missing data state returns `"No verified race data exists for this request."` without synthetic fallback graphs.true, with key metrics cited inline | Text with highlighted data callouts | Always (follows verdict) |
 | **3. Evidence** | Supporting visual proof (charts, timelines, comparisons) | Inline expandable cards | Collapsed by default; one-tap expand |
 | **4. Simulation** | What-if projections, Monte Carlo distributions | Interactive inline cards | Collapsed; expand reveals slider controls |
 | **5. Raw Data** | Full telemetry traces, lap-by-lap tables, wear regressions | Canvas/table views | Hidden; "Show raw data" link at bottom |

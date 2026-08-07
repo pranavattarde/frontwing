@@ -13,6 +13,12 @@
   - [x] Removed hardcoded fake drivers, constructors, and 2026 Monaco GP arrays from tool adapters
   - [x] Removed static `TELEMETRY_PIA_LAP42` / `TELEMETRY_SAI_LAP42` fallbacks from frontend
 
+- [x] **PRODUCTION STABILIZATION SPRINT — Rebuild Core Race Data Resolution Pipeline**
+  - [x] Create SessionResolver to query PostgreSQL and auto-ingest missing GP sessions via FastF1
+  - [x] Refactor EntityResolver to consume Planner entities directly without question re-parsing
+  - [x] Purge default session fallbacks and fake root cause strings from tools and synthesizer
+  - [x] Enforce factual synthesis responses without fake root-cause graphs for race results
+
 - [x] **4. Automatic FastF1 Ingestion**
   - [x] `ensure_session_in_db()` automatically fetches missing sessions via `FastF1Collector.load_session()`
   - [x] Auto-populates and caches session data in PostgreSQL without requiring user intervention
