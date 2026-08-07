@@ -49,7 +49,7 @@ class EntityResolver:
         Pipeline: Planner -> entities -> resolver -> resolved ids -> SessionResolver -> session_id
         Does not parse the question string again if entities are provided by Planner.
         """
-        planner_entities = state.get("entities") or state.get("planner_entities") or {}
+        planner_entities = state.get("entities") or (state.get("structured_plan") or {}).get("entities") or state.get("planner_entities") or {}
         
         # Fallback to simple extraction from question only if planner_entities is completely empty
         if not planner_entities and question:

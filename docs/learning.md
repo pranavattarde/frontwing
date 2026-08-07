@@ -776,3 +776,15 @@ All internal states are converted to human-readable F1 analyst language before r
 ### 4. UUID History Integrity & Auth Security
 - **JWT Protection**: Secured `/history`, `/save`, `/delete`, `/me`, `/bookmarks` with `authenticateToken` middleware returning `401 Unauthorized` without a valid token.
 - **UUID Persistence**: Attached backend PostgreSQL UUID `id` to query responses and validated UUID formats via regex in controller handlers to prevent SQL syntax crashes on client temporary IDs.
+
+---
+
+## Sprint 8 — Backend Verification Sprint Insights
+
+### 1. Unified Session & Entity Resolution Pipeline
+- **Problem**: Duplicate entity extraction logic caused entity mismatches and fallback defaults when resolving GP names.
+- **Resolution**: `EntityResolver.resolve()` consumes `state["entities"]` directly from Planner output without re-parsing questions, resolving GP names directly against PostgreSQL via `SessionResolver`.
+
+### 2. Relational Database Primary Key Integrity
+- **Problem**: Mislabeled race IDs in PostgreSQL `races` table caused cross-session data leakage between Monaco GP and British GP.
+- **Resolution**: Repaired database primary key assignments in `races` (`2024_monaco_gp` → `Monaco Grand Prix`, `2024_british_gp` → `British Grand Prix`), ensuring FastF1 session data maps 1:1 to unique database circuit and race IDs.

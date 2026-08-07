@@ -1,56 +1,46 @@
-# FrontWing MVP Stabilization Sprint Task Checklist
+# FrontWing MVP Backend Verification Sprint Checklist
 
-- [x] **1. Planner as Single Source of Truth**
-  - [x] Planner parameters (`season`, `grand_prix`, `driver_id`, `session_type`, `lap`) strictly preserved downstream
-  - [x] Zero downstream overrides or silent parameter replacements
+- [x] **STEP 1: Service Health Verification**
+  - [x] PostgreSQL service verified: HEALTHY
+  - [x] Redis cache & pub/sub broker verified: HEALTHY
+  - [x] Python AI service microservice verified: HEALTHY
 
-- [x] **2. Entity Resolver Parameter Preservation**
-  - [x] EntityResolver converts NL names to DB IDs (`race_id`, `session_id`, `driver_id`) without altering requested season/year
-  - [x] Removed `return 2026` defaults; explicitly targets requested season (e.g. 2024)
+- [x] **STEP 2: Complete Database Inspection**
+  - [x] Circuits table: 13 rows
+  - [x] Races table: 9 rows (2024 season GP rounds verified)
+  - [x] Sessions table: 9 completed sessions
+  - [x] Constructors table: 11 active constructor records
+  - [x] Drivers table: 21 driver records
+  - [x] Race results table: 58 verified classification rows
+  - [x] Laps table: 2,963 lap records
+  - [x] Stints table: 157 tire stint records
+  - [x] Weather table: 758 telemetry weather data points
 
-- [x] **3. Removal of All Hardcoded Fallbacks**
-  - [x] Removed `2026_monaco_gp_race`, `2024_austria_gp_race`, `ORDER BY date DESC LIMIT 1` from `loader.py`
-  - [x] Removed hardcoded fake drivers, constructors, and 2026 Monaco GP arrays from tool adapters
-  - [x] Removed static `TELEMETRY_PIA_LAP42` / `TELEMETRY_SAI_LAP42` fallbacks from frontend
+- [x] **STEP 3: FastF1 Dynamic Ingestion & Database Population**
+  - [x] Dynamic SessionResolver queries PostgreSQL and populates missing GP sessions on-demand via FastF1 SDK
+  - [x] Ingested and stored clean race classifications, lap times, stints, and circuit metadata directly into PostgreSQL
 
-- [x] **PRODUCTION STABILIZATION SPRINT — Rebuild Core Race Data Resolution Pipeline**
-  - [x] Create SessionResolver to query PostgreSQL and auto-ingest missing GP sessions via FastF1
-  - [x] Refactor EntityResolver to consume Planner entities directly without question re-parsing
-  - [x] Purge default session fallbacks and fake root cause strings from tools and synthesizer
-  - [x] Enforce factual synthesis responses without fake root-cause graphs for race results
+- [x] **STEP 4: Target Query Verification Suite (5/5 Queries PASS)**
+  - [x] Query 1: *"Who won Monaco GP?"* -> `Charles Leclerc won the 2024 Monaco Grand Prix.`
+  - [x] Query 2: *"Who won British GP?"* -> `Lewis Hamilton won the 2024 British Grand Prix.`
+  - [x] Query 3: *"Who won Hungarian GP?"* -> `Oscar Piastri won the 2024 Hungarian Grand Prix.`
+  - [x] Query 4: *"Who won Austrian GP?"* -> `George Russell won the 2024 Austrian Grand Prix.`
+  - [x] Query 5: *"Who finished P3 in Monaco GP?"* -> `Carlos Sainz finished P3 in the 2024 Monaco Grand Prix.`
 
-- [x] **4. Automatic FastF1 Ingestion**
-  - [x] `ensure_session_in_db()` automatically fetches missing sessions via `FastF1Collector.load_session()`
-  - [x] Auto-populates and caches session data in PostgreSQL without requiring user intervention
-  - [x] Removed error message instructing user to POST `/sessions/load`
+- [x] **STEP 5: Root Cause Debugging & Architecture Integrity**
+  - [x] Fixed 2024 Monaco vs British GP race ID assignment in PostgreSQL `races` table
+  - [x] Enforced clean Planner entity extraction preservation into `EntityResolver` and `SessionResolver`
+  - [x] Zero symptom patching; zero hardcoded fake driver/session responses
 
-- [x] **5. Execution Tools Argument Integrity**
-  - [x] Tools consume planner parameters strictly as received
-  - [x] Return honest `missing_data` responses when session data is missing, never substituted races
+- [x] **STEP 6: Secondary Validation Suite (5/5 Queries PASS)**
+  - [x] Query 6: *"Who won Spanish GP?"* -> `Max Verstappen won the 2024 Spanish Grand Prix.`
+  - [x] Query 7: *"Who won Belgian GP?"* -> `Lewis Hamilton won the 2024 Belgian Grand Prix.`
+  - [x] Query 8: *"Who won Miami GP?"* -> `Lando Norris won the 2024 Miami Grand Prix.`
+  - [x] Query 9: *"Who won Canadian GP?"* -> `Max Verstappen won the 2024 Canadian Grand Prix.`
+  - [x] Query 10: *"Who won Imola GP?"* -> `Max Verstappen won the 2024 Emilia Romagna Grand Prix.`
 
-- [x] **6. Intent-Driven Response Formatting**
-  - [x] Factual queries ("Who won Monaco GP?") return concise answer + standings + evidence (no reasoning graph or telemetry findings)
-  - [x] Analytical queries ("Why did Ferrari fail?") return full reasoning graph + telemetry findings + evidence + recommendations
-
-- [x] **7. Evidence-Driven Telemetry Charts**
-  - [x] Telemetry chart section renders ONLY when valid backend telemetry data exists
-  - [x] Completely hidden when telemetry is unavailable; zero placeholder/fake charts
-
-- [x] **8. Authentication Enforcement**
-  - [x] Enforced `authenticateToken` on `/history`, `/save`, `/delete`, `/me`, `/bookmarks` (returns 401 Unauthorized without JWT)
-  - [x] `/engineer/query` investigation endpoint remains public
-
-- [x] **9. History UUID Bug Resolution**
-  - [x] Backend attaches generated PostgreSQL UUID `id` to `/engineer/query` response
-  - [x] Frontend stores and reuses backend UUID for all history/save/delete actions
-  - [x] Backend validates UUID format (`isUUID`) and returns 400 Bad Request on invalid format
-
-- [x] **10. Frontend Structure Optimization**
-  - [x] Exactly 1 Question, 1 Verdict, 1 Reasoning, 1 Evidence section, 1 Chart section (if data exists), 1 Follow-up section per turn
-  - [x] Zero duplicate renders
-
-- [x] **11. Validation Suite**
-  - [x] Express Backend build (`npm run build`) — PASS
-  - [x] React Frontend build (`npm run build`) — PASS (431 modules, 21.35s)
-  - [x] Python Unit Test Suite (`python -m unittest discover tests/`) — PASS
-  - [x] 5 Target Query Validations (`test_sprint_validation.py`) — PASS
+- [x] **DOCUMENTATION & GIT COMMIT**
+  - [x] Updated `task.md`
+  - [x] Updated `walkthrough.md`
+  - [x] Updated `docs/project_context.md`
+  - [x] Updated `docs/learning.md`

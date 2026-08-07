@@ -582,6 +582,7 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
     }
 
     return {
+        "entities": entities,
         "structured_plan": structured_plan,
         "plan": structured_plan["execution_order"],
         "next_step_idx": 0,
