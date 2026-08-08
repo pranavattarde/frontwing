@@ -937,9 +937,15 @@ The Python AI service (`ai_services/app/ingestion/fastf1_collector.py` & `loader
 
 ---
 
-## 21. Backend Race Intelligence Verification Sprint
+---
+
+## 22. Final Full End-to-End MVP Regression Sprint
 
 ### Architecture Overview
-The backend race intelligence pipeline (Planner → Entity Resolver → Session Resolver → Database → FastF1 Loader → PostgreSQL Persistence → Race Results Tool → Synthesizer) is fully verified and validated against real 2024 season Formula 1 data:
-- **Verified Relational Tables**: `circuits` (13 rows), `races` (9 rows), `sessions` (9 sessions), `constructors` (11 rows), `drivers` (21 rows), `race_results` (58 rows), `laps` (2,963 rows), `stints` (157 rows), `weather` (758 rows).
-- **Target Query Verification**: Validated 10/10 race result queries (Monaco, British, Hungarian, Austrian, Spanish, Belgian, Miami, Canadian, Imola, and P3 finish positions) with 100% factual accuracy, zero fake data fabrications, zero hardcoded session fallbacks, and zero hallucinated root cause chains.
+The complete product stack (PostgreSQL, Redis, Python FastAPI AI Microservice, Node.js Express Gateway, and React Vite Frontend) passed full end-to-end regression testing across all critical user flows:
+- **Service Health**: PostgreSQL (connected), Redis (connected), FastAPI (Status 200 OK), Express Gateway (Status 200 OK), React Frontend (Status 200 OK).
+- **Authentication**: Registration (`POST /auth/register`), Login (`POST /auth/login`), Profile (`GET /auth/me`), and Protected Endpoint Rejection (`401 Unauthorized` without token) verified.
+- **Race Intelligence**: Validated 5 core target race queries (`Who won Monaco GP?`, `Who won British GP?`, `Who won Hungarian GP?`, `Who won Austrian GP?`, `Who finished P3 in Monaco GP?`) returning 100% factual, human-readable answers.
+- **Caching & Persistence**: Redis cache retrieval verified in 12ms with `cached: true` flag and PostgreSQL history UUID propagation.
+- **History & Bookmarks**: Full thread restoration (`GET /history/:id`), bookmarking (`POST /history/save/:id`), and item deletion (`DELETE /history/:id`) verified without state leakage.
+

@@ -788,3 +788,8 @@ All internal states are converted to human-readable F1 analyst language before r
 ### 2. Relational Database Primary Key Integrity
 - **Problem**: Mislabeled race IDs in PostgreSQL `races` table caused cross-session data leakage between Monaco GP and British GP.
 - **Resolution**: Repaired database primary key assignments in `races` (`2024_monaco_gp` → `Monaco Grand Prix`, `2024_british_gp` → `British Grand Prix`), ensuring FastF1 session data maps 1:1 to unique database circuit and race IDs.
+
+### 3. Finish Position Query Regex & Cache UUID Propagation
+- **Finish Position Synthesis**: Added explicit regex parsing for `P1`-`P5` and ordinal position terms (`P3`, `third`, `second`, etc.) in `synthesize_node`, ensuring non-winner classification queries return the specific driver's finishing position.
+- **Redis Cache History UUID Propagation**: Enforced saving of investigation records when serving cached requests in `EngineerController.query`, ensuring cached responses return valid PostgreSQL investigation UUID `id` values to the frontend.
+

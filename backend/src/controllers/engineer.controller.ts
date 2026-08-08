@@ -16,10 +16,10 @@ export class EngineerController {
       // 1. Check Redis Cache for identical request
       const cached = await CacheService.getCachedResponse(queryText, session);
       if (cached) {
-        // If authenticated user, log connection/save in history
+        let savedId = cached.id;
         if (req.user?.id) {
           try {
-            await HistoryService.saveInvestigation({
+            const saved = await HistoryService.saveInvestigation({
               user_id: req.user.id,
               question: queryText,
               ai_response: cached,
@@ -27,11 +27,14 @@ export class EngineerController {
               provider_used: cached.provider || 'cached-redis',
               investigation_metadata: { cached: true },
             });
+            if (saved && saved.id) {
+              savedId = saved.id;
+            }
           } catch (histErr: any) {
             console.warn('[EngineerController] Failed to save history for cached query:', histErr.message);
           }
         }
-        return res.json(cached);
+        return res.json({ ...cached, id: savedId, cached: true });
       }
 
       // 2. Proxy request to Python AI Microservice

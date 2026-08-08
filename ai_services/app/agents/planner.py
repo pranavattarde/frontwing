@@ -1271,7 +1271,37 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
         winner_name = race_data.get("winner")
         gp_name = race_data.get("grand_prix") or "Grand Prix"
         season_val = race_data.get("season") or 2024
-        if winner_name:
+        
+        pos_match = re.search(r"\b(p\d+|\d+(?:st|nd|rd|th)\s*position|\d+(?:st|nd|rd|th))\b", q_lower)
+        if pos_match or any(k in q_lower for k in ["p3", "third", "p2", "second", "p4", "fourth", "p5", "fifth"]):
+            target_pos = 3
+            if "p2" in q_lower or "second" in q_lower:
+                target_pos = 2
+            elif "p1" in q_lower or "first" in q_lower:
+                target_pos = 1
+            elif "p4" in q_lower or "fourth" in q_lower:
+                target_pos = 4
+            elif "p5" in q_lower or "fifth" in q_lower:
+                target_pos = 5
+            elif pos_match:
+                nums = re.findall(r"\d+", pos_match.group(0))
+                if nums:
+                    target_pos = int(nums[0])
+            
+            classification = race_data.get("classification", [])
+            pos_driver = None
+            for entry in classification:
+                if entry.get("position") == target_pos:
+                    pos_driver = entry.get("driver")
+                    break
+            
+            if pos_driver:
+                exec_summary = f"{pos_driver} finished P{target_pos} in the {season_val} {gp_name}."
+            elif winner_name:
+                exec_summary = f"{winner_name} won the {season_val} {gp_name}."
+            else:
+                exec_summary = explanations.get("intermediate") or "No verified race data exists for this request."
+        elif winner_name:
             exec_summary = f"{winner_name} won the {season_val} {gp_name}."
         else:
             exec_summary = explanations.get("intermediate") or "No verified race data exists for this request."
