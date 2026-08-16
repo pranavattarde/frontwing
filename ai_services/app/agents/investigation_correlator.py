@@ -117,53 +117,51 @@ class InvestigationCorrelator:
         # 5. Build Explicit Step-by-Step Causal Reasoning Graph
         reasoning_graph = []
         
-        # Step 1: Telemetry factor
-        if deg_detected:
+        # 5. Build Explicit Step-by-Step Causal Reasoning Graph
+        reasoning_graph = []
+        
+        if deg_detected and deg_detail:
             reasoning_graph.append(deg_detail)
-        else:
-            reasoning_graph.append("Tyre degradation")
-            
-        # Step 2: Strategy / Pit timing factor
-        if late_stop:
+        if late_stop and pit_detail:
             reasoning_graph.append(pit_detail)
-        else:
-            reasoning_graph.append("Late pit stop")
-            
-        # Step 3: Traffic / Exit factor
-        if traffic_detected:
+        if traffic_detected and traffic_detail:
             reasoning_graph.append(traffic_detail)
-        else:
-            reasoning_graph.append("Traffic after pit exit")
-            
-        # Step 4: Undercut factor
-        if undercut_lost or undercut_detail:
-            reasoning_graph.append(undercut_detail if undercut_detail else "Lost undercut")
-        else:
-            reasoning_graph.append("Lost undercut")
-            
-        # Step 5: Final position / outcome
+        if undercut_detail:
+            reasoning_graph.append(undercut_detail)
         if final_pos_detail:
             reasoning_graph.append(final_pos_detail)
-        else:
-            reasoning_graph.append("Final position")
-            
-        reasoning_graph_text = "\n->\n".join(reasoning_graph)
+
+        has_telemetry_or_strategy = bool(telemetry_findings or strategy_findings)
+        
+        if not reasoning_graph:
+            if results_findings:
+                reasoning_graph = [results_findings[0]]
+            else:
+                reasoning_graph = ["Verified race classification retrieved from PostgreSQL"]
+
+        reasoning_graph_text = "\n↓\n".join(reasoning_graph)
         
         # 6. Executive Summary Synthesis
-        exec_summary = (
-            f"Root-Cause Investigation Analysis:\n"
-            f"The primary performance bottleneck is traced to: {reasoning_graph[0]} leading to {reasoning_graph[1]}. "
-            f"This resulted in {reasoning_graph[2]} and {reasoning_graph[3]}, establishing the {reasoning_graph[4]}."
-        )
+        if has_telemetry_or_strategy and len(reasoning_graph) >= 2:
+            exec_summary = (
+                f"Root-Cause Investigation Analysis:\n"
+                f"The primary performance bottleneck is traced to: {reasoning_graph[0]} leading to {reasoning_graph[1]}. "
+                f"Establishing the {reasoning_graph[-1]}."
+            )
+        elif results_findings:
+            first_res = results_findings[0]
+            exec_summary = f"Verified race data shows: {first_res}, but available telemetry and strategy evidence is insufficient to establish a specific root cause."
+        else:
+            exec_summary = "Verified race classification retrieved, but telemetry evidence is insufficient to establish a specific root cause."
         
         return {
             "reasoning_graph": reasoning_graph,
             "reasoning_graph_text": reasoning_graph_text,
             "executive_summary": exec_summary,
-            "telemetry_findings": "\n".join(telemetry_findings) if telemetry_findings else "Telemetry metrics indicate tire degradation and speed trace deltas.",
-            "strategy_findings": "\n".join(strategy_findings) if strategy_findings else "Strategy simulation model projects pit stop timing and undercut deltas.",
-            "historical_findings": "\n".join(results_findings) if results_findings else "Historical race classifications and steward incident decisions.",
-            "regulations_findings": "\n".join(regulations_findings) if regulations_findings else "FIA sporting regulations and telemetry formula definitions.",
-            "alternative_scenarios": "Pitting 2-3 laps earlier into clean air recovers predicted position delta.",
+            "telemetry_findings": "\n".join(telemetry_findings) if telemetry_findings else "Telemetry evidence is unavailable or insufficient for this request.",
+            "strategy_findings": "\n".join(strategy_findings) if strategy_findings else "Strategy simulation evidence is unavailable or insufficient for this request.",
+            "historical_findings": "\n".join(results_findings) if results_findings else "No historical standings parsed.",
+            "regulations_findings": "\n".join(regulations_findings) if regulations_findings else "No specific regulatory infractions logged.",
+            "alternative_scenarios": "Maintain current stint guidelines based on verified classification data." if not strategy_findings else "Pitting earlier into clean air recovers predicted position delta.",
             "final_recommendation": f"Root Cause Chain: {reasoning_graph_text.replace(chr(10), ' -> ')}"
         }

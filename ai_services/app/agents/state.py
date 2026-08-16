@@ -59,3 +59,8 @@ class AgentState(TypedDict):
 
     # Dedicated Context Builder stage output
     structured_context: Dict[str, Any]
+
+    # --- SPRINT NLP UPGRADE ---
+    # NLP Semantic Query Understanding Contract
+    semantic_contract: Dict[str, Any]
+

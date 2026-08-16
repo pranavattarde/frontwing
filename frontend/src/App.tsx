@@ -10,7 +10,6 @@ import { SearchOverlay } from './components/SearchOverlay';
 import { NotificationContainer } from './components/Notification';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { generateId } from './lib/utils';
-import { submitEngineerQuery } from './lib/api';
 
 export default function App() {
   const [isCommandOpen, setIsCommandOpen] = useState(false);
@@ -42,38 +41,18 @@ export default function App() {
     };
   }, []);
 
-  const handleSearchResultClick = async (queryText: string) => {
+  const handleSearchResultClick = (queryText: string) => {
     setIsSearchOpen(false);
-    try {
-      if (typeof (window as any).__fw_notify === 'function') {
-        (window as any).__fw_notify({
-          id: String(Date.now()),
-          message: `Querying AI Gateway: "${queryText}"`,
-          type: 'info',
-          duration: 3000,
-        });
-      }
-      const aiResponse = await submitEngineerQuery(queryText);
-      const generatedId = generateId();
-      const newInvestigation = {
-        id: generatedId,
-        question: queryText,
-        response: aiResponse,
-        timestamp: Date.now()
-      };
-      localStorage.setItem(`frontwing_investigation_${generatedId}`, JSON.stringify(newInvestigation));
-      window.location.href = `/investigate/${generatedId}`;
-    } catch (error: any) {
-      console.error('[SearchOverlay] Query failed:', error);
-      if (typeof (window as any).__fw_notify === 'function') {
-        (window as any).__fw_notify({
-          id: String(Date.now()),
-          message: `Query failed: ${error.message}`,
-          type: 'error',
-          duration: 5000,
-        });
-      }
-    }
+    const generatedId = generateId();
+    const newInvestigation = {
+      id: generatedId,
+      question: queryText,
+      status: 'loading',
+      exchanges: [],
+      timestamp: Date.now()
+    };
+    localStorage.setItem(`frontwing_investigation_${generatedId}`, JSON.stringify(newInvestigation));
+    window.location.href = `/investigate/${generatedId}`;
   };
 
   return (

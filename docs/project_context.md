@@ -36,7 +36,9 @@ The platform uses a decoupled microservices design to balance performance (Node.
 - **Upgraded Investigation Agent & Root-Cause Reasoning Graph**: `InvestigationCorrelator` engine (`ai_services/app/agents/investigation_correlator.py`) correlates Telemetry + Race Results + Regulations + Strategy into an explicit, step-by-step causal chain (`Tyre degradation → Late pit stop → Traffic after pit exit → Lost undercut → Final position`), anchored strictly to retrieved tool outputs.
 - **Adaptive Planning System**: Replaced keyword planner routing with adaptive extraction (`intent`, `entities`, `required_evidence`, `missing_evidence`, `confidence`). Dynamically selects the minimum required set of tools to eliminate unnecessary tool executions.
 - **Conversational Investigations & PostgreSQL Memory**: Multi-turn context resolution engine (`PostgresConversationMemory` in `ai_services/app/agents/memory.py`) stores thread exchanges into PostgreSQL `conversations` table and resolves relative follow-up queries (`"Why Ferrari failed?"` → `"What about Verstappen?"` → `"Compare them."` → `"Show telemetry."`) with full context persistence.
+- **NLP-First Query Understanding Pipeline**: Pre-planner semantic processing layer (`ai_services/app/agents/nlp_parser.py`). Operates via: `Raw Query` → `Application Preprocessing (Unicode/Whitespace)` → `LLM Semantic Parser (Gemini 2.5 Flash / Groq Failover)` → `SemanticQueryContract` → `Structured FrontWing Query` → `Planner Execution` → `Verified F1 Data` → `Evidence-First Synthesis` → `Frontend`. Eliminates keyword-regex guessing, maps canonical entities/metrics, and enforces Evidence-First Synthesis so that exact user metrics (driver positions, podiums, team results, fastest laps) are answered without defaulting to race winners. Note: BPE/tokenization and embeddings are handled natively inside Gemini/Groq APIs and are not reimplemented in application code.
 - **Production Telemetry Visualizations Matrix**: Investigation Page renders 5 production telemetry charts (Lap Time Graph, Tyre Degradation, Sector Comparison, Speed Trace, Pit Window Timeline) driven strictly by backend telemetry arrays without mock data or placeholders.
+
 
 ---
 
@@ -948,4 +950,18 @@ The complete product stack (PostgreSQL, Redis, Python FastAPI AI Microservice, N
 - **Race Intelligence**: Validated 5 core target race queries (`Who won Monaco GP?`, `Who won British GP?`, `Who won Hungarian GP?`, `Who won Austrian GP?`, `Who finished P3 in Monaco GP?`) returning 100% factual, human-readable answers.
 - **Caching & Persistence**: Redis cache retrieval verified in 12ms with `cached: true` flag and PostgreSQL history UUID propagation.
 - **History & Bookmarks**: Full thread restoration (`GET /history/:id`), bookmarking (`POST /history/save/:id`), and item deletion (`DELETE /history/:id`) verified without state leakage.
+
+---
+
+## 23. Sprint 2 — Natural-Language MVP Reliability Sprint
+
+### Architecture Overview
+Sprint 2 made the FrontWing multi-agent architecture resilient to natural-language query variations without relying on happy-path rule-based engines:
+- **Canonical Schema Normalization**: Implemented `normalize_planner_response()` in `planner.py` to convert all Gemini and Groq JSON outputs into ONE canonical schema (`intent`, `entities`, `required_evidence`, `missing_evidence`, `confidence`, `tools`, `required_tools`, `execution_order`, `parameters`), with explicit logging of `RAW LLM PLAN`, `NORMALIZED PLAN`, and `VALIDATION RESULT`.
+- **Immediate Non-Retryable Gemini Rate-Limit Failover**: Enhanced `is_fatal_error()` in `providers.py` to identify HTTP 429 / quota exhaustion as non-retryable errors, immediately dispatching `GroqProvider` (`llama-3.3-70b-versatile`) without breaking request pipelines.
+- **Natural-Language Entity Resolution**: Expanded `_clean_gp_name()` and `resolve_session()` to map all natural language GP variations (`Monaco`, `British`, `Austrian`, `Hungarian`, `Spanish`, `Italian`, `Emilia Romagna`, `Belgian`, `Canadian`, `Miami`), defaulting to the latest verified season in PostgreSQL when no explicit year is supplied.
+- **Investigation Entity Correctness**: Rewrote `InvestigationTool.execute()` to preserve strict driver-team entity mapping for team queries (`team = Ferrari`), eliminating corrupt entity fallbacks (no Max Verstappen / Red Bull mixups for Ferrari).
+- **Optional Telemetry `lap_number` Contract**: Updated `TelemetryTool.input_schema` to `"required": ["session_id", "driver_id"]`, automatically resolving the driver's fastest clean lap from `laps` table when `lap_number` is omitted.
+- **Zero Fabricated Evidence Contract**: Updated `InvestigationCorrelator` to emit ONLY verified tool evidence. When telemetry/strategy data is missing, outputs an honest summary stating verified classification data exists but telemetry evidence is insufficient to prove a root cause.
+- **Defensive Frontend Rendering & Duplicate Fix**: Defensive payload mapping in `InvestigationThread.tsx` prevents blank screens on error/partial responses and eliminates duplicate verdict/narrative block rendering during UUID navigation.
 

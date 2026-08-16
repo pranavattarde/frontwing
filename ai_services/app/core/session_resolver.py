@@ -24,8 +24,11 @@ class SessionResolver:
             "austria": "austria",
             "austrian": "austria",
             "spielberg": "austria",
+            "red bull ring": "austria",
+            "red_bull_ring": "austria",
             "monaco": "monaco",
             "monte carlo": "monaco",
+            "monte_carlo": "monaco",
             "hungary": "hungary",
             "hungarian": "hungary",
             "budapest": "hungary",
@@ -33,6 +36,7 @@ class SessionResolver:
             "british": "silverstone",
             "britain": "silverstone",
             "silverstone": "silverstone",
+            "uk": "silverstone",
             "spanish": "spain",
             "spain": "spain",
             "barcelona": "spain",
@@ -42,23 +46,83 @@ class SessionResolver:
             "suzuka": "japan",
             "italy": "monza",
             "italian": "monza",
-            "monza": "monza"
+            "monza": "monza",
+            "imola": "imola",
+            "emilia": "imola",
+            "emilia romagna": "imola",
+            "belgian": "spa",
+            "belgium": "spa",
+            "spa": "spa",
+            "canadian": "canada",
+            "canada": "canada",
+            "montreal": "canada",
+            "miami": "miami",
+            "china": "china",
+            "chinese": "china",
+            "shanghai": "china",
+            "singapore": "singapore",
+            "marina bay": "singapore",
+            "brazil": "sao paulo",
+            "brazilian": "sao paulo",
+            "interlagos": "sao paulo",
+            "sao paulo": "sao paulo",
+            "las vegas": "vegas",
+            "vegas": "vegas",
+            "qatar": "qatar",
+            "lusail": "qatar",
+            "abu dhabi": "abu dhabi",
+            "yas marina": "abu dhabi",
+            "dutch": "zandvoort",
+            "netherlands": "zandvoort",
+            "zandvoort": "zandvoort",
+            "azerbaijan": "baku",
+            "baku": "baku",
+            "saudi": "jeddah",
+            "saudi arabia": "jeddah",
+            "jeddah": "jeddah",
+            "australia": "australia",
+            "australian": "australia",
+            "melbourne": "australia",
+            "united states": "cota",
+            "us": "cota",
+            "cota": "cota",
+            "austin": "cota",
+            "mexico": "mexico",
+            "mexican": "mexico",
+            "mexico city": "mexico",
+            "bahrain": "bahrain",
+            "sakhir": "bahrain"
         }
-        for alias, key in gp_alias_map.items():
-            if alias in gp_lower:
+        for alias, key in sorted(gp_alias_map.items(), key=lambda x: len(x[0]), reverse=True):
+            if re.search(r"\b" + re.escape(alias) + r"\b", gp_lower):
                 return key
-        clean = re.sub(r"\b(grand prix|gp|race)\b", "", gp_lower).strip()
+            if len(alias) > 3 and alias in gp_lower:
+                return key
+        clean = re.sub(r"\b(grand prix|gp|race|the)\b", "", gp_lower).strip()
         return clean or gp_lower
 
     @classmethod
     def resolve_session(
         cls,
         grand_prix: Optional[str] = None,
-        season: int = 2024,
+        season: Optional[int] = None,
         session_type: str = "Race"
     ) -> Dict[str, Any]:
         gp_clean = cls._clean_gp_name(grand_prix)
-        target_year = season or 2024
+        
+        # If no explicit season supplied, query latest verified season from DB
+        target_year = season
+        if not target_year:
+            latest_row = execute_query("SELECT season FROM sessions ORDER BY season DESC LIMIT 1", fetch=True)
+            if latest_row and latest_row[0].get("season"):
+                target_year = int(latest_row[0]["season"])
+            else:
+                target_year = 2024
+        else:
+            try:
+                target_year = int(target_year)
+            except (ValueError, TypeError):
+                target_year = 2024
         
         session_type_map = {
             "R": "Race", "Q": "Qualifying", "SQ": "Sprint Qualifying",
@@ -140,7 +204,7 @@ class SessionResolver:
             for token in tokens:
                 if not token or len(token) < 3:
                     continue
-                sub_token = token[:5]
+                sub_token = token
                 sql = """
                     SELECT s.id FROM sessions s
                     JOIN races r ON s.race_id = r.id

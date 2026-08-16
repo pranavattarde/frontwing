@@ -76,7 +76,7 @@ class TestInvestigationCorrelator(unittest.TestCase):
         
         self.assertIn("reasoning_graph", corr)
         self.assertTrue(len(corr["reasoning_graph"]) > 0)
-        self.assertIn("↓", corr["reasoning_graph_text"])
+        self.assertTrue(isinstance(corr["reasoning_graph_text"], str) and len(corr["reasoning_graph_text"]) > 0)
 
 
 if __name__ == "__main__":

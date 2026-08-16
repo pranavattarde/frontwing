@@ -53,23 +53,8 @@ class EntityResolver:
         
         # Fallback to simple extraction from question only if planner_entities is completely empty
         if not planner_entities and question:
-            q_lower = question.lower()
-            planner_entities = {}
-            # Year
-            year_match = re.search(r"\b(202[0-9])\b", q_lower)
-            if year_match:
-                planner_entities["season"] = int(year_match.group(1))
-            # GP
-            if "monaco" in q_lower:
-                planner_entities["grand_prix"] = "Monaco GP"
-            elif any(k in q_lower for k in ["austria", "austrian", "spielberg"]):
-                planner_entities["grand_prix"] = "Austrian GP"
-            elif any(k in q_lower for k in ["hungary", "hungarian", "budapest"]):
-                planner_entities["grand_prix"] = "Hungarian GP"
-            elif any(k in q_lower for k in ["british", "britain", "silverstone"]):
-                planner_entities["grand_prix"] = "British GP"
-            elif any(k in q_lower for k in ["spanish", "spain", "barcelona"]):
-                planner_entities["grand_prix"] = "Spanish GP"
+            from app.agents.planner import extract_entities
+            planner_entities = extract_entities(question)
 
         # 1. Season/Year from Planner
         year = planner_entities.get("year") or planner_entities.get("season") or state.get("season") or 2024

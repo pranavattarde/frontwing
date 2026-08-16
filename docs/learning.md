@@ -793,3 +793,50 @@ All internal states are converted to human-readable F1 analyst language before r
 - **Finish Position Synthesis**: Added explicit regex parsing for `P1`-`P5` and ordinal position terms (`P3`, `third`, `second`, etc.) in `synthesize_node`, ensuring non-winner classification queries return the specific driver's finishing position.
 - **Redis Cache History UUID Propagation**: Enforced saving of investigation records when serving cached requests in `EngineerController.query`, ensuring cached responses return valid PostgreSQL investigation UUID `id` values to the frontend.
 
+---
+
+## Sprint 2 — Natural-Language MVP Reliability Sprint Insights
+
+### 1. Canonical Plan Normalization & Alias Mapping
+- **Problem**: Provider outputs across Gemini and Groq (`llama-3.3-70b-versatile`) varied slightly in JSON key naming (`tools` vs `required_tools`, `plan` vs `execution_order`). Direct dict indexing caused `KeyError` exceptions that silently forced queries into rule-based fallback mode.
+- **Resolution**: Created `normalize_planner_response()` in `planner.py` to map all provider key aliases into ONE canonical schema (`intent`, `entities`, `required_evidence`, `missing_evidence`, `confidence`, `tools`, `required_tools`, `execution_order`, `parameters`), with explicit logging for `RAW LLM PLAN`, `NORMALIZED PLAN`, and `VALIDATION RESULT`.
+
+### 2. Immediate Non-Retryable Gemini Rate-Limit Failover
+- **Problem**: Gemini HTTP 429 rate limit / quota exhaustion errors were treated as retryable errors, causing long backoff delays and intermittent blank responses.
+- **Resolution**: Enhanced `is_fatal_error()` in `providers.py` to identify HTTP 429 / `RESOURCE_EXHAUSTED` as non-retryable errors. `ReliableLLMProvider` immediately dispatches `GroqProvider` without retrying Gemini, logging `llm_provider = "groq"` and `failover_reason`.
+
+### 3. Investigation Entity Integrity & Driver-Team Mapping
+- **Problem**: Passing team queries (`team = Ferrari`) to `InvestigationTool` executed an unconstrained fallback `SELECT ... FROM race_results WHERE session_id = %s` without filtering by driver/team when `driver_id = 'ferrari'` produced 0 rows. It picked the first row (Max Verstappen) and assigned `driver_id = leclerc`, `driver = Max Verstappen`.
+- **Resolution**: Updated `InvestigationTool.execute()` to check if `driver_id` is a constructor ID or if `team` is passed. Queries all drivers belonging to that constructor in PostgreSQL (`WHERE c.id ILIKE %s OR c.name ILIKE %s`), returning every driver mapped to their true name and driver_id.
+
+### 4. Zero Fabricated Evidence Contract
+- **Problem**: `InvestigationCorrelator` was hardcoded to inject default steps (`"Tyre degradation"`, `"Late pit stop"`, `"Traffic after pit exit"`, `"Lost undercut"`) even when tools returned `missing_data`.
+- **Resolution**: Updated correlator to emit ONLY verified tool findings. If telemetry or strategy evidence is absent, outputs an honest summary stating that verified race classification exists but telemetry evidence is insufficient to prove a root cause.
+
+### 5. Defensive Frontend Rendering & Duplicate Fix
+- **Problem**: Frontend `InvestigationThread.tsx` rendered a blank screen on partial/error payloads and rendered duplicate verdict/narrative blocks when navigating after backend UUID assignment.
+- **Resolution**: Added defensive object access wrappers across `mapResponseToMessages()` to handle `SUCCESS`, `PARTIAL EVIDENCE`, and `ERROR` payloads cleanly. Removed duplicate array appends in `executeQuery()` during navigation to backend UUID.
+
+---
+
+## Sprint NLP — NLP-First Query Understanding Pipeline Insights
+
+### 1. Pre-Planner Semantic Processing & Tokenization Scope
+- **Architecture**: Placed a dedicated NLP pre-processing module (`nlp_parser.py`) prior to structured planner tool execution.
+- **Tokenization & Vector Space**: Documented that BPE/WordPiece tokenization, token IDs, positional encodings, and vector embeddings are executed natively inside Gemini/Groq model boundaries. Application code avoids redundant BPE/embedding duplication and operates on normalized clean text strings.
+
+### 2. Semantic Query Contract (`SemanticQueryContract`)
+- **Normalized Schema**: Captures `raw_query`, `normalized_query`, `domain`, `intent`, `requested_metric`, `requested_position`, `requested_driver`, `requested_team`, `limit`, `aggregation`, `entities`, `comparison_drivers`, and `confidence`.
+- **General Entity & Temporal Resolution**: Resolves natural GP aliases (Suzuka → Japanese GP, Interlagos → Brazilian GP, Imola → Emilia Romagna GP, Monza → Italian GP, Shanghai → Chinese GP, Spa → Belgian GP) while preserving `season = null` when unstated by the user, allowing `SessionResolver` to dynamically resolve the latest completed session from verified data.
+
+### 3. Evidence-First Synthesis Without Default Winner Fallbacks
+- **Problem**: Brittle regexes previously failed to match queries like *"Where did Charles Leclerc finish at Suzuka?"*, *"Give me the top three finishers at Imola"*, or *"What was Hamilton's fastest lap at Monza?"*, causing the synthesizer to fall back to the race winner (*"Max Verstappen won"*).
+- **Resolution**: `synthesize_node` reads `semantic_contract.requested_metric` and returns exact metrics:
+  - `finishing_position`: Finds the requested driver in classification (`"Charles Leclerc finished P4"`).
+  - `driver_at_position`: Finds the driver at position P (`"Oscar Piastri finished P5"`).
+  - `podium` / `top_n`: Formats top N standings (`"Top 3 finishers: P1: Max Verstappen, P2: Lando Norris, P3: Charles Leclerc"`).
+  - `team_result`: Formats positions for target team drivers.
+  - `fastest_lap`: Formats fastest lap timing or explicit missing data message.
+- **Strict Rule**: The synthesizer NEVER defaults to returning the race winner when a specific position, driver, team, podium, or fastest lap metric was requested.
+
+

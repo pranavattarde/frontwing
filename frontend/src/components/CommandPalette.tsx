@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn, generateId } from '@/lib/utils';
-import { submitEngineerQuery } from '@/lib/api';
 
 interface CommandItem {
   id: string;
@@ -23,38 +22,18 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const runPaletteQuery = async (queryText: string) => {
+  const runPaletteQuery = (queryText: string) => {
     onClose();
-    try {
-      if (typeof (window as any).__fw_notify === 'function') {
-        (window as any).__fw_notify({
-          id: 'palette-query',
-          message: `Querying AI Gateway: "${queryText}"`,
-          type: 'info',
-          duration: 3000,
-        });
-      }
-      const aiResponse = await submitEngineerQuery(queryText);
-      const generatedId = generateId();
-      const newInvestigation = {
-        id: generatedId,
-        question: queryText,
-        response: aiResponse,
-        timestamp: Date.now()
-      };
-      localStorage.setItem(`frontwing_investigation_${generatedId}`, JSON.stringify(newInvestigation));
-      navigate(`/investigate/${generatedId}`);
-    } catch (error: any) {
-      console.error('[CommandPalette] Query failed:', error);
-      if (typeof (window as any).__fw_notify === 'function') {
-        (window as any).__fw_notify({
-          id: String(Date.now()),
-          message: `Query failed: ${error.message}`,
-          type: 'error',
-          duration: 5000,
-        });
-      }
-    }
+    const generatedId = generateId();
+    const newInvestigation = {
+      id: generatedId,
+      question: queryText,
+      status: 'loading',
+      exchanges: [],
+      timestamp: Date.now()
+    };
+    localStorage.setItem(`frontwing_investigation_${generatedId}`, JSON.stringify(newInvestigation));
+    navigate(`/investigate/${generatedId}`);
   };
 
   const commands: CommandItem[] = [

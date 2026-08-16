@@ -315,14 +315,28 @@ class TelemetryTool(BaseF1Tool):
                 "lap_number": {"type": "integer"},
                 "comparative_driver_id": {"type": "string"}
             },
-            "required": ["session_id", "driver_id", "lap_number"]
+            "required": ["session_id", "driver_id"]
         }
         
     def execute(self, inputs: Dict[str, Any]) -> Any:
-        session_id = inputs["session_id"]
-        driver_id = inputs["driver_id"]
-        lap_number = inputs["lap_number"]
+        session_id = inputs.get("session_id")
+        driver_id = inputs.get("driver_id")
+        lap_number = inputs.get("lap_number")
         comp_driver_id = inputs.get("comparative_driver_id")
+        
+        if not session_id or not driver_id:
+            return {"status": "missing_data", "message": "session_id and driver_id are required for telemetry queries"}
+        
+        # Auto-query fastest lap if lap_number not explicitly provided
+        if lap_number is None:
+            fastest_lap_row = execute_query(
+                "SELECT lap_number FROM laps WHERE session_id = %s AND driver_id = %s ORDER BY lap_time_ms ASC LIMIT 1",
+                (session_id, driver_id), fetch=True
+            )
+            if fastest_lap_row and fastest_lap_row[0].get("lap_number"):
+                lap_number = int(fastest_lap_row[0]["lap_number"])
+            else:
+                lap_number = 1
         
         try:
             chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
@@ -701,68 +715,86 @@ class InvestigationTool(BaseF1Tool):
                 return {"status": "DATA_UNAVAILABLE", "message": "No verified race data exists for this request."}
 
         try:
-            sql = """
-                SELECT r.status, r.position, d.first_name, d.last_name, c.name as team_name
-                FROM race_results r
-                JOIN drivers d ON r.driver_id = d.id
-                JOIN constructors c ON r.constructor_id = c.id
-                WHERE r.session_id = %s AND r.driver_id = %s
-            """
-            res = execute_query(sql, (session_id, driver_id), fetch=True)
-            if not res or len(res) == 0:
-                res = execute_query(
-                    """
-                    SELECT r.status, r.position, d.first_name, d.last_name, c.name as team_name
+            team_input = inputs.get("team") or inputs.get("constructor_id")
+            
+            # Check if driver_id itself is a constructor ID
+            is_team_query = bool(team_input)
+            const_match = None
+            if driver_id:
+                const_match = execute_query("SELECT id FROM constructors WHERE id = %s OR name ILIKE %s", (driver_id, f"%{driver_id}%"), fetch=True)
+                if const_match:
+                    is_team_query = True
+                    team_input = const_match[0]["id"]
+                    
+            if is_team_query and team_input:
+                sql = """
+                    SELECT r.driver_id, r.status, r.position, d.first_name, d.last_name, c.id as constructor_id, c.name as team_name
                     FROM race_results r
                     JOIN drivers d ON r.driver_id = d.id
                     JOIN constructors c ON r.constructor_id = c.id
-                    WHERE r.session_id = %s
-                    """,
-                    (session_id,), fetch=True
-                )
+                    WHERE r.session_id = %s AND (c.id ILIKE %s OR c.name ILIKE %s)
+                    ORDER BY r.position
+                """
+                res = execute_query(sql, (session_id, f"%{team_input}%", f"%{team_input}%"), fetch=True)
+            else:
+                sql = """
+                    SELECT r.driver_id, r.status, r.position, d.first_name, d.last_name, c.id as constructor_id, c.name as team_name
+                    FROM race_results r
+                    JOIN drivers d ON r.driver_id = d.id
+                    JOIN constructors c ON r.constructor_id = c.id
+                    WHERE r.session_id = %s AND (r.driver_id = %s OR d.code ILIKE %s OR d.last_name ILIKE %s)
+                    ORDER BY r.position
+                """
+                res = execute_query(sql, (session_id, driver_id, f"%{driver_id}%", f"%{driver_id}%"), fetch=True)
+
             if not res or len(res) == 0:
                 return {"status": "DATA_UNAVAILABLE", "message": "No verified race data exists for this request."}
 
-            row = res[0]
-            db_status = str(row["status"]) if row.get("status") else "Finished"
-            position = row.get("position")
-            driver_full_name = f"{row.get('first_name', '')} {row.get('last_name', '')}".strip() or driver_id
+            incidents_list = []
+            stewards_list = []
+            drivers_list = []
+            causes_list = []
+            evidence_data = []
             
-            if db_status and db_status != "Finished":
-                cause = f"Retired due to {db_status}"
-                stewards_decision = "5 Second Time Penalty" if any(k in db_status.lower() for k in ["collision", "accident", "contact"]) else "No further action"
-            else:
-                cause = f"Completed race session in P{position}"
-                stewards_decision = "No further action"
+            for row in res:
+                d_id = row["driver_id"]
+                d_name = f"{row.get('first_name', '')} {row.get('last_name', '')}".strip() or d_id
+                db_status = str(row["status"]) if row.get("status") else "Finished"
+                pos = row.get("position")
                 
-            insights_res = execute_query(
-                "SELECT summary FROM race_insights WHERE session_id = %s AND driver_id = %s",
-                (session_id, driver_id), fetch=True
-            )
-            evidence_data = [i["summary"] for i in insights_res] if insights_res else [f"PostgreSQL telemetry and stint logs for {driver_full_name} in {session_id}"]
-            
+                if db_status and db_status != "Finished":
+                    cause = f"Retired due to {db_status}"
+                    stewards_dec = "5 Second Time Penalty" if any(k in db_status.lower() for k in ["collision", "accident", "contact"]) else "No further action"
+                else:
+                    cause = f"Finished in P{pos}"
+                    stewards_dec = "No further action"
+                    
+                drivers_list.append(d_name)
+                causes_list.append(f"{d_name}: {cause}")
+                incidents_list.append({
+                    "driver_id": d_id,
+                    "driver": d_name,
+                    "team": row.get("team_name"),
+                    "position": pos,
+                    "status": db_status,
+                    "cause": cause
+                })
+                stewards_list.append({
+                    "driver_id": d_id,
+                    "driver": d_name,
+                    "decision": stewards_dec
+                })
+                evidence_data.append(f"{d_name} ({row.get('team_name')}) - {cause}")
+
+            primary = incidents_list[0]
             return {
-                "incident": f"{driver_id}_status_{db_status}",
-                "incidents": [
-                    {
-                        "driver_id": driver_id,
-                        "driver": driver_full_name,
-                        "lap": 1,
-                        "status": db_status,
-                        "cause": cause
-                    }
-                ],
-                "stewards": [
-                    {
-                        "driver_id": driver_id,
-                        "decision": stewards_decision
-                    }
-                ],
-                "stewards_decision": stewards_decision,
-                "lap": 1,
-                "cause": cause,
-                "drivers": [driver_id],
-                "root_causes": [cause],
+                "incident": f"{primary['driver_id']}_status_{primary['status']}",
+                "incidents": incidents_list,
+                "stewards": stewards_list,
+                "stewards_decision": stewards_list[0]["decision"],
+                "cause": "; ".join(causes_list),
+                "drivers": drivers_list,
+                "root_causes": causes_list,
                 "supporting_evidence": evidence_data,
                 "evidence": evidence_data,
                 "confidence": 0.95

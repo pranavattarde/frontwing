@@ -15,7 +15,7 @@ export class EngineerController {
 
       // 1. Check Redis Cache for identical request
       const cached = await CacheService.getCachedResponse(queryText, session);
-      if (cached) {
+      if (cached && (cached.final_answer || cached.investigation_report)) {
         let savedId = cached.id;
         if (req.user?.id) {
           try {

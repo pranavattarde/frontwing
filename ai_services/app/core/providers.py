@@ -106,7 +106,7 @@ class GeminiProvider(BaseLLMProvider):
         try:
             client = genai.Client(api_key=key)
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-1.5-flash",
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
@@ -127,7 +127,7 @@ class GeminiProvider(BaseLLMProvider):
             
             metrics = {
                 "llm_provider": "gemini",
-                "llm_model": "gemini-2.0-flash",
+                "llm_model": "gemini-1.5-flash",
                 "llm_latency": latency_ms,
                 "prompt_tokens": prompt_toks,
                 "completion_tokens": completion_toks,
@@ -136,7 +136,7 @@ class GeminiProvider(BaseLLMProvider):
             }
             return parsed, metrics
         except Exception as e:
-            log_provider_failure("Gemini", "gemini-2.0-flash", e)
+            log_provider_failure("Gemini", "gemini-1.5-flash", e)
             if "timeout" in str(e).lower() or (time.time() - start_time) >= timeout_seconds:
                 raise LLMTimeoutError(f"Gemini provider timed out: {e}")
             raise LLMProviderError(f"Gemini execution failed: {e}")
@@ -152,7 +152,7 @@ class GeminiProvider(BaseLLMProvider):
         try:
             client = genai.Client(api_key=key)
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-1.5-flash",
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
@@ -169,7 +169,7 @@ class GeminiProvider(BaseLLMProvider):
             
             metrics = {
                 "llm_provider": "gemini",
-                "llm_model": "gemini-2.0-flash",
+                "llm_model": "gemini-1.5-flash",
                 "llm_latency": latency_ms,
                 "prompt_tokens": prompt_toks,
                 "completion_tokens": completion_toks,
@@ -178,7 +178,7 @@ class GeminiProvider(BaseLLMProvider):
             }
             return raw_text, metrics
         except Exception as e:
-            log_provider_failure("Gemini", "gemini-2.0-flash", e)
+            log_provider_failure("Gemini", "gemini-1.5-flash", e)
             if "timeout" in str(e).lower() or (time.time() - start_time) >= timeout_seconds:
                 raise LLMTimeoutError(f"Gemini provider timed out: {e}")
             raise LLMProviderError(f"Gemini execution failed: {e}")

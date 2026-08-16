@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { BriefingHeader } from '@/components/BriefingHeader';
 import { QuestionBar } from '@/components/QuestionBar';
@@ -15,7 +15,7 @@ import { LapTimeGraph } from '@/components/LapTimeGraph';
 import { TyreDegradationGraph } from '@/components/TyreDegradationGraph';
 import { SectorComparisonGraph } from '@/components/SectorComparisonGraph';
 import { PitWindowVisualizer } from '@/components/PitWindowVisualizer';
-import { cn } from '@/lib/utils';
+import { cn, generateId } from '@/lib/utils';
 import {
   AUSTRIAN_GP,
   TELEMETRY_PIA_LAP42,
@@ -44,10 +44,27 @@ export function formatTimeSeconds(seconds: number): string {
 }
 
 function mapResponseToMessages(id: string, response: any, timestamp: number, isLast: boolean): ThreadMessage[] {
-  const evidence = response.evidence || {};
+  if (!response || typeof response !== 'object') {
+    return [
+      {
+        id: `verdict-${id}-${timestamp}`,
+        type: 'verdict',
+        content: 'No response payload received from AI Race Engineer.',
+        timestamp: timestamp,
+      },
+      {
+        id: `narrative-${id}-${timestamp}`,
+        type: 'narrative',
+        content: 'The query executed but returned an empty response. Please verify backend service status and try again.',
+        timestamp: timestamp + 500,
+      }
+    ];
+  }
+
+  const evidence = response.evidence || response.investigation_report?.Evidence || {};
   const callouts: any[] = [];
   
-  if (evidence.simulation_tool) {
+  if (evidence && typeof evidence === 'object' && evidence.simulation_tool) {
     const sim = evidence.simulation_tool;
     const gainSec = (sim.simulated_net_time_gain_ms || 0) / 1000;
     const sign = gainSec >= 0 ? '+' : '';
@@ -63,7 +80,7 @@ function mapResponseToMessages(id: string, response: any, timestamp: number, isL
     }
   }
   
-  if (evidence.scoring_tool) {
+  if (evidence && typeof evidence === 'object' && evidence.scoring_tool) {
     const score = evidence.scoring_tool;
     if (score.composite_score !== undefined) {
       callouts.push({
@@ -73,7 +90,7 @@ function mapResponseToMessages(id: string, response: any, timestamp: number, isL
     }
   }
 
-  const verdictText = response.investigation_report?.["Executive Summary"] || response.final_answer || 'No verdict generated.';
+  const verdictText = response.investigation_report?.["Executive Summary"] || response.final_answer || response.error || 'Race debrief analysis complete.';
   let narrativeContent = '';
   
   if (response.investigation_report) {
@@ -82,22 +99,22 @@ function mapResponseToMessages(id: string, response: any, timestamp: number, isL
     if (rep["Reasoning Graph Text"]) {
       parts.push(`**Root-Cause Reasoning Graph:**\n${rep["Reasoning Graph Text"]}`);
     }
-    if (rep["Telemetry Findings"] && rep["Telemetry Findings"] !== "Unavailable" && rep["Telemetry Findings"] !== "No telemetry anomalies detected.") {
+    if (rep["Telemetry Findings"] && rep["Telemetry Findings"] !== "Unavailable" && !rep["Telemetry Findings"].includes("insufficient")) {
       parts.push(`**Telemetry Findings:** ${rep["Telemetry Findings"]}`);
     }
-    if (rep["Simulation Findings"] && rep["Simulation Findings"] !== "Unavailable" && rep["Simulation Findings"] !== "No strategy simulations were run.") {
+    if (rep["Simulation Findings"] && rep["Simulation Findings"] !== "Unavailable" && !rep["Simulation Findings"].includes("insufficient")) {
       parts.push(`**Simulation Findings:** ${rep["Simulation Findings"]}`);
     }
     if (rep["Historical Findings"] && rep["Historical Findings"] !== "Unavailable" && rep["Historical Findings"] !== "No historical standings parsed.") {
       parts.push(`**Historical Findings:** ${rep["Historical Findings"]}`);
     }
-    if (rep["Regulations Findings"] && rep["Regulations Findings"] !== "Unavailable") {
+    if (rep["Regulations Findings"] && rep["Regulations Findings"] !== "Unavailable" && rep["Regulations Findings"] !== "No specific regulatory infractions logged.") {
       parts.push(`**Regulations Findings:** ${rep["Regulations Findings"]}`);
     }
-    if (rep["Alternative Scenarios"] && rep["Alternative Scenarios"] !== "Unavailable" && rep["Alternative Scenarios"] !== "Maintain current compound stint guidelines.") {
+    if (rep["Alternative Scenarios"] && rep["Alternative Scenarios"] !== "Unavailable") {
       parts.push(`**Alternative Scenarios:** ${rep["Alternative Scenarios"]}`);
     }
-    if (rep["Final Recommendation"] && rep["Final Recommendation"] !== "Unavailable" && rep["Final Recommendation"] !== "Continue with plan.") {
+    if (rep["Final Recommendation"] && rep["Final Recommendation"] !== "Unavailable") {
       parts.push(`**Recommendation:** ${rep["Final Recommendation"]}`);
     }
     if (parts.length > 0) {
@@ -106,11 +123,11 @@ function mapResponseToMessages(id: string, response: any, timestamp: number, isL
   }
   
   if (!narrativeContent) {
-    narrativeContent = response.explanations?.engineer || response.final_answer || 'No narrative details provided.';
+    narrativeContent = response.explanations?.engineer || response.explanations?.intermediate || response.final_answer || 'Verified race analysis debrief completed.';
   }
 
   if (narrativeContent === verdictText) {
-    narrativeContent = response.explanations?.engineer || 'Strategic debrief completed successfully.';
+    narrativeContent = response.explanations?.engineer || 'Strategic debrief completed successfully based on verified race data.';
   }
 
   const messages: ThreadMessage[] = [
@@ -130,8 +147,8 @@ function mapResponseToMessages(id: string, response: any, timestamp: number, isL
   ];
 
   // Push Production Visualizations ONLY if real telemetry evidence exists in response
-  const telemData = evidence.telemetry_tool;
-  const simData = evidence.simulation_tool;
+  const telemData = evidence && typeof evidence === 'object' ? evidence.telemetry_tool : null;
+  const simData = evidence && typeof evidence === 'object' ? evidence.simulation_tool : null;
 
   if (telemData && (telemData.lap_times || telemData.telemetry || telemData.sector_times)) {
     const driverCode = (telemData.driver_id || (simData && simData.driver_id) || 'DRV').toUpperCase();
@@ -181,7 +198,7 @@ export function InvestigationThread() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [isStreaming] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loadingStage, setLoadingStage] = useState<AIStage>('parsing');
@@ -192,6 +209,10 @@ export function InvestigationThread() {
   const [isSaved, setIsSaved] = useState<boolean>(false);
   const [questionTitle, setQuestionTitle] = useState<string>('Investigation Thread');
 
+  const executedQueriesRef = useRef<Set<string>>(new Set());
+  const inFlightRef = useRef<boolean>(false);
+  const lastResponseRef = useRef<any>(null);
+
   // Split-screen dual pane state for wide desktop (>1024px)
   const [expandedTelemetry, setExpandedTelemetry] = useState<{
     driverA: string;
@@ -200,28 +221,22 @@ export function InvestigationThread() {
     lapNumber: number;
   } | null>(null);
 
-  // Load stored exchange
-  const stored = localStorage.getItem(`frontwing_investigation_${id}`);
-  const investigationData = stored ? JSON.parse(stored) : null;
-  const lastExchange = investigationData?.exchanges?.[investigationData.exchanges.length - 1];
-
   const breadcrumbs: BreadcrumbItem[] = [
     { label: 'Home', href: '/' },
     { label: 'Investigation Thread', href: '#' },
     { label: questionTitle, href: '#' },
   ];
 
-  const lastResponse = lastExchange?.response;
-  
+  const lastResponse = lastResponseRef.current;
   const sessionId = lastResponse?.evidence?.simulation_tool?.session_id || lastResponse?.evidence?.telemetry_tool?.session_id || AUSTRIAN_GP.id;
   const trackName = lastResponse?.evidence?.telemetry_tool?.session_id 
     ? lastResponse.evidence.telemetry_tool.session_id.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
     : AUSTRIAN_GP.circuit;
   const planningSteps = lastResponse?.planning_steps || [];
-  const reasoningSteps = planningSteps.map((step: string, idx: number) => {
+  const reasoningSteps = (planningSteps || []).map((step: string, idx: number) => {
     const [toolName, rawParams] = step.split('|');
     return {
-      title: `Step ${idx + 1}: ${toolName.replace('_', ' ').toUpperCase()}`,
+      title: `Step ${idx + 1}: ${(toolName || '').replace('_', ' ').toUpperCase()}`,
       description: `Dispatched tool ${toolName} with parameters: ${rawParams || 'None'}. Collected timing metrics and strategist inputs.`,
       dataReference: `Chief Race Engineer execution plan`,
       confidence: lastResponse?.confidence || 87,
@@ -231,12 +246,12 @@ export function InvestigationThread() {
   const defaultReasoningSteps = [
     {
       title: 'Executing AI Race Engineer Plan',
-      description: lastResponse?.final_answer?.slice(0, 150) + '...',
-      dataReference: 'Chief Race Engineer fallback execution plan',
+      description: lastResponse?.final_answer?.slice(0, 150) || 'Analyzing race data...',
+      dataReference: 'Chief Race Engineer execution plan',
       confidence: lastResponse?.confidence || 80
     }
   ];
-  
+
   const activeReasoningSteps = reasoningSteps.length > 0 ? reasoningSteps : defaultReasoningSteps;
 
   // Rotating loading status messages & stage progress
@@ -264,10 +279,58 @@ export function InvestigationThread() {
   }, [id]);
 
   const initInvestigation = async (targetId: string) => {
-    // 1. Attempt backend restoration first
+    if (inFlightRef.current || executedQueriesRef.current.has(targetId)) {
+      return;
+    }
+
+    // 1. Check local storage first
+    const storedItem = localStorage.getItem(`frontwing_investigation_${targetId}`);
+    if (storedItem) {
+      try {
+        const data = JSON.parse(storedItem);
+        setQuestionTitle(data.question || 'Investigation Thread');
+        setIsSaved(!!data.is_saved);
+
+        if (data.status === 'completed' || (data.exchanges && data.exchanges.length > 0) || data.response) {
+          executedQueriesRef.current.add(targetId);
+          const lastEx = data.exchanges
+            ? data.exchanges[data.exchanges.length - 1]
+            : { question: data.question, response: data.response, timestamp: data.timestamp || Date.now() };
+
+          if (lastEx && lastEx.response) {
+            lastResponseRef.current = lastEx.response;
+            const msgs = mapResponseToMessages(targetId, lastEx.response, lastEx.timestamp || Date.now(), true);
+            setMessages(msgs);
+            const trace = lastEx.response.intelligence_trace || {};
+            const provider = trace.llm_provider || 'Gemini';
+            const model = trace.llm_model || 'gemini-2.0-flash';
+            const hasFailover = trace.failover_reason && trace.failover_reason !== 'None';
+            setProviderInfo({
+              provider: hasFailover ? `${provider} (Failover)` : provider,
+              model: model
+            });
+            const elapsed = trace.llm_latency ? (trace.llm_latency / 1000).toFixed(1) : '2.1';
+            setLatency(parseFloat(elapsed));
+            setIsLoading(false);
+            setErrorMsg(null);
+            return;
+          }
+        } else if (data.status === 'loading' && data.question) {
+          executedQueriesRef.current.add(targetId);
+          await executeQuery(data.question, targetId);
+          return;
+        }
+      } catch (err) {
+        console.warn('[InvestigationThread] Parse error for local storage:', err);
+      }
+    }
+
+    // 2. Attempt remote backend fetch if local storage item was not completed
     try {
       const remoteItem = await fetchInvestigationById(targetId);
       if (remoteItem && remoteItem.ai_response) {
+        executedQueriesRef.current.add(targetId);
+        lastResponseRef.current = remoteItem.ai_response;
         setQuestionTitle(remoteItem.question);
         setIsSaved(!!remoteItem.is_saved);
         const msgs = mapResponseToMessages(targetId, remoteItem.ai_response, new Date(remoteItem.timestamp).getTime(), true);
@@ -277,66 +340,19 @@ export function InvestigationThread() {
         return;
       }
     } catch (err) {
-      console.log('[InvestigationThread] Remote fetch skipped, checking local storage:', err);
+      console.log('[InvestigationThread] Remote fetch skipped, item unavailable:', err);
     }
 
-    // 2. Fallback to local storage
-    const stored = localStorage.getItem(`frontwing_investigation_${targetId}`);
-    if (stored) {
-      const data = JSON.parse(stored);
-      setQuestionTitle(data.question || 'Investigation Thread');
-      setIsSaved(!!data.is_saved);
-
-      if (data.status === 'loading') {
-        executeQuery(data.question);
-      } else {
-        if (!data.exchanges) {
-          data.exchanges = [{
-            question: data.question || 'Initial question',
-            response: data.response,
-            timestamp: data.timestamp || Date.now()
-          }];
-          localStorage.setItem(`frontwing_investigation_${targetId}`, JSON.stringify(data));
-        }
-        const lastEx = data.exchanges[data.exchanges.length - 1];
-        const allMessages = lastEx
-          ? mapResponseToMessages(targetId, lastEx.response, lastEx.timestamp, true)
-          : [];
-        setMessages(allMessages);
-        
-        if (lastEx && lastEx.response) {
-          const trace = lastEx.response.intelligence_trace || {};
-          const provider = trace.llm_provider || 'Gemini';
-          const model = trace.llm_model || 'gemini-2.0-flash';
-          const hasFailover = trace.failover_reason && trace.failover_reason !== 'None';
-          setProviderInfo({
-            provider: hasFailover ? `${provider} (Failover)` : provider,
-            model: model
-          });
-          const elapsed = trace.llm_latency ? (trace.llm_latency / 1000).toFixed(1) : '2.1';
-          setLatency(parseFloat(elapsed));
-        }
-        
-        setIsLoading(false);
-        setErrorMsg(null);
-      }
-    } else {
-      // Lazy fallback if directly loading a dynamic URL
-      const fallbackQuestion = "Could Ferrari have won the Austrian Grand Prix?";
-      setQuestionTitle(fallbackQuestion);
-      const data = {
-        id: targetId,
-        question: fallbackQuestion,
-        status: 'loading',
-        exchanges: [],
-        timestamp: Date.now()
-      };
-      localStorage.setItem(`frontwing_investigation_${targetId}`, JSON.stringify(data));
-      executeQuery(fallbackQuestion);
-    }
+    // 3. If target item does not exist, display clean not-found state without executing arbitrary query
+    setIsLoading(false);
+    setErrorMsg('Investigation thread not found. Please submit a question from the home screen.');
   };
 
-  const executeQuery = async (queryText: string) => {
+  const executeQuery = async (queryText: string, currentId?: string) => {
+    const activeId = currentId || id || generateId();
+    executedQueriesRef.current.add(activeId);
+    inFlightRef.current = true;
+
     setIsLoading(true);
     setErrorMsg(null);
     setLoadingStage('parsing');
@@ -348,7 +364,8 @@ export function InvestigationThread() {
     const startTime = Date.now();
 
     try {
-      const apiResponse = await submitEngineerQuery(queryText, id, controller.signal);
+      const apiResponse = await submitEngineerQuery(queryText, activeId, controller.signal);
+      lastResponseRef.current = apiResponse;
       
       const endTime = Date.now();
       const elapsedSeconds = ((endTime - startTime) / 1000).toFixed(1);
@@ -364,36 +381,43 @@ export function InvestigationThread() {
         model: model
       });
 
-      // Persist Backend UUID if returned
       const backendUuid = (apiResponse as any).id;
-      const targetId = backendUuid || id;
+      const targetId = backendUuid || activeId;
 
-      // Update local storage
-      const stored = localStorage.getItem(`frontwing_investigation_${targetId}`);
-      const data = stored ? JSON.parse(stored) : { id: targetId, question: queryText, exchanges: [] };
-      if (!data.exchanges) {
-        data.exchanges = [];
+      if (backendUuid) {
+        executedQueriesRef.current.add(backendUuid);
       }
-      
-      data.exchanges.push({
-        question: queryText,
-        response: apiResponse,
-        timestamp: Date.now()
-      });
-      data.status = 'completed';
-      localStorage.setItem(`frontwing_investigation_${targetId}`, JSON.stringify(data));
 
-      if (backendUuid && backendUuid !== id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(backendUuid)) {
-        navigate(`/investigation/${backendUuid}`, { replace: true });
+      const completedData = {
+        id: targetId,
+        question: queryText,
+        status: 'completed',
+        exchanges: [{
+          question: queryText,
+          response: apiResponse,
+          timestamp: Date.now()
+        }],
+        timestamp: Date.now()
+      };
+      
+      localStorage.setItem(`frontwing_investigation_${activeId}`, JSON.stringify(completedData));
+      if (backendUuid) {
+        localStorage.setItem(`frontwing_investigation_${backendUuid}`, JSON.stringify(completedData));
       }
 
       setIsLoading(false);
+      inFlightRef.current = false;
       setAbortController(null);
 
-      // Stream blocks progressively
-      await streamResponseProgressively(apiResponse, targetId, Date.now());
+      const newMsgs = mapResponseToMessages(targetId, apiResponse, Date.now(), true);
+      setMessages(newMsgs);
+
+      if (backendUuid && backendUuid !== id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(backendUuid)) {
+        window.history.replaceState(null, '', `/investigate/${backendUuid}`);
+      }
 
     } catch (error: any) {
+      inFlightRef.current = false;
       if (error.name === 'AbortError') {
         console.log('[InvestigationThread] Fetch aborted by client.');
         return;
@@ -403,20 +427,6 @@ export function InvestigationThread() {
       setAbortController(null);
       setErrorMsg(error.message || 'An error occurred while communicating with the AI Race Engineer.');
     }
-  };
-
-  const streamResponseProgressively = async (apiResponse: any, newId: string, timestamp: number) => {
-    setIsStreaming(true);
-    
-    const newMsgs = mapResponseToMessages(newId, apiResponse, timestamp, true);
-    
-    setMessages([]);
-    for (let i = 0; i < newMsgs.length; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setMessages((prev) => [...prev, newMsgs[i]]);
-    }
-    
-    setIsStreaming(false);
   };
 
   const handleToggleSave = async () => {
@@ -722,10 +732,12 @@ export function InvestigationThread() {
                     </div>
 
                     {/* 5. Pit Window Timeline */}
-                    <PitWindowVisualizer
-                      pittingDriver={vis.pitWindow.pittingDriver}
-                      rivals={vis.pitWindow.rivals}
-                    />
+                    {vis.pitWindow && vis.pitWindow.pittingDriver && (
+                      <PitWindowVisualizer
+                        pittingDriver={vis.pitWindow.pittingDriver}
+                        rivals={vis.pitWindow.rivals || []}
+                      />
+                    )}
                   </div>
                 );
               }

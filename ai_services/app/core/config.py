@@ -2,7 +2,8 @@ import os
 from dotenv import load_dotenv
 
 # Automatically load configuration
-load_dotenv()
+load_dotenv(override=True)
+
 
 class Settings:
     """Enterprise configurations store for FrontWing AI services."""
