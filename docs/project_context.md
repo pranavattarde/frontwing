@@ -23,8 +23,8 @@ The platform uses a decoupled microservices design to balance performance (Node.
 Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ                       Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 ```
 
-- **Frontend**: React (TypeScript) dashboard styled with TailwindCSS and ShadCN UI components, communicating via REST and WebSockets.
-- **Backend API Gateway**: Node.js + Express server handling user sessions, WebSockets connection management, Redis data routing, and proxying AI queries.
+- **Frontend**: React (JavaScript / JSX) dashboard styled with TailwindCSS and ShadCN UI components, communicating via REST and WebSockets.
+- **Backend API Gateway**: Node.js + Express (JavaScript) server handling user sessions, WebSockets connection management, Redis data routing, and proxying AI queries.
 - **AI Microservice**: Python + FastAPI microservice implementing LangGraph conversational state machines, FastF1 pandas dataframe operations, and Gemini/Groq LLM connectors.
 - **AI Orchestration Nodes**:
   - **Primary**: Gemini 2.5 Flash (utilizing large context windows for processing session logs).
@@ -36,7 +36,9 @@ The platform uses a decoupled microservices design to balance performance (Node.
 - **Upgraded Investigation Agent & Root-Cause Reasoning Graph**: `InvestigationCorrelator` engine (`ai_services/app/agents/investigation_correlator.py`) correlates Telemetry + Race Results + Regulations + Strategy into an explicit, step-by-step causal chain (`Tyre degradation → Late pit stop → Traffic after pit exit → Lost undercut → Final position`), anchored strictly to retrieved tool outputs.
 - **Adaptive Planning System**: Replaced keyword planner routing with adaptive extraction (`intent`, `entities`, `required_evidence`, `missing_evidence`, `confidence`). Dynamically selects the minimum required set of tools to eliminate unnecessary tool executions.
 - **Conversational Investigations & PostgreSQL Memory**: Multi-turn context resolution engine (`PostgresConversationMemory` in `ai_services/app/agents/memory.py`) stores thread exchanges into PostgreSQL `conversations` table and resolves relative follow-up queries (`"Why Ferrari failed?"` → `"What about Verstappen?"` → `"Compare them."` → `"Show telemetry."`) with full context persistence.
-- **NLP-First Query Understanding Pipeline**: Pre-planner semantic processing layer (`ai_services/app/agents/nlp_parser.py`). Operates via: `Raw Query` → `Application Preprocessing (Unicode/Whitespace)` → `LLM Semantic Parser (Gemini 2.5 Flash / Groq Failover)` → `SemanticQueryContract` → `Structured FrontWing Query` → `Planner Execution` → `Verified F1 Data` → `Evidence-First Synthesis` → `Frontend`. Eliminates keyword-regex guessing, maps canonical entities/metrics, and enforces Evidence-First Synthesis so that exact user metrics (driver positions, podiums, team results, fastest laps) are answered without defaulting to race winners. Note: BPE/tokenization and embeddings are handled natively inside Gemini/Groq APIs and are not reimplemented in application code.
+- **NLP-First Query Understanding & Authoritative Execution Pipeline**: Pre-planner semantic processing layer (`ai_services/app/agents/nlp_parser.py`). Operates via: `Raw Query` → `Application Preprocessing (Unicode/Whitespace)` → `LLM Semantic Parser (Gemini 2.5 Flash / Groq Failover)` → `SemanticQueryContract` → `LangGraph Planner Execution` → `EntityResolver / SessionResolver` → `Verified F1 Data` → `Evidence-First Synthesis` → `Frontend`. The `SemanticQueryContract` serves as the single authoritative semantic input across the entire execution flow: legacy re-parsing in `execute_node` is completely eliminated, implicit `2024` season defaults for unspecified years are removed (season is preserved as `None` and resolved to the latest completed session via `SessionResolver`), explicit seasons (e.g. `2026`, `2024`) are preserved intact, and entity/metric properties drive execution without question-specific hardcoding. Fully validated end-to-end across API gateway, interactive React thread UI (`http://localhost:5173`), and production builds. Note: BPE/tokenization and embeddings are handled natively inside Gemini/Groq APIs and are not reimplemented in application code.
+
+
 - **Production Telemetry Visualizations Matrix**: Investigation Page renders 5 production telemetry charts (Lap Time Graph, Tyre Degradation, Sector Comparison, Speed Trace, Pit Window Timeline) driven strictly by backend telemetry arrays without mock data or placeholders.
 
 
@@ -791,6 +793,9 @@ There is **no persistent sidebar**. Navigation flows through:
 
 ### Why Users Return Every Race Weekend
 
+- **Frontend**: React (v18) + JavaScript (ES2022 / JSX) + Tailwind CSS (v3) + Vite (v5). Interactive debriefing thread with inline callouts, timeline scrubbers, streaming telemetry charts, and custom strategy playground.
+- **Backend API Gateway**: Node.js + Express (v4) + pure JavaScript (CommonJS). Serves as the central API gateway, authentication authority (JWT + bcryptjs), query cache manager (Redis), and PostgreSQL persistence layer (`users`, `investigations`, `saved_investigations`, `conversations`).
+- **AI Microservice**: Python (v3.12) + FastAPI (v0.111) + LangGraph (v0.0.66) + FastF1 (v3.4.0) + PostgreSQL (pgvector / structured schema) + Redis. Implements the Chief Race Engineer multi-agent planning and investigation workflow.
 | Timing | Hook | User Motivation |
 | :--- | :--- | :--- |
 | **Friday (Practice)** | AI generates pace predictions from FP data | "Who's actually fast this weekend?" |
@@ -964,4 +969,17 @@ Sprint 2 made the FrontWing multi-agent architecture resilient to natural-langua
 - **Optional Telemetry `lap_number` Contract**: Updated `TelemetryTool.input_schema` to `"required": ["session_id", "driver_id"]`, automatically resolving the driver's fastest clean lap from `laps` table when `lap_number` is omitted.
 - **Zero Fabricated Evidence Contract**: Updated `InvestigationCorrelator` to emit ONLY verified tool evidence. When telemetry/strategy data is missing, outputs an honest summary stating verified classification data exists but telemetry evidence is insufficient to prove a root cause.
 - **Defensive Frontend Rendering & Duplicate Fix**: Defensive payload mapping in `InvestigationThread.tsx` prevents blank screens on error/partial responses and eliminates duplicate verdict/narrative block rendering during UUID navigation.
+
+---
+
+## 24. Day 2 Feature 1 — Real Telemetry Comparison End-to-End
+
+### Architecture Overview
+Day 2 Feature 1 implemented real telemetry ingestion, comparative analytics, and multi-driver trace rendering end-to-end:
+- **Real Telemetry Ingestion**: Enabled downsampled telemetry extraction in `fastf1_collector.py` storing 50-point distance, speed, throttle, brake, gear, and rpm arrays into `cache/telemetry/{session_id}_{driver_id}_{lap_number}.json` and `telemetry_metadata` table in PostgreSQL. Ingested 20 drivers at `2024_british_gp_race`.
+- **NLP Intent & Metric Contract**: Added `telemetry_comparison` intent and requested metric rules in `nlp_parser.py` for comparative telemetry queries (`Compare telemetry`, `Compare lap times`, `Compare sector times`, `Where did X gain time on Y`).
+- **Planner Routing & Execution Order**: Updated `plan_node` and `execute_node` in `planner.py` to route `telemetry_comparison` to `telemetry_tool` and automatically pass both `driver_id` and `comparative_driver_id`.
+- **Real Lap & Sector Delta Calculations**: Rewrote `TelemetryTool.execute()` in `adapters.py` to query Driver A and Driver B profiles, calculate real lap time deltas (`-0.173s`) and real sector deltas ($S1, S2, S3$). Zero fake data arrays or hardcoded offsets.
+- **Evidence-Based Executive Synthesis**: Updated `synthesize_node` in `planner.py` to synthesize telemetry reports using verified lap and sector deltas.
+- **Production UI Mock Fallback Removal**: Removed static `TELEMETRY_PIA_LAP42` mock fallbacks from `InvestigationThread.jsx`.
 

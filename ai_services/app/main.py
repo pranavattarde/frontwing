@@ -155,8 +155,8 @@ def engineer_query(req: QueryRequest):
         # Save output exchange back to memory if conversation_id is supplied
         if req.conversation_id:
             context = {
-                "session_id": session_id or "2024_austria_gp_race",
-                "driver_id": driver_id or "sainz"
+                "session_id": session_id or (response.get("evidence") or {}).get("session_id"),
+                "driver_id": driver_id or (response.get("evidence") or {}).get("driver_id")
             }
             conversation_memory.save_message(
                 req.conversation_id,

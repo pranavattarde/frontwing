@@ -1,0 +1,386 @@
+[
+  {
+    "tag": "A",
+    "query": "Who won Monaco?",
+    "contract": {
+      "raw_query": "Who won Monaco?",
+      "normalized_query": "Who won Monaco?",
+      "domain": "formula_1",
+      "intent": "race_result",
+      "requested_metric": "winner",
+      "requested_position": 1,
+      "requested_driver": null,
+      "requested_team": null,
+      "limit": null,
+      "aggregation": "single",
+      "entities": {
+        "grand_prix": "Monaco GP",
+        "circuit": "Monaco",
+        "season": null,
+        "driver": null,
+        "team": null
+      },
+      "filters": {},
+      "comparison_drivers": [],
+      "needs_clarification": false,
+      "confidence": 1
+    },
+    "intent": "race_result",
+    "requested_metric": "winner",
+    "season": null,
+    "gp": "Monaco GP",
+    "tools": [
+      "race_results_tool"
+    ],
+    "session": "2026_monaco_gp_race",
+    "evidence": "YES",
+    "answer": "Charles Leclerc finished P1 in the 2026 Monaco Grand Prix.",
+    "latency_s": 4.5
+  },
+  {
+    "tag": "B",
+    "query": "Who won Monaco in 2024?",
+    "contract": {
+      "raw_query": "Who won Monaco in 2024?",
+      "normalized_query": "Who won Monaco in 2024?",
+      "domain": "formula_1",
+      "intent": "race_result",
+      "requested_metric": "winner",
+      "requested_position": 1,
+      "requested_driver": null,
+      "requested_team": null,
+      "limit": null,
+      "aggregation": "single",
+      "entities": {
+        "grand_prix": "Monaco GP",
+        "circuit": "Monaco",
+        "season": 2024,
+        "driver": null,
+        "team": null
+      },
+      "filters": {},
+      "comparison_drivers": [],
+      "needs_clarification": false,
+      "confidence": 1
+    },
+    "intent": "race_result",
+    "requested_metric": "winner",
+    "season": 2024,
+    "gp": "Monaco GP",
+    "tools": [
+      "race_results_tool"
+    ],
+    "session": "2024_monaco_gp_race",
+    "evidence": "YES",
+    "answer": "Charles Leclerc finished P1 in the 2024 Monaco Grand Prix.",
+    "latency_s": 5.02
+  },
+  {
+    "tag": "C",
+    "query": "Who won Monaco in 2026?",
+    "contract": {
+      "raw_query": "Who won Monaco in 2026?",
+      "normalized_query": "Who won Monaco in 2026?",
+      "domain": "formula_1",
+      "intent": "race_result",
+      "requested_metric": "winner",
+      "requested_position": 1,
+      "requested_driver": null,
+      "requested_team": null,
+      "limit": null,
+      "aggregation": "single",
+      "entities": {
+        "grand_prix": "Monaco GP",
+        "circuit": "Monaco",
+        "season": 2026,
+        "driver": null,
+        "team": null
+      },
+      "filters": {},
+      "comparison_drivers": [],
+      "needs_clarification": false,
+      "confidence": 1
+    },
+    "intent": "race_result",
+    "requested_metric": "winner",
+    "season": 2026,
+    "gp": "Monaco GP",
+    "tools": [
+      "race_results_tool"
+    ],
+    "session": "2026_monaco_gp_race",
+    "evidence": "YES",
+    "answer": "Charles Leclerc finished P1 in the 2026 Monaco Grand Prix.",
+    "latency_s": 3.69
+  },
+  {
+    "tag": "D",
+    "query": "Which driver came home in third at Monaco?",
+    "contract": {
+      "raw_query": "Which driver came home in third at Monaco?",
+      "normalized_query": "Which driver came home in third at Monaco?",
+      "domain": "formula_1",
+      "intent": "driver_position",
+      "requested_metric": "driver_at_position",
+      "requested_position": 3,
+      "requested_driver": null,
+      "requested_team": null,
+      "limit": null,
+      "aggregation": "single",
+      "entities": {
+        "grand_prix": "Monaco GP",
+        "circuit": "Monaco",
+        "season": null,
+        "driver": null,
+        "team": null
+      },
+      "filters": {},
+      "comparison_drivers": [],
+      "needs_clarification": false,
+      "confidence": 1
+    },
+    "intent": "driver_position",
+    "requested_metric": "driver_at_position",
+    "season": null,
+    "gp": "Monaco GP",
+    "tools": [
+      "race_results_tool"
+    ],
+    "session": "2026_monaco_gp_race",
+    "evidence": "YES",
+    "answer": "Lewis Hamilton finished P3 in the 2026 Monaco Grand Prix.",
+    "latency_s": 3.99
+  },
+  {
+    "tag": "E",
+    "query": "Where did Charles Leclerc finish at the Monaco race?",
+    "contract": {
+      "raw_query": "Where did Charles Leclerc finish at the Monaco race?",
+      "normalized_query": "Where did Charles Leclerc finish at the Monaco race?",
+      "domain": "formula_1",
+      "intent": "driver_position",
+      "requested_metric": "finishing_position",
+      "requested_position": null,
+      "requested_driver": "Charles Leclerc",
+      "requested_team": null,
+      "limit": null,
+      "aggregation": "single",
+      "entities": {
+        "grand_prix": "Monaco GP",
+        "circuit": "Monaco",
+        "season": null,
+        "driver": "Charles Leclerc",
+        "team": null
+      },
+      "filters": {},
+      "comparison_drivers": [],
+      "needs_clarification": false,
+      "confidence": 0.9
+    },
+    "intent": "driver_position",
+    "requested_metric": "finishing_position",
+    "season": null,
+    "gp": "Monaco GP",
+    "tools": [
+      "race_results_tool"
+    ],
+    "session": "2026_monaco_gp_race",
+    "evidence": "YES",
+    "answer": "Charles Leclerc finished P1 in the 2026 Monaco Grand Prix.",
+    "latency_s": 3.65
+  },
+  {
+    "tag": "F",
+    "query": "Tell me the podium from the British Grand Prix.",
+    "contract": {
+      "raw_query": "Tell me the podium from the British Grand Prix.",
+      "normalized_query": "Tell me the podium from the British Grand Prix.",
+      "domain": "formula_1",
+      "intent": "podium",
+      "requested_metric": "podium",
+      "requested_position": null,
+      "requested_driver": null,
+      "requested_team": null,
+      "limit": 3,
+      "aggregation": "top_n",
+      "entities": {
+        "grand_prix": "British Grand Prix",
+        "circuit": null,
+        "season": null,
+        "driver": null,
+        "team": null
+      },
+      "filters": {},
+      "comparison_drivers": [],
+      "needs_clarification": false,
+      "confidence": 1
+    },
+    "intent": "podium",
+    "requested_metric": "podium",
+    "season": null,
+    "gp": "British Grand Prix",
+    "tools": [
+      "race_results_tool"
+    ],
+    "session": "2024_british_gp_race",
+    "evidence": "YES",
+    "answer": "Top 3 finishers at the 2024 British Grand Prix: P1: Lewis Hamilton, P2: Max Verstappen, P3: Lando Norris.",
+    "latency_s": 4.04
+  },
+  {
+    "tag": "G",
+    "query": "Who was classified fifth in Japan?",
+    "contract": {
+      "raw_query": "Who was classified fifth in Japan?",
+      "normalized_query": "Who was classified fifth in Japan?",
+      "domain": "formula_1",
+      "intent": "driver_position",
+      "requested_metric": "driver_at_position",
+      "requested_position": 5,
+      "requested_driver": null,
+      "requested_team": null,
+      "limit": null,
+      "aggregation": "single",
+      "entities": {
+        "grand_prix": "Japanese GP",
+        "circuit": null,
+        "season": null,
+        "driver": null,
+        "team": null
+      },
+      "filters": {},
+      "comparison_drivers": [],
+      "needs_clarification": false,
+      "confidence": 1
+    },
+    "intent": "driver_position",
+    "requested_metric": "driver_at_position",
+    "season": null,
+    "gp": "Japanese GP",
+    "tools": [
+      "race_results_tool",
+      "historical_results_tool"
+    ],
+    "session": "2024_japanese_gp_race",
+    "evidence": "YES",
+    "answer": "Lando Norris finished P5 in the 2024 Japanese Grand Prix.",
+    "latency_s": 3.68
+  },
+  {
+    "tag": "H",
+    "query": "What was Hamilton's fastest lap at Monza?",
+    "contract": {
+      "raw_query": "What was Hamilton's fastest lap at Monza?",
+      "normalized_query": "What was Hamilton's fastest lap at Monza?",
+      "domain": "formula_1",
+      "intent": "fastest_lap",
+      "requested_metric": "fastest_lap",
+      "requested_position": null,
+      "requested_driver": "Lewis Hamilton",
+      "requested_team": null,
+      "limit": null,
+      "aggregation": "single",
+      "entities": {
+        "grand_prix": "Italian GP",
+        "circuit": "Monza",
+        "season": null,
+        "driver": "Lewis Hamilton",
+        "team": null
+      },
+      "filters": {},
+      "comparison_drivers": [],
+      "needs_clarification": false,
+      "confidence": 1
+    },
+    "intent": "fastest_lap",
+    "requested_metric": "fastest_lap",
+    "season": null,
+    "gp": "Italian GP",
+    "tools": [
+      "historical_results_tool"
+    ],
+    "session": "Resolved via SessionResolver",
+    "evidence": "YES",
+    "answer": "No verified fastest-lap telemetry data is available for Lewis Hamilton for the requested session.",
+    "latency_s": 3.56
+  },
+  {
+    "tag": "I",
+    "query": "Compare Verstappen and Norris at Silverstone.",
+    "contract": {
+      "raw_query": "Compare Verstappen and Norris at Silverstone.",
+      "normalized_query": "Compare Verstappen and Norris at Silverstone.",
+      "domain": "formula_1",
+      "intent": "comparison",
+      "requested_metric": "comparison",
+      "requested_position": null,
+      "requested_driver": null,
+      "requested_team": null,
+      "limit": null,
+      "aggregation": "comparison",
+      "entities": {
+        "grand_prix": "British GP",
+        "circuit": "Silverstone",
+        "season": null,
+        "driver": null,
+        "team": null
+      },
+      "filters": {},
+      "comparison_drivers": [
+        "Max Verstappen",
+        "Lando Norris"
+      ],
+      "needs_clarification": false,
+      "confidence": 1
+    },
+    "intent": "comparison",
+    "requested_metric": "comparison",
+    "season": null,
+    "gp": "British GP",
+    "tools": [
+      "driver_database_tool"
+    ],
+    "session": "Resolved via SessionResolver",
+    "evidence": "YES",
+    "answer": "Verified race data shows: Driver Registry: Max Verstappen (Red Bull Racing) [Source: driver_database_tool]., but available telemetry and strategy evidence is insufficient to establish a specific root cause.",
+    "latency_s": 3.93
+  },
+  {
+    "tag": "J",
+    "query": "How many points did the race winner score?",
+    "contract": {
+      "raw_query": "How many points did the race winner score?",
+      "normalized_query": "How many points did the race winner score?",
+      "domain": "formula_1",
+      "intent": "points",
+      "requested_metric": "points",
+      "requested_position": 1,
+      "requested_driver": null,
+      "requested_team": null,
+      "limit": null,
+      "aggregation": "single",
+      "entities": {
+        "grand_prix": null,
+        "circuit": null,
+        "season": null,
+        "driver": null,
+        "team": null
+      },
+      "filters": {},
+      "comparison_drivers": [],
+      "needs_clarification": false,
+      "confidence": 0.9
+    },
+    "intent": "points",
+    "requested_metric": "points",
+    "season": null,
+    "gp": null,
+    "tools": [
+      "race_results_tool"
+    ],
+    "session": "Resolved via SessionResolver",
+    "evidence": "YES",
+    "answer": "Charles Leclerc scored 25 points (P1) in the 2024 Monaco Grand Prix.",
+    "latency_s": 3.31
+  }
+]

@@ -126,7 +126,7 @@ class PostgresConversationMemory(BaseConversationMemory):
         current_entities = extract_entities(question)
         q_lower = question.lower()
 
-        resolved_session_id = past_session_id or "2024_austria_gp_race"
+        resolved_session_id = past_session_id
         resolved_driver_id = past_drivers[-1] if past_drivers else None
         resolved_comparative_driver_id = None
         resolved_team = past_team
@@ -146,14 +146,6 @@ class PostgresConversationMemory(BaseConversationMemory):
         if current_entities.get("team"):
             resolved_team = current_entities["team"]
 
-        if current_entities.get("grand_prix"):
-            gp_norm = current_entities["grand_prix"]
-            if gp_norm == "Monaco GP":
-                resolved_session_id = "2024_monaco_gp_race"
-            elif gp_norm == "British GP":
-                resolved_session_id = "2024_british_gp_race"
-            elif gp_norm == "Austria GP":
-                resolved_session_id = "2024_austria_gp_race"
 
         # Conversational Follow-up Resolution Patterns:
 

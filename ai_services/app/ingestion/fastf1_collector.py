@@ -316,18 +316,19 @@ class FastF1Collector(BaseCollector):
                     (session_id, drv_id, lap_num, lap_time_ms, s1_ms, s2_ms, s3_ms, compound, is_pit_out, is_valid)
                 )
 
-                if False:  # Telemetry profiles fetched on demand by TelemetryTool
-                    try:
-                        telemetry_df = lap_row.get_telemetry()
-                        if telemetry_df is not None and len(telemetry_df) > 0:
-                            self._downsample_and_save_telemetry(session_id, drv_id, lap_num, telemetry_df)
-                    except Exception as ex:
-                        logger.debug(f"Could not load telemetry profiles for driver {drv_code} lap {lap_num}: {ex}")
+                # Persist telemetry profiles into PostgreSQL telemetry_metadata and JSON cache
+                try:
+                    telemetry_df = lap_row.get_telemetry()
+                    if telemetry_df is not None and len(telemetry_df) > 0:
+                        self._downsample_and_save_telemetry(session_id, drv_id, lap_num, telemetry_df)
+                except Exception as ex:
+                    logger.debug(f"Could not load telemetry profiles for driver {drv_code} lap {lap_num}: {ex}")
 
         return session_id
 
     def _downsample_and_save_telemetry(self, session_id: str, driver_id: str, lap_number: int, df):
         """Downsamples telemetry data to 50 significant points and caches JSON."""
+        distances = df['Distance'].values if 'Distance' in df else np.linspace(0, 5800, len(df))
         speeds = df['Speed'].values if 'Speed' in df else np.zeros(len(df))
         rpms = df['RPM'].values if 'RPM' in df else np.zeros(len(df))
         gears = df['Gear'].values if 'Gear' in df else np.zeros(len(df))
@@ -339,6 +340,7 @@ class FastF1Collector(BaseCollector):
         
         downsampled = []
         for i in range(0, total_points, bucket_size):
+            chunk_dist = distances[i : i + bucket_size]
             chunk_speed = speeds[i : i + bucket_size]
             chunk_rpm = rpms[i : i + bucket_size]
             chunk_gear = gears[i : i + bucket_size]
@@ -346,6 +348,7 @@ class FastF1Collector(BaseCollector):
             chunk_brake = brakes[i : i + bucket_size]
             
             downsampled.append({
+                "distanceM": round(float(np.mean(chunk_dist)), 1) if len(chunk_dist) > 0 else 0.0,
                 "speed": int(np.mean(chunk_speed)) if len(chunk_speed) > 0 else 0,
                 "rpm": int(np.mean(chunk_rpm)) if len(chunk_rpm) > 0 else 0,
                 "gear": int(np.round(np.mean(chunk_gear))) if len(chunk_gear) > 0 else 0,

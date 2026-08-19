@@ -56,16 +56,23 @@ class EntityResolver:
             from app.agents.planner import extract_entities
             planner_entities = extract_entities(question)
 
-        # 1. Season/Year from Planner
-        year = planner_entities.get("year") or planner_entities.get("season") or state.get("season") or 2024
-        try:
-            year = int(year)
-        except (ValueError, TypeError):
-            year = 2024
+        # 1. Season/Year from Planner (preserve None if unspecified by user)
+        year_val = planner_entities.get("season") if "season" in planner_entities else planner_entities.get("year")
+        if year_val is None and "season" not in planner_entities:
+            year_val = state.get("season")
+            
+        if year_val is not None:
+            try:
+                year = int(year_val)
+            except (ValueError, TypeError):
+                year = None
+        else:
+            year = None
 
         entities_found = {"year": year}
         db_matches = []
         resolved_ids = {"season": year}
+
 
         # 2. Driver Resolution
         driver_input = planner_entities.get("driver") or planner_entities.get("drivers") or state.get("driver") or state.get("drivers")

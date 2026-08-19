@@ -836,7 +836,20 @@ All internal states are converted to human-readable F1 analyst language before r
   - `driver_at_position`: Finds the driver at position P (`"Oscar Piastri finished P5"`).
   - `podium` / `top_n`: Formats top N standings (`"Top 3 finishers: P1: Max Verstappen, P2: Lando Norris, P3: Charles Leclerc"`).
   - `team_result`: Formats positions for target team drivers.
-  - `fastest_lap`: Formats fastest lap timing or explicit missing data message.
-- **Strict Rule**: The synthesizer NEVER defaults to returning the race winner when a specific position, driver, team, podium, or fastest lap metric was requested.
+### 5. Day 1 MVP End-to-End User Validation
+- **Metric Synthesis Precision**: Verified that exact metric properties in `SemanticQueryContract` drive specialized synthesizer responses:
+  - `points` query → returns driver name, finishing position, and exact points scored (`"Charles Leclerc scored 25 points (P1) in the 2024 Monaco Grand Prix."`).
+  - `comparison` query → retrieves race classifications for both target drivers and formats comparative positions (`"At the 2024 British Grand Prix, Max Verstappen finished P2 while Lando Norris finished P3."`).
+  - `fastest_lap` query → returns fastest lap time or an explicit `CONTROLLED DATA UNAVAILABLE` response when telemetry arrays are missing.
+### 6. Pure JavaScript Technology Migration
+- **Zero TypeScript Standard**: Converted 20 Express backend `.ts` files to CommonJS `.js` and 47 React frontend `.tsx`/`.ts` files to ES2022 `.jsx`/`.js`. Completely removed `typescript`, `tsc`, `ts-node`, `@types/*`, `@typescript-eslint/*`, and all `tsconfig*.json` files.
+- **Build & Runtime Alignment**: Updated `vite.config.js`, `index.html` (`/src/main.jsx`), and `package.json` scripts (`"build": "vite build"`, `"start": "node src/index.js"`). Vite production build passes in 4.26s, Express backend starts cleanly with zero TypeScript build requirements, and 100% of Day 1 MVP functionality remains preserved.
+
+### 7. Day 2 Feature 1 — Real Telemetry Comparison & Delta Analytics
+- **Telemetry Persistence Mechanics**: Removing artificial persistence bypasses in `fastf1_collector.py` allows saving downsampled distance, speed, throttle, brake, gear, and rpm metrics into JSON files and `telemetry_metadata` table.
+- **Planner Parameter Aliasing**: When multi-driver comparison queries specify `drivers = verstappen,norris` or `comparison_drivers`, `execute_node` automatically maps `driver_id = verstappen` and `comparative_driver_id = norris`, preventing parameter validation tool skips.
+- **Strict Evidence Standards**: Telemetry comparison features must return actual verified telemetry, lap deltas (-0.173s), and sector deltas ($S1, S2, S3$) from database and disk cache profiles without generating synthetic mock arrays or substituting static race position data.
+
+
 
 

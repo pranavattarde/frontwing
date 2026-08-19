@@ -15,9 +15,9 @@ class SessionResolver:
     """
 
     @staticmethod
-    def _clean_gp_name(gp_name: str) -> str:
+    def _clean_gp_name(gp_name: str) -> Optional[str]:
         if not gp_name:
-            return "monaco"
+            return None
         gp_lower = gp_name.lower().strip()
         # Common GP aliases mapping
         gp_alias_map = {
@@ -110,19 +110,54 @@ class SessionResolver:
     ) -> Dict[str, Any]:
         gp_clean = cls._clean_gp_name(grand_prix)
         
-        # If no explicit season supplied, query latest verified season from DB
+        if not gp_clean:
+            return {
+                "status": "DATA_UNAVAILABLE",
+                "session_id": None,
+                "rows_returned": 0,
+                "fastf1_downloaded": False,
+                "season": season,
+                "grand_prix": None,
+                "session_type": "Race"
+            }
+
+
+        # If no explicit season supplied, query latest verified season for this GP from DB
         target_year = season
         if not target_year:
-            latest_row = execute_query("SELECT season FROM sessions ORDER BY season DESC LIMIT 1", fetch=True)
-            if latest_row and latest_row[0].get("season"):
-                target_year = int(latest_row[0]["season"])
+            sql_latest = """
+                SELECT r.year FROM sessions s
+                JOIN races r ON s.race_id = r.id
+                LEFT JOIN circuits c ON r.circuit_id = c.id
+                JOIN race_results rr ON s.id = rr.session_id
+                WHERE (c.id ILIKE %s OR c.name ILIKE %s OR r.name ILIKE %s OR r.id ILIKE %s)
+                GROUP BY r.year, r.id
+                HAVING COUNT(rr.id) >= 10
+                ORDER BY r.year DESC LIMIT 1
+            """
+            latest_gp_row = execute_query(sql_latest, (f"%{gp_clean}%", f"%{gp_clean}%", f"%{gp_clean}%", f"%{gp_clean}%"), fetch=True)
+            if latest_gp_row and latest_gp_row[0].get("year"):
+                target_year = int(latest_gp_row[0]["year"])
             else:
-                target_year = 2024
+                latest_row = execute_query("""
+                    SELECT r.year FROM races r
+                    JOIN sessions s ON s.race_id = r.id
+                    JOIN race_results rr ON s.id = rr.session_id
+                    GROUP BY r.year, r.id
+                    HAVING COUNT(rr.id) >= 10
+                    ORDER BY r.year DESC LIMIT 1
+                """, fetch=True)
+                if latest_row and latest_row[0].get("year"):
+                    target_year = int(latest_row[0]["year"])
+                else:
+                    target_year = 2024
+
         else:
             try:
                 target_year = int(target_year)
             except (ValueError, TypeError):
-                target_year = 2024
+                target_year = season
+
         
         session_type_map = {
             "R": "Race", "Q": "Qualifying", "SQ": "Sprint Qualifying",

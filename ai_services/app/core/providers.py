@@ -106,7 +106,7 @@ class GeminiProvider(BaseLLMProvider):
         try:
             client = genai.Client(api_key=key)
             response = client.models.generate_content(
-                model="gemini-1.5-flash",
+                model="gemini-3.6-flash",
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
@@ -152,7 +152,7 @@ class GeminiProvider(BaseLLMProvider):
         try:
             client = genai.Client(api_key=key)
             response = client.models.generate_content(
-                model="gemini-1.5-flash",
+                model="gemini-3.6-flash",
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
@@ -204,7 +204,7 @@ class GroqProvider(BaseLLMProvider):
                     {"role": "system", "content": system_instruction},
                     {"role": "user", "content": contents}
                 ],
-                model="llama-3.3-70b-versatile",
+                model="qwen/qwen3.6-27b",
                 temperature=0.0,
                 timeout=timeout_seconds
             )
@@ -255,7 +255,7 @@ class GroqProvider(BaseLLMProvider):
                     {"role": "system", "content": system_instruction},
                     {"role": "user", "content": contents}
                 ],
-                model="llama-3.3-70b-versatile",
+                model="qwen/qwen3.6-27b",
                 temperature=0.0,
                 response_format=response_format,
                 timeout=timeout_seconds
@@ -312,7 +312,7 @@ class ReliableLLMProvider(BaseLLMProvider):
         for attempt in range(3):
             start_time = time.time()
             try:
-                logger.info(f"[ReliableLLMProvider] Selected provider: Gemini, Model: gemini-2.0-flash, Attempt: {attempt + 1}/3, Start: {start_time}")
+                logger.info(f"[ReliableLLMProvider] Selected provider: Gemini, Model: gemini-3.6-flash, Attempt: {attempt + 1}/3, Start: {start_time}")
                 plan, metrics = self.gemini.generate_plan(system_instruction, contents, timeout_seconds)
                 end_time = time.time()
                 latency_ms = int((end_time - start_time) * 1000)

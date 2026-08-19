@@ -2,13 +2,12 @@
   "name": "frontwing-backend",
   "version": "0.1.0",
   "private": true,
-  "main": "dist/index.js",
+  "main": "src/index.js",
   "type": "commonjs",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "migrate": "ts-node src/config/migrate.ts",
+    "start": "node src/index.js",
+    "dev": "node src/index.js",
+    "migrate": "node src/config/migrate.js",
     "test": "echo \"Error: no test specified\" && exit 0"
   },
   "dependencies": {
@@ -20,17 +19,5 @@
     "pg": "^8.12.0",
     "redis": "^4.6.14",
     "ws": "^8.17.0"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/jsonwebtoken": "^9.0.6",
-    "@types/node": "^20.14.2",
-    "@types/pg": "^8.11.6",
-    "@types/ws": "^8.5.10",
-    "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^5.4.5"
   }
 }

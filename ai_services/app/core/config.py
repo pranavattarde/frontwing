@@ -1,8 +1,13 @@
 import os
 from dotenv import load_dotenv
 
-# Automatically load configuration
-load_dotenv(override=True)
+# Find and load .env file from ai_services directory or root directory
+_base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_env_path = os.path.join(_base_dir, ".env")
+if os.path.exists(_env_path):
+    load_dotenv(dotenv_path=_env_path, override=True)
+else:
+    load_dotenv(override=True)
 
 
 class Settings:
@@ -18,7 +23,7 @@ class Settings:
         
     @property
     def DATABASE_URL(self) -> str:
-        return os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/frontwing")
+        return os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5433/frontwing")
         
     @DATABASE_URL.setter
     def DATABASE_URL(self, val: str):
@@ -50,7 +55,6 @@ class Settings:
 
     def validate_or_raise(self) -> None:
         """Validates critical variables during app initialization."""
-        # Logs warning or raises if crucial params are completely blank
         critical_vars = {
             "DATABASE_URL": self.DATABASE_URL,
             "REDIS_URL": self.REDIS_URL

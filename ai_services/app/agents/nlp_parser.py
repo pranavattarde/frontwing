@@ -188,8 +188,8 @@ Analyze the raw user query and return a valid JSON object matching this schema:
 
 {
   "domain": "formula_1" or "other",
-  "intent": "race_result" | "driver_position" | "podium" | "fastest_lap" | "points" | "team_result" | "comparison" | "telemetry" | "strategy" | "explanation" | "investigation" | "research",
-  "requested_metric": "winner" | "finishing_position" | "driver_at_position" | "podium" | "fastest_lap" | "points" | "team_result" | "qualifying" | "comparison" | "explanation" | "unknown",
+  "intent": "race_result" | "driver_position" | "podium" | "fastest_lap" | "points" | "team_result" | "comparison" | "telemetry" | "telemetry_comparison" | "strategy" | "explanation" | "investigation" | "research",
+  "requested_metric": "winner" | "finishing_position" | "driver_at_position" | "podium" | "fastest_lap" | "points" | "team_result" | "qualifying" | "comparison" | "telemetry" | "telemetry_comparison" | "explanation" | "unknown",
   "requested_position": integer or null (e.g. 3 for P3/third, 5 for fifth, 10 for P10, 1 for P1/winner),
   "requested_driver": string or null (canonical driver name if asked, e.g. "Charles Leclerc", "Lewis Hamilton"),
   "requested_team": string or null (canonical team name if asked, e.g. "McLaren", "Ferrari"),
@@ -216,9 +216,10 @@ RULES:
 5. "What was Hamilton's fastest lap?", "Fastest lap at Monza" -> requested_metric = "fastest_lap", requested_driver = "Lewis Hamilton" (if specified).
 6. "How did McLaren finish at X?" -> requested_metric = "team_result", requested_team = "McLaren".
 7. "How many points did Verstappen score?" -> requested_metric = "points", requested_driver = "Max Verstappen".
-8. "Compare Verstappen and Norris at X" -> intent = "comparison", requested_metric = "comparison", comparison_drivers = ["Max Verstappen", "Lando Norris"].
-9. "Explain DRS" -> intent = "explanation", requested_metric = "explanation".
-10. Leave "season" as NULL unless a 4-digit year (e.g. 2024, 2023) is explicitly mentioned in the query.
+8. "Compare Verstappen and Norris telemetry at X", "Compare lap times of X and Y", "Compare sector times", "Where did X gain time on Y?", "Compare speed" -> intent = "telemetry_comparison", requested_metric = "telemetry_comparison", comparison_drivers = ["Max Verstappen", "Lando Norris"], aggregation = "comparison".
+9. "Compare Verstappen and Norris at X" (position/general) -> intent = "comparison", requested_metric = "comparison", comparison_drivers = ["Max Verstappen", "Lando Norris"].
+10. "Explain DRS" -> intent = "explanation", requested_metric = "explanation".
+11. Leave "season" as NULL unless a 4-digit year (e.g. 2024, 2023) is explicitly mentioned in the query.
 
 Respond with ONLY valid JSON."""
 
@@ -461,17 +462,29 @@ def _fallback_semantic_parser(preprocessed: Dict[str, str]) -> SemanticQueryCont
         requested_metric = "team_result"
         intent = "team_result"
         
+    # Find all drivers mentioned
+    matched_drivers = []
+    for alias, d_name in F1_DRIVER_ALIAS_MAP.items():
+        if re.search(r'\b' + re.escape(alias) + r'\b', q_lower) and d_name not in matched_drivers:
+            matched_drivers.append(d_name)
+    comparison_drivers = matched_drivers
+
+    # Check Telemetry & Telemetry Comparison
+    is_telemetry_query = any(k in q_lower for k in ["telemetry", "lap time", "lap times", "sector", "speed", "delta", "gain time", "faster"])
+    is_comparison_query = any(k in q_lower for k in ["compare", "vs", "versus", "comparison", "between", "difference"]) or len(comparison_drivers) > 1
+
+    if is_telemetry_query and is_comparison_query:
+        intent = "telemetry_comparison"
+        requested_metric = "telemetry_comparison"
+        aggregation = "comparison"
+    elif is_telemetry_query:
+        intent = "telemetry"
+        requested_metric = "telemetry"
     # Check Comparison
-    elif any(k in q_lower for k in ["compare", "vs", "versus", "comparison"]):
+    elif is_comparison_query:
         intent = "comparison"
         requested_metric = "comparison"
         aggregation = "comparison"
-        # Find all drivers mentioned
-        matched_drivers = []
-        for alias, d_name in F1_DRIVER_ALIAS_MAP.items():
-            if re.search(r'\b' + re.escape(alias) + r'\b', q_lower) and d_name not in matched_drivers:
-                matched_drivers.append(d_name)
-        comparison_drivers = matched_drivers
         
     # Check Explanation
     elif any(k in q_lower for k in ["explain", "what is", "drs", "undercut", "overcut"]):

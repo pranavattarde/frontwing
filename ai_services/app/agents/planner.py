@@ -178,13 +178,13 @@ def extract_entities(question: str) -> Dict[str, Any]:
     if lap_match:
         extracted_lap = int(lap_match.group(1))
         
-    # 5. Season / Year
+    # 5. Season / Year (explicit only, leave None if omitted)
     extracted_season = None
     season_match = re.search(r"\b(20\d{2})\b", q_lower)
     if season_match:
         extracted_season = int(season_match.group(1))
     else:
-        extracted_season = 2024
+        extracted_season = None
             
     return {
         "drivers": extracted_drivers if extracted_drivers else None,
@@ -193,6 +193,7 @@ def extract_entities(question: str) -> Dict[str, Any]:
         "lap": extracted_lap,
         "season": extracted_season
     }
+
 
 
 def adaptive_plan_extract(question: str, session_id: Optional[str] = None, driver_id: Optional[str] = None, history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
@@ -457,16 +458,28 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
     semantic_contract = state.get("semantic_contract") or parse_semantic_query(question, history)
     
     adaptive_plan = adaptive_plan_extract(question, session_id, driver_id, history)
-
     
-    # Enrich adaptive plan entities & intent with semantic contract details
+    # Make SemanticQueryContract the single authoritative semantic input
     if semantic_contract:
         if semantic_contract.get("intent"):
             adaptive_plan["intent"] = semantic_contract["intent"]
         if semantic_contract.get("entities"):
-            for k, v in semantic_contract["entities"].items():
-                if v is not None:
-                    adaptive_plan["entities"][k] = v
+            # Authoritative overwrite of entities (preserving season as None when unstated by user)
+            adaptive_plan["entities"] = dict(semantic_contract["entities"])
+            
+        req_metric = semantic_contract.get("requested_metric")
+        if req_metric in ("winner", "finishing_position", "driver_at_position", "podium", "points", "team_result"):
+            adaptive_plan["tools"] = ["race_results_tool"]
+        elif req_metric == "fastest_lap":
+            adaptive_plan["tools"] = ["historical_results_tool"]
+        elif req_metric == "explanation":
+            adaptive_plan["tools"] = ["explain_mode_tool"]
+        elif req_metric in ("telemetry", "telemetry_comparison") or adaptive_plan.get("intent") in ("telemetry", "telemetry_comparison"):
+            adaptive_plan["tools"] = ["telemetry_tool", "race_results_tool"]
+        elif req_metric in ("simulation", "strategy"):
+            adaptive_plan["tools"] = ["simulation_tool"]
+        elif req_metric == "scoring":
+            adaptive_plan["tools"] = ["scoring_tool", "explain_mode_tool"]
 
     intent_norm = adaptive_plan["intent"]
     entities = adaptive_plan["entities"]
@@ -476,6 +489,7 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
     tools = adaptive_plan["tools"]
     
     logger.info(f"[Chief Race Engineer] Generating structured plan for question: '{question}' | Classified Intent: '{intent_norm}' | Metric: '{semantic_contract.get('requested_metric')}'")
+
 
     
     start_time = time.time()
@@ -506,6 +520,9 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         if valid:
             structured_plan = normalized
             tools = normalized.get("required_tools", tools)
+            if (req_metric == "comparison" or intent_norm == "comparison") and "race_results_tool" not in tools:
+                tools.insert(0, "race_results_tool")
+
             llm_provider = metrics.get("llm_provider", "groq")
             llm_model = metrics.get("llm_model", "llama-3.3-70b-versatile")
             prompt_tokens = metrics.get("prompt_tokens", 0)
@@ -575,16 +592,21 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
             args["simulated_pit_lap"] = entities["lap"]
         if entities.get("drivers"):
             args["driver_id"] = entities["drivers"][0]
+            if len(entities["drivers"]) > 1:
+                args["comparative_driver_id"] = entities["drivers"][1]
+        elif semantic_contract.get("comparison_drivers") and len(semantic_contract["comparison_drivers"]) > 1:
+            args["driver_id"] = semantic_contract["comparison_drivers"][0]
+            args["comparative_driver_id"] = semantic_contract["comparison_drivers"][1]
             
         if entities.get("grand_prix"):
             gp_norm = entities["grand_prix"]
             raw_season = entities.get("season")
-            if isinstance(raw_season, int) and raw_season in (2022, 2023, 2024, 2025):
-                gp_year = raw_season
-            else:
-                gp_year = 2024
+            if isinstance(raw_season, int):
+                args["year"] = raw_season
+            elif isinstance(raw_season, str) and raw_season.isdigit():
+                args["year"] = int(raw_season)
             args["grand_prix"] = gp_norm
-            args["year"] = gp_year
+
                 
         # Only inject state session_id / driver_id if they are NOT None and we didn't extract a conflicting one
         if "session_id" not in args and session_id:
@@ -709,41 +731,43 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
     streaming_events = list(state.get("streaming_events", []))
     collaboration_graph = state.setdefault("collaboration_graph", [])
     
-    # Classify intent and extract parameters for the PLANNER debug block
+    # Consume authoritative semantic contract and structured plan from state — DO NOT re-parse raw question
     q = state.get("question", "")
-    adaptive_plan = adaptive_plan_extract(q)
-    intent_norm = adaptive_plan["intent"]
-    entities = adaptive_plan["entities"]
+    semantic_contract = state.get("semantic_contract") or {}
+    plan_data = state.get("structured_plan") or {}
+    
+    intent_norm = semantic_contract.get("intent") or plan_data.get("intent") or trace.get("intent", "race_result")
+    entities = state.get("entities") or semantic_contract.get("entities") or plan_data.get("entities") or {}
+    
     cleaned_params = {
         "team": entities.get("team"),
         "grand_prix": entities.get("grand_prix"),
         "season": entities.get("season")
     }
     if intent_norm == "comparison":
-        cleaned_params["drivers"] = entities.get("drivers")
+        cleaned_params["drivers"] = semantic_contract.get("comparison_drivers") or entities.get("drivers")
     else:
-        cleaned_params["driver"] = entities.get("drivers")[0] if entities.get("drivers") else None
+        cleaned_params["driver"] = semantic_contract.get("requested_driver") or (entities.get("drivers")[0] if isinstance(entities.get("drivers"), list) and entities["drivers"] else entities.get("driver"))
         
     if entities.get("lap") is not None:
         cleaned_params["lap"] = entities["lap"]
         
-    plan_data = state.get("structured_plan") or {}
-    
-    # Before Dispatcher starts, print PLANNER debug logger block with adaptive extraction metrics
+    # Before Dispatcher starts, print PLANNER debug logger block with authoritative metrics
     debug_block = (
         f"================ PLANNER ================\n"
         f"Question: {q}\n"
-        f"Intent: {plan_data.get('intent', intent_norm)}\n"
-        f"Entities: {plan_data.get('entities', entities)}\n"
-        f"Required Evidence: {plan_data.get('required_evidence', adaptive_plan['required_evidence'])}\n"
-        f"Missing Evidence: {plan_data.get('missing_evidence', adaptive_plan['missing_evidence'])}\n"
-        f"Confidence: {plan_data.get('confidence', adaptive_plan['confidence'])}\n"
-        f"Tools: {plan_data.get('required_tools', plan_data.get('tools', adaptive_plan['tools']))}\n"
+        f"Intent: {intent_norm}\n"
+        f"Entities: {entities}\n"
+        f"Required Evidence: {plan_data.get('required_evidence', [])}\n"
+        f"Missing Evidence: {plan_data.get('missing_evidence', [])}\n"
+        f"Confidence: {plan_data.get('confidence', 0.95)}\n"
+        f"Tools: {plan_data.get('required_tools', plan_data.get('tools', []))}\n"
         f"Parameters: {cleaned_params}\n"
         f"========================================="
     )
     print(debug_block)
     logger.info(f"\n{debug_block}")
+
     
     if "timelines" not in trace:
         trace["timelines"] = {}
@@ -771,7 +795,7 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
             # Use maxsplit=1 on the pipe separator
             tool_name, raw_args = step.split("|", 1)
             args_dict = {}
-            for pair in raw_args.split(","):
+            for pair in raw_args.replace("&", ",").split(","):
                 if "=" in pair:
                     # Use maxsplit=1 to prevent "too many values to unpack" when value contains "="
                     k, v = pair.split("=", 1)
@@ -808,8 +832,34 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
     #   (b) The state value was explicitly passed by the caller (not generated by SessionResolver).
     # This preserves intentional session/driver context from callers (e.g., tests, API calls)
     # while preventing hallucinated SessionResolver defaults from bleeding in.
-    session_id = resolved.get("session_id") or state.get("session_id")  # Caller-explicit fallback OK
-    driver_id = resolved.get("driver_id") or state.get("driver_id")     # Caller-explicit fallback OK
+    if entities.get("grand_prix") and not resolved.get("session_id"):
+        session_id = None
+    else:
+        session_id = resolved.get("session_id") or state.get("session_id")
+    driver_id = resolved.get("driver_id") or state.get("driver_id")
+
+    # Contract Validation: Telemetry comparison requires 2 drivers
+    semantic_contract = state.get("semantic_contract") or {}
+    intent_norm = semantic_contract.get("intent") or (state.get("structured_plan") or {}).get("intent")
+    req_metric = semantic_contract.get("requested_metric")
+
+    if intent_norm in ("telemetry_comparison", "comparison") or req_metric == "telemetry_comparison":
+        drvs_in_contract = semantic_contract.get("comparison_drivers") or []
+        drvs_in_resolved = resolved.get("driver_ids") or []
+        drvs_count = max(len(drvs_in_contract), len(drvs_in_resolved))
+        
+        if drvs_count < 2:
+            logger.info(f"[ExecuteNode] Incomplete telemetry comparison query: '{q}'. Requesting clarification for missing drivers.")
+            return {
+                "next_step_idx": len(plan),
+                "tools_used": [],
+                "evidence": {"status": "needs_clarification"},
+                "errors": [],
+                "final_answer": "Which drivers would you like me to compare?",
+                "needs_clarification": True,
+                "intelligence_trace": trace,
+                "collaboration_graph": collaboration_graph
+            }
 
     skipped_tools = []
     executed_tools = []
@@ -823,20 +873,35 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
         # Replace plan step args with resolved database IDs
         for k in list(args.keys()):
             k_lower = k.lower()
-            if "driver" in k_lower or k_lower in ["driver_id", "driver_a", "driver_b", "drivers"]:
+            if "driver" in k_lower or k_lower in ["driver_id", "driver_a", "driver_b", "drivers", "comparative_driver_id"]:
+                val_str = str(args[k]).lower().strip()
+                drv_clean = None
                 if resolved.get("driver_ids"):
-                    val_str = str(args[k]).lower().strip()
-                    matched_drv = None
                     for drv in resolved["driver_ids"]:
                         if drv in val_str or val_str in drv:
-                            matched_drv = drv
+                            drv_clean = drv
                             break
-                    args[k] = matched_drv or resolved["driver_id"]
-                elif resolved.get("driver_id"):
-                    args[k] = resolved["driver_id"]
+                if not drv_clean:
+                    for token in val_str.replace("_", " ").split():
+                        if len(token) > 2 and token not in ("max", "lando", "lewis", "charles", "carlos", "oscar", "george", "pierre", "esteban", "alex", "yuki", "nico", "lance", "kevin", "logan", "daniel", "valtteri", "guanyu"):
+                            drv_clean = token
+                            break
+                args[k] = drv_clean or val_str
             elif "session" in k_lower:
-                if resolved.get("session_id"):
-                    args[k] = resolved["session_id"]
+                res_sid = resolved.get("session_id")
+                target_season = args.get("year") or args.get("season") or resolved.get("season")
+                if res_sid:
+                    # Enforce year consistency between session_id and target_season
+                    if target_season and str(target_season) not in res_sid and res_sid.startswith("2026_"):
+                        from app.core.session_resolver import SessionResolver
+                        gp_target = entities.get("grand_prix") or (semantic_contract.get("entities") or {}).get("grand_prix")
+                        re_res = SessionResolver.resolve_session(grand_prix=gp_target, season=target_season)
+                        if re_res.get("status") == "success" and re_res.get("session_id"):
+                            args[k] = re_res["session_id"]
+                        else:
+                            args[k] = res_sid
+                    else:
+                        args[k] = res_sid
                 elif isinstance(args[k], str) and args[k].startswith("2026_"):
                     args[k] = args[k].replace("2026_", "2024_")
             elif "race" in k_lower:
@@ -845,12 +910,47 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
             elif "constructor" in k_lower or k_lower == "team":
                 if resolved.get("constructor_id"):
                     args[k] = resolved["constructor_id"]
+
                     
         # Only inject session_id / driver_id if they were actually resolved (not None)
         if "session_id" not in args and session_id is not None:
             args["session_id"] = session_id
-        if "driver_id" not in args and driver_id is not None:
-            args["driver_id"] = driver_id
+
+        if "driver_id" not in args or not args["driver_id"]:
+            if "driver1" in args and args["driver1"]:
+                args["driver_id"] = args["driver1"]
+            elif "driver_a" in args and args["driver_a"]:
+                args["driver_id"] = args["driver_a"]
+            elif "driver" in args and args["driver"]:
+                args["driver_id"] = args["driver"]
+            elif "drivers" in args and args["drivers"]:
+                drv_parts = [d.strip() for d in str(args["drivers"]).split(",") if d.strip()]
+                if drv_parts:
+                    args["driver_id"] = drv_parts[0]
+                    if len(drv_parts) > 1 and ("comparative_driver_id" not in args or not args["comparative_driver_id"]):
+                        args["comparative_driver_id"] = drv_parts[1]
+
+        if "comparative_driver_id" not in args or not args["comparative_driver_id"]:
+            if "driver2" in args and args["driver2"]:
+                args["comparative_driver_id"] = args["driver2"]
+            elif "driver_b" in args and args["driver_b"]:
+                args["comparative_driver_id"] = args["driver_b"]
+
+        if "driver_id" not in args or not args["driver_id"]:
+            if semantic_contract.get("comparison_drivers"):
+                comp_drvs = semantic_contract["comparison_drivers"]
+                if comp_drvs:
+                    args["driver_id"] = comp_drvs[0]
+                    if len(comp_drvs) > 1 and ("comparative_driver_id" not in args or not args["comparative_driver_id"]):
+                        args["comparative_driver_id"] = comp_drvs[1]
+            elif driver_id:
+                args["driver_id"] = driver_id
+
+        if resolved.get("driver_ids") and len(resolved["driver_ids"]) > 1:
+            if "driver_id" not in args or not args["driver_id"]:
+                args["driver_id"] = resolved["driver_ids"][0]
+            if "comparative_driver_id" not in args or not args["comparative_driver_id"] or args["comparative_driver_id"] == args["driver_id"]:
+                args["comparative_driver_id"] = resolved["driver_ids"][1]
             
         params_sent[name] = args
         
@@ -1163,6 +1263,18 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
     logger.info("[Chief Race Engineer] Compiling final structured report and Trace V3.")
     trace.setdefault("execution_graph", []).append("synthesize")
     
+    if state.get("needs_clarification") or (isinstance(evidence, dict) and evidence.get("status") == "needs_clarification"):
+        clar_msg = state.get("final_answer") or "Which drivers would you like me to compare?"
+        return {
+            "final_answer": clar_msg,
+            "confidence": 1.0,
+            "explain_mode_options": [],
+            "errors": [],
+            "intelligence_trace": trace,
+            "streaming_events": streaming_events
+        }
+
+    
     # 1. Confidence calculations
     completeness_factor = 100.0 if len(evidence) > 0 else 20.0
     agreement_factor = 100.0 if "mismatch" not in "".join(reflection_notes).lower() else 60.0
@@ -1329,9 +1441,9 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
     
     intent_name = semantic_contract.get("intent") or trace.get("intent") or "race_result"
     q_lower = question.lower()
-    is_factual = intent_name in ("race_result", "driver_position", "podium", "fastest_lap", "points", "team_result", "research") or (
+    is_factual = intent_name in ("race_result", "driver_position", "podium", "fastest_lap", "points", "team_result", "research", "telemetry", "telemetry_comparison") or (
         any(q in q_lower for q in ["who won", "who finished", "which driver", "winner of", "top three", "podium", "fastest lap", "came p", "ended up"]) and
-        not any(kw in q_lower for kw in ["why", "compare", "explain", "analyze", "telemetry", "strategy", "failure"])
+        not any(kw in q_lower for kw in ["why", "explain", "analyze", "strategy", "failure"])
     )
 
     if is_factual:
@@ -1343,8 +1455,41 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
         
         exec_summary = None
 
-        # 1. Driver Finishing Position Query (e.g. "How did Charles Leclerc finish at Suzuka?")
-        if (requested_metric in ("finishing_position", "driver_position") or intent_name == "driver_position") and target_driver:
+        # 1. Points Query (e.g. "How many points did the race winner score?")
+        if requested_metric == "points" or intent_name == "points":
+            pos_entry = None
+            if requested_pos is not None:
+                for entry in classification:
+                    if entry.get("position") == requested_pos:
+                        pos_entry = entry
+                        break
+            elif target_driver:
+                t_lower = target_driver.lower()
+                for entry in classification:
+                    d_name = entry.get("driver", "")
+                    if t_lower in d_name.lower() or d_name.lower() in t_lower:
+                        pos_entry = entry
+                        break
+            elif winner_name:
+                for entry in classification:
+                    if entry.get("position") == 1:
+                        pos_entry = entry
+                        break
+
+            if pos_entry:
+                drv = pos_entry.get("driver")
+                pts = pos_entry.get("points")
+                pos = pos_entry.get("position")
+                if pts is not None:
+                    pts_str = str(int(pts)) if isinstance(pts, float) and pts.is_integer() else str(pts)
+                    exec_summary = f"{drv} scored {pts_str} points (P{pos}) in the {season_val} {gp_name}."
+                else:
+                    exec_summary = f"{drv} finished P{pos} in the {season_val} {gp_name}."
+            else:
+                exec_summary = f"No verified points data is available for the requested session."
+
+        # 2. Driver Finishing Position Query (e.g. "How did Charles Leclerc finish at Suzuka?")
+        elif (requested_metric in ("finishing_position", "driver_position") or intent_name == "driver_position") and target_driver:
             driver_entry = None
             t_lower = target_driver.lower()
             for entry in classification:
@@ -1358,7 +1503,7 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
             else:
                 exec_summary = f"No verified finishing-position data is available for {target_driver} for the requested session."
 
-        # 2. Driver at Specific Position Query (e.g. "Who finished P3 at Suzuka?", "Which driver ended up fifth?")
+        # 3. Driver at Specific Position Query (e.g. "Who finished P3 at Suzuka?", "Which driver ended up fifth?")
         elif (requested_metric == "driver_at_position" or requested_pos is not None) and requested_pos is not None:
             pos_driver = None
             for entry in classification:
@@ -1372,7 +1517,7 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
             else:
                 exec_summary = f"No verified race data is available for P{requested_pos} in the {season_val} {gp_name}."
 
-        # 3. Podium / Top N Finishers Query (e.g. "Give me the top three finishers from Emilia-Romagna")
+        # 4. Podium / Top N Finishers Query (e.g. "Give me the top three finishers from Emilia-Romagna")
         elif requested_metric in ("podium", "top_n") or semantic_contract.get("aggregation") == "top_n":
             top_entries = classification[:limit_val] if classification else []
             if top_entries:
@@ -1383,7 +1528,25 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
             else:
                 exec_summary = "No verified race data exists for this request."
 
-        # 4. Team Result Query (e.g. "How did McLaren finish in Singapore?")
+        # 5. Driver Comparison Query (e.g. "Compare Verstappen and Norris at Silverstone")
+        elif requested_metric == "comparison" or intent_name == "comparison":
+            comp_drivers = semantic_contract.get("comparison_drivers") or []
+            driver_results = []
+            if classification:
+                for entry in classification:
+                    d_name = entry.get("driver", "")
+                    for cd in comp_drivers:
+                        if cd.lower() in d_name.lower() or d_name.lower() in cd.lower():
+                            driver_results.append(f"{entry.get('driver')} finished P{entry.get('position')}")
+                            break
+            if driver_results and len(driver_results) >= 2:
+                exec_summary = f"At the {season_val} {gp_name}, " + " while ".join(driver_results) + "."
+            elif classification and len(classification) >= 3:
+                exec_summary = f"At the {season_val} {gp_name}, P1: {classification[0]['driver']}, P2: {classification[1]['driver']}, P3: {classification[2]['driver']}."
+            else:
+                exec_summary = f"Verified race data is insufficient to complete driver comparison for the requested session."
+
+        # 6. Team Result Query (e.g. "How did McLaren finish in Singapore?")
         elif requested_metric in ("team_result",) or (target_team and intent_name == "team_result"):
             team_entries = []
             if target_team and classification:
@@ -1400,7 +1563,7 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
             elif winner_name:
                 exec_summary = f"{winner_name} won the {season_val} {gp_name}."
 
-        # 5. Fastest Lap Query
+        # 7. Fastest Lap Query
         elif requested_metric == "fastest_lap":
             telemetry_data = evidence.get("telemetry_tool") or {}
             fastest_lap_info = telemetry_data.get("fastest_lap") or race_data.get("fastest_lap")
@@ -1413,11 +1576,53 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
             else:
                 exec_summary = f"No verified fastest-lap telemetry data is available for the requested session."
 
-        # 6. Race Winner (Default ONLY when requested metric is winner)
+        # 8. Telemetry & Telemetry Comparison Query
+        elif requested_metric in ("telemetry", "telemetry_comparison") or intent_name in ("telemetry", "telemetry_comparison"):
+            telem_data = evidence.get("telemetry_tool") or {}
+            status = telem_data.get("status")
+            if status == "success":
+                drv_a = telem_data.get("driver", "Driver A")
+                lap_a = telem_data.get("lap_number")
+                lap_time_a = telem_data.get("lap_time_s")
+                s1_a, s2_a, s3_a = telem_data.get("sector1_s"), telem_data.get("sector2_s"), telem_data.get("sector3_s")
+                
+                drv_b = telem_data.get("comparative_driver_id")
+                lap_b = telem_data.get("comparative_lap_number")
+                lap_time_b = telem_data.get("comparative_lap_time_s")
+                s1_b, s2_b, s3_b = telem_data.get("comparative_sector1_s"), telem_data.get("comparative_sector2_s"), telem_data.get("comparative_sector3_s")
+                
+                gp_name = race_data.get("grand_prix") or "British GP"
+                season_val = race_data.get("season") or 2024
+                
+                if drv_b and lap_time_b:
+                    delta_lap = telem_data.get("delta_lap_time_s")
+                    delta_str = f"{abs(delta_lap):.3f}s {'faster' if delta_lap < 0 else 'slower'}" if delta_lap is not None else ""
+                    sector_parts = []
+                    if s1_a is not None and s1_b is not None:
+                        d1 = round(s1_a - s1_b, 3)
+                        sector_parts.append(f"S1: {s1_a}s vs {s1_b}s ({'+' if d1 > 0 else ''}{d1}s)")
+                    if s2_a is not None and s2_b is not None:
+                        d2 = round(s2_a - s2_b, 3)
+                        sector_parts.append(f"S2: {s2_a}s vs {s2_b}s ({'+' if d2 > 0 else ''}{d2}s)")
+                    if s3_a is not None and s3_b is not None:
+                        d3 = round(s3_a - s3_b, 3)
+                        sector_parts.append(f"S3: {s3_a}s vs {s3_b}s ({'+' if d3 > 0 else ''}{d3}s)")
+                    sector_summary = ", ".join(sector_parts) if sector_parts else ""
+                    
+                    exec_summary = f"At the {season_val} {gp_name}, {drv_a}'s lap {lap_a} time was {lap_time_a}s compared to {drv_b}'s lap {lap_b} time of {lap_time_b}s (delta: {delta_str}). {sector_summary}."
+                elif lap_time_a:
+                    exec_summary = f"At the {season_val} {gp_name}, {drv_a}'s lap {lap_a} time was {lap_time_a}s (S1: {s1_a}s, S2: {s2_a}s, S3: {s3_a}s)."
+                else:
+                    exec_summary = "No verified telemetry data is available for this comparison."
+            else:
+                exec_summary = "No verified telemetry data is available for this comparison."
+
+        # 9. Race Winner (Default ONLY when requested metric is winner)
         elif winner_name:
             exec_summary = f"{winner_name} won the {season_val} {gp_name}."
         else:
             exec_summary = explanations.get("intermediate") or "No verified race data exists for this request."
+
 
         investigation_report = {
             "Executive Summary": exec_summary,
@@ -1572,14 +1777,32 @@ def run_ai_race_engineer(
         synthesizer_input = final_state.get("evidence", {})
         final_answer = final_state.get("final_answer", "")
         
+        contract_info = final_state.get("semantic_contract") or {}
+        contract_entities = contract_info.get("entities") or {}
+        season_diag = contract_entities.get("season") or contract_info.get("season")
+        gp_diag = contract_entities.get("grand_prix") or contract_info.get("grand_prix")
+        drvs_diag = contract_info.get("comparison_drivers") or ([contract_entities.get("driver")] if contract_entities.get("driver") else [])
+        
+        params_sent = trace.get("timelines", {}).get("parameters_sent", {})
+        exec_sess = params_sent.get(executed_tools[0] if executed_tools else "", {}).get("session_id") if executed_tools else "None"
+        
         logger.info(
-            f"\n=================================================\n"
+            f"\n================ STRUCTURED DIAGNOSTICS ================\n"
+            f"INPUT: {question}\n"
+            f"CONTRACT: season={season_diag}, grand_prix={gp_diag}, drivers={drvs_diag}, metric={contract_info.get('requested_metric')}\n"
+            f"RESOLUTION: session_id={trace.get('resolved_session_id', 'N/A')}\n"
+            f"PLANNER: session_id={plan_data.get('execution_order', [''])[0] if plan_data.get('execution_order') else 'N/A'}\n"
+            f"EXECUTION: session_id={exec_sess}\n"
+            f"========================================================\n"
+
+
+
             f"REQUEST: {question}\n"
             f"Detected Intent: {detected_intent}\n"
             f"Planner Output: {planner_output}\n"
             f"Execution Order: {plan_data.get('execution_order', [])}\n"
             f"Executed Tools: {executed_tools}\n"
-            f"Parameters Sent: {trace.get('timelines', {}).get('parameters_sent', {})}\n"
+            f"Parameters Sent: {params_sent}\n"
             f"Tool Return Values: {final_state.get('evidence', {})}\n"
             f"Evidence Keys: {collected_evidence_keys}\n"
             f"Synthesizer Input: {synthesizer_input}\n"

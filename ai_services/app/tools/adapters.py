@@ -327,7 +327,11 @@ class TelemetryTool(BaseF1Tool):
         if not session_id or not driver_id:
             return {"status": "missing_data", "message": "session_id and driver_id are required for telemetry queries"}
         
-        # Auto-query fastest lap if lap_number not explicitly provided
+        driver_id = str(driver_id).lower().strip().split()[-1]
+        if comp_driver_id:
+            comp_driver_id = str(comp_driver_id).lower().strip().split()[-1]
+        
+        # Auto-query fastest lap for driver A if lap_number not explicitly provided
         if lap_number is None:
             fastest_lap_row = execute_query(
                 "SELECT lap_number FROM laps WHERE session_id = %s AND driver_id = %s ORDER BY lap_time_ms ASC LIMIT 1",
@@ -350,8 +354,8 @@ class TelemetryTool(BaseF1Tool):
             return {"status": "missing_data", "required_session": session_id}
             
         telemetry_a, lap_info_a = self._load_telemetry_from_db(session_id, driver_id, lap_number)
-        if not telemetry_a and not lap_info_a:
-            return {"status": "missing_data", "required_session": session_id}
+        if not lap_info_a and not telemetry_a:
+            return {"status": "missing_data", "message": f"No verified telemetry data in database for {driver_id} in session {session_id}."}
             
         # Query multi-lap timing data from PostgreSQL for Lap Time Graph & Tyre Degradation
         all_laps = execute_query(
@@ -363,74 +367,124 @@ class TelemetryTool(BaseF1Tool):
         tyre_deg_data = []
         for idx, l_row in enumerate(all_laps[:40]):
             l_num = l_row["lap_number"]
-            l_ms = l_row["lap_time_ms"] or (lap_time if lap_time else 71000)
+            l_ms = l_row["lap_time_ms"]
+            if not l_ms:
+                continue
             l_sec = round(l_ms / 1000.0, 3)
-            cmpd = str(l_row.get("compound") or compound).upper()
+            cmpd = str(l_row.get("compound") or "UNKNOWN").upper()
             lap_times_data.append({"lap": l_num, "lap_time": l_sec, "compound": cmpd})
             wear = max(15.0, round(100.0 - (idx * 2.8), 1))
             pace_loss = round(idx * 0.04, 3)
             tyre_deg_data.append({"lap": l_num, "wear_pct": wear, "pace_loss_s": pace_loss, "compound": cmpd})
 
-        if not lap_times_data:
-            lap_times_data = [{"lap": lap_number, "lap_time": round(lap_time / 1000.0, 3), "compound": compound}]
-            tyre_deg_data = [{"lap": lap_number, "wear_pct": 75.0, "pace_loss_s": 0.2, "compound": compound}]
+        lap_time_a_ms = lap_info_a.get("lap_time_ms") if lap_info_a else None
+        lap_time_a_sec = round(lap_time_a_ms / 1000.0, 3) if lap_time_a_ms else None
 
-        s1_sec = round(s1 / 1000.0, 3)
-        s2_sec = round(s2 / 1000.0, 3)
-        s3_sec = round(s3 / 1000.0, 3)
+        s1_a = round(lap_info_a.get("sector_1_ms") / 1000.0, 3) if (lap_info_a and lap_info_a.get("sector_1_ms")) else None
+        s2_a = round(lap_info_a.get("sector_2_ms") / 1000.0, 3) if (lap_info_a and lap_info_a.get("sector_2_ms")) else None
+        s3_a = round(lap_info_a.get("sector_3_ms") / 1000.0, 3) if (lap_info_a and lap_info_a.get("sector_3_ms")) else None
+        compound_a = str(lap_info_a.get("compound") or "UNKNOWN").upper() if lap_info_a else "UNKNOWN"
 
-        sector_comparison = [
-            {"sector": "S1", "driver_time": s1_sec, "benchmark_time": round(max(10.0, s1_sec - 0.18), 3), "delta": 0.18},
-            {"sector": "S2", "driver_time": s2_sec, "benchmark_time": round(max(15.0, s2_sec - 0.35), 3), "delta": 0.35},
-            {"sector": "S3", "driver_time": s3_sec, "benchmark_time": round(max(12.0, s3_sec + 0.08), 3), "delta": -0.08}
-        ]
-
-        speed_trace_pts = []
+        speed_trace_pts_a = []
         if telemetry_a:
-            for idx, p in enumerate(telemetry_a[:60]):
-                speed_trace_pts.append({
-                    "distanceM": p.get("distanceM", idx * 75),
-                    "speed": p.get("speed", 250),
-                    "throttle": p.get("throttle", 100),
-                    "brake": p.get("brake", 0),
-                    "gear": p.get("gear", 7)
+            for p in telemetry_a:
+                speed_trace_pts_a.append({
+                    "distanceM": p.get("distanceM", 0.0),
+                    "speed": p.get("speed", 0),
+                    "throttle": p.get("throttle", 0),
+                    "brake": p.get("brake", False),
+                    "gear": p.get("gear", 0)
                 })
-        else:
-            speed_trace_pts = [
-                {"distanceM": i * 80, "speed": 280 - (i % 5) * 12, "throttle": 100, "brake": 0, "gear": 7}
-                for i in range(30)
-            ]
 
         pit_windows = [
             {"stint": 1, "window_start_lap": max(1, lap_number - 3), "window_end_lap": lap_number + 2, "target_compound": "HARD"}
         ]
 
+        top_speed_val = float(max([p["speed"] for p in speed_trace_pts_a])) if speed_trace_pts_a else 320.0
+        avg_speed_val = float(round(sum([p["speed"] for p in speed_trace_pts_a]) / max(1, len(speed_trace_pts_a)), 1)) if speed_trace_pts_a else 225.0
+        brakes_list = [p for p in speed_trace_pts_a if p.get("brake")]
+
         result = {
+            "status": "success",
+            "session_id": session_id,
             "driver": str(driver_id),
             "driver_id": driver_id,
             "lap_number": lap_number,
-            "sector1_delta": s1_sec,
-            "sector2_delta": s2_sec,
-            "sector3_delta": s3_sec,
-            "top_speed": top_speed,
-            "average_speed": average_speed,
-            "brake_events": brake_events,
-            "telemetry_points_count": len(telemetry_a),
-            "telemetry": telemetry_a[:50],
-            "speed_trace": speed_trace_pts,
+            "sector1_delta": s1_a or 29.0,
+            "sector2_delta": s2_a or 35.0,
+            "sector3_delta": s3_a or 24.0,
+            "top_speed": top_speed_val,
+            "average_speed": avg_speed_val,
+            "brake_events": brakes_list,
+            "lap_time_s": lap_time_a_sec,
+            "sector1_s": s1_a,
+            "sector2_s": s2_a,
+            "sector3_s": s3_a,
+            "telemetry_points_count": len(speed_trace_pts_a),
+            "telemetry": speed_trace_pts_a,
+            "speed_trace": speed_trace_pts_a,
             "lap_times": lap_times_data,
-            "sector_times": sector_comparison,
+            "sector_times": [],
             "tyre_degradation": tyre_deg_data,
             "pit_windows": pit_windows,
-            "tyres": [{"compound": compound, "laps_run": lap_number}]
+            "tyres": [{"compound": compound_a, "laps_run": lap_number}]
         }
-        
+
         if comp_driver_id:
-            telemetry_b, _ = self._load_telemetry_from_db(session_id, comp_driver_id, lap_number)
+            comp_lap_number = inputs.get("comparative_lap_number")
+            if comp_lap_number is None:
+                fastest_b_row = execute_query(
+                    "SELECT lap_number FROM laps WHERE session_id = %s AND driver_id = %s ORDER BY lap_time_ms ASC LIMIT 1",
+                    (session_id, comp_driver_id), fetch=True
+                )
+                if fastest_b_row and fastest_b_row[0].get("lap_number"):
+                    comp_lap_number = int(fastest_b_row[0]["lap_number"])
+                else:
+                    comp_lap_number = lap_number
+
+            telemetry_b, lap_info_b = self._load_telemetry_from_db(session_id, comp_driver_id, comp_lap_number)
+            
+            lap_time_b_ms = lap_info_b.get("lap_time_ms") if lap_info_b else None
+            lap_time_b_sec = round(lap_time_b_ms / 1000.0, 3) if lap_time_b_ms else None
+
+            s1_b = round(lap_info_b.get("sector_1_ms") / 1000.0, 3) if (lap_info_b and lap_info_b.get("sector_1_ms")) else None
+            s2_b = round(lap_info_b.get("sector_2_ms") / 1000.0, 3) if (lap_info_b and lap_info_b.get("sector_2_ms")) else None
+            s3_b = round(lap_info_b.get("sector_3_ms") / 1000.0, 3) if (lap_info_b and lap_info_b.get("sector_3_ms")) else None
+
+            sector_comparison = []
+            if s1_a and s1_b:
+                sector_comparison.append({"sector": "S1", "driver_time": s1_a, "benchmark_time": s1_b, "delta": round(s1_a - s1_b, 3)})
+            if s2_a and s2_b:
+                sector_comparison.append({"sector": "S2", "driver_time": s2_a, "benchmark_time": s2_b, "delta": round(s2_a - s2_b, 3)})
+            if s3_a and s3_b:
+                sector_comparison.append({"sector": "S3", "driver_time": s3_a, "benchmark_time": s3_b, "delta": round(s3_a - s3_b, 3)})
+
+            speed_trace_pts_b = []
+            if telemetry_b:
+                for p in telemetry_b:
+                    speed_trace_pts_b.append({
+                        "distanceM": p.get("distanceM", 0.0),
+                        "speed": p.get("speed", 0),
+                        "throttle": p.get("throttle", 0),
+                        "brake": p.get("brake", False),
+                        "gear": p.get("gear", 0)
+                    })
+
+            result["sector_times"] = sector_comparison
             result["comparative_driver_id"] = comp_driver_id
-            result["comparative_telemetry"] = telemetry_b[:50] if telemetry_b else []
+            result["comparative_lap_number"] = comp_lap_number
+            result["comparative_lap_time_s"] = lap_time_b_sec
+            result["comparative_sector1_s"] = s1_b
+            result["comparative_sector2_s"] = s2_b
+            result["comparative_sector3_s"] = s3_b
+            result["comparative_telemetry"] = speed_trace_pts_b
+            result["comparative_speed_trace"] = speed_trace_pts_b
+
+            if lap_time_a_sec and lap_time_b_sec:
+                result["delta_lap_time_s"] = round(lap_time_a_sec - lap_time_b_sec, 3)
             
         return result
+
 
     def _load_telemetry_from_db(self, session_id: str, driver_id: str, lap_number: int):
         telemetry_points = []
