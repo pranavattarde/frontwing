@@ -110,16 +110,18 @@ class SessionResolver:
     ) -> Dict[str, Any]:
         gp_clean = cls._clean_gp_name(grand_prix)
         
-        if not gp_clean:
+        if not gp_clean and not season:
             return {
-                "status": "DATA_UNAVAILABLE",
+                "status": "success",
                 "session_id": None,
                 "rows_returned": 0,
                 "fastf1_downloaded": False,
-                "season": season,
+                "season": None,
                 "grand_prix": None,
-                "session_type": "Race"
+                "session_type": session_type
             }
+
+
 
 
         # If no explicit season supplied, query latest verified season for this GP from DB
@@ -130,12 +132,14 @@ class SessionResolver:
                 JOIN races r ON s.race_id = r.id
                 LEFT JOIN circuits c ON r.circuit_id = c.id
                 JOIN race_results rr ON s.id = rr.session_id
-                WHERE (c.id ILIKE %s OR c.name ILIKE %s OR r.name ILIKE %s OR r.id ILIKE %s)
+                WHERE (c.id ILIKE %s OR c.name ILIKE %s OR r.name ILIKE %s OR r.id ILIKE %s OR c.country ILIKE %s)
+                  AND r.year <= 2025
                 GROUP BY r.year, r.id
-                HAVING COUNT(rr.id) >= 10
+                HAVING COUNT(DISTINCT rr.driver_id) >= 15
                 ORDER BY r.year DESC LIMIT 1
             """
-            latest_gp_row = execute_query(sql_latest, (f"%{gp_clean}%", f"%{gp_clean}%", f"%{gp_clean}%", f"%{gp_clean}%"), fetch=True)
+            kw = f"%{gp_clean}%"
+            latest_gp_row = execute_query(sql_latest, (kw, kw, kw, kw, kw), fetch=True)
             if latest_gp_row and latest_gp_row[0].get("year"):
                 target_year = int(latest_gp_row[0]["year"])
             else:
@@ -143,14 +147,16 @@ class SessionResolver:
                     SELECT r.year FROM races r
                     JOIN sessions s ON s.race_id = r.id
                     JOIN race_results rr ON s.id = rr.session_id
+                    WHERE r.year <= 2025
                     GROUP BY r.year, r.id
-                    HAVING COUNT(rr.id) >= 10
+                    HAVING COUNT(DISTINCT rr.driver_id) >= 15
                     ORDER BY r.year DESC LIMIT 1
                 """, fetch=True)
                 if latest_row and latest_row[0].get("year"):
                     target_year = int(latest_row[0]["year"])
                 else:
                     target_year = 2024
+
 
         else:
             try:
@@ -190,6 +196,7 @@ class SessionResolver:
                 load_res = collector.load_session(target_year, grand_prix or gp_clean, stype_str)
                 if load_res and load_res.get("session_id"):
                     session_id = load_res["session_id"]
+                    has_results = True
             except Exception as e:
                 logger.warning(f"[SessionResolver] FastF1 download exception: {e}")
 
@@ -236,29 +243,42 @@ class SessionResolver:
                 clean_raw = re.sub(r"\b(grand prix|gp|race)\b", "", raw_gp, flags=re.IGNORECASE).strip()
                 tokens.extend(clean_raw.lower().split())
             
-            for token in tokens:
+            for token in list(tokens):
                 if not token or len(token) < 3:
                     continue
-                sub_token = token
-                sql = """
-                    SELECT s.id FROM sessions s
-                    JOIN races r ON s.race_id = r.id
-                    LEFT JOIN circuits c ON r.circuit_id = c.id
-                    WHERE (r.year = %s)
-                      AND (
-                        c.id ILIKE %s OR c.name ILIKE %s OR c.location ILIKE %s
-                        OR r.name ILIKE %s OR r.id ILIKE %s
-                      )
-                      AND (s.type ILIKE %s OR s.id ILIKE %s)
-                    LIMIT 1
-                """
-                res = execute_query(
-                    sql,
-                    (year, f"%{sub_token}%", f"%{sub_token}%", f"%{sub_token}%", f"%{sub_token}%", f"%{sub_token}%", f"%{stype_str}%", f"%{stype_str.lower()}%"),
-                    fetch=True
-                )
-                if res and len(res) > 0:
-                    return res[0]["id"]
+                sub_tokens = [token]
+                if token.endswith("ian"):
+                    sub_tokens.append(token[:-3])
+                elif token.endswith("an"):
+                    sub_tokens.append(token[:-2])
+                if "sao paulo" in token or token == "sao paulo":
+                    sub_tokens.append("paulo")
+                if token == "brazilian" or token == "brazil":
+                    sub_tokens.append("brazil")
+
+                for sub_token in sub_tokens:
+                    if not sub_token or len(sub_token) < 3:
+                        continue
+                    sql = """
+                        SELECT s.id FROM sessions s
+                        JOIN races r ON s.race_id = r.id
+                        LEFT JOIN circuits c ON r.circuit_id = c.id
+                        WHERE (r.year = %s)
+                          AND (
+                            c.id ILIKE %s OR c.name ILIKE %s OR c.location ILIKE %s OR c.country ILIKE %s
+                            OR r.name ILIKE %s OR r.id ILIKE %s
+                          )
+                          AND (s.type ILIKE %s OR s.id ILIKE %s)
+                        LIMIT 1
+                    """
+                    res = execute_query(
+                        sql,
+                        (year, f"%{sub_token}%", f"%{sub_token}%", f"%{sub_token}%", f"%{sub_token}%", f"%{sub_token}%", f"%{sub_token}%", f"%{stype_str}%", f"%{stype_str.lower()}%"),
+                        fetch=True
+                    )
+                    if res and len(res) > 0:
+                        return res[0]["id"]
+
         except Exception as e:
             logger.debug(f"[SessionResolver] DB session lookup exception: {e}")
         return None

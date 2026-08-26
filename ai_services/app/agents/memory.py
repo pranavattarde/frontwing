@@ -133,6 +133,9 @@ class PostgresConversationMemory(BaseConversationMemory):
         resolved_lap = past_lap
 
         # Direct explicit entity overrides
+        if current_entities.get("grand_prix"):
+            resolved_session_id = None
+
         if current_entities.get("drivers"):
             new_drv = current_entities["drivers"][0]
             if resolved_driver_id and new_drv != resolved_driver_id:
@@ -145,6 +148,7 @@ class PostgresConversationMemory(BaseConversationMemory):
 
         if current_entities.get("team"):
             resolved_team = current_entities["team"]
+
 
 
         # Conversational Follow-up Resolution Patterns:

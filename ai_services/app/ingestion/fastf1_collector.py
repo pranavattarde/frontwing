@@ -10,11 +10,15 @@ from ..core.db import execute_query
 
 def safe_execute_query(query: str, params: tuple = (), fetch: bool = False) -> Any:
     """Executes database queries safely, falling back gracefully if PostgreSQL is offline."""
+    from ..core.db import _db_last_fail, _DB_FAIL_COOLDOWN
+    import time
+    if time.time() - _db_last_fail < _DB_FAIL_COOLDOWN:
+        return [] if fetch else None
     try:
         return execute_query(query, params, fetch=fetch)
     except Exception as e:
         logger.debug(f"[FastF1Collector] DB query execution bypassed (offline mode): {e}")
-        return None if fetch else True
+        return [] if fetch else None
 
 class FastF1Collector(BaseCollector):
     _ingested_sessions_cache = set()
@@ -105,11 +109,11 @@ class FastF1Collector(BaseCollector):
             "message": "Session data populated into PostgreSQL."
         }
 
-    def collect(self, year: int, gp_name: str, session_type: str = "R") -> fastf1.core.Session:
-        """Downloads and loads an entire F1 session data package with weather enabled."""
+    def collect(self, year: int, gp_name: str, session_type: str = "R", load_telemetry: bool = False) -> fastf1.core.Session:
+        """Downloads and loads an F1 session data package."""
         logger.info(f"[{self.name}] Fetching session {year} {gp_name} - {session_type} from FastF1")
         session = fastf1.get_session(year, gp_name, session_type)
-        session.load(telemetry=True, laps=True, weather=True)
+        session.load(telemetry=load_telemetry, laps=True, weather=False)
         return session
 
     def validate(self, session: fastf1.core.Session) -> bool:

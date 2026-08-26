@@ -90,29 +90,31 @@ const { runDatabaseMigrations } = require('./services/migration.service');
 async function startServer() {
   console.log('[Server] Initializing FrontWing Express Backend...');
   
+  // 1. Validate Database connectivity & run migrations
+  console.log('[Server] Connecting to PostgreSQL database...');
   try {
-    // 1. Validate Database connectivity & run migrations
-    console.log('[Server] Connecting to PostgreSQL database...');
     const dbClient = await pool.connect();
     console.log('[Server] PostgreSQL database connected successfully');
     dbClient.release();
-
     await runDatabaseMigrations();
+  } catch (dbErr) {
+    console.warn('[Server] PostgreSQL connection unavailable (offline mode):', dbErr.message);
+  }
 
-    // 2. Validate Redis connectivity
-    console.log('[Server] Connecting to Redis...');
+  // 2. Validate Redis connectivity
+  console.log('[Server] Connecting to Redis...');
+  try {
     await connectRedis();
     console.log('[Server] Redis connected successfully');
-
-    // 3. Start listening
-    server.listen(port, () => {
-      console.log(`[Server] FrontWing Backend server listening on port ${port}`);
-      console.log(`[Server] WebSockets enabled on ws://localhost:${port}`);
-    });
-  } catch (error) {
-    console.error('[Server] Critical startup error:', error);
-    process.exit(1);
+  } catch (redisErr) {
+    console.warn('[Server] Redis connection unavailable (offline mode):', redisErr.message);
   }
+
+  // 3. Start listening
+  server.listen(port, () => {
+    console.log(`[Server] FrontWing Backend server listening on port ${port}`);
+    console.log(`[Server] WebSockets enabled on ws://localhost:${port}`);
+  });
 }
 
 startServer();

@@ -297,11 +297,15 @@ class ReliableLLMProvider(BaseLLMProvider):
         self._plan_cache = {}
         
     def generate_plan(self, system_instruction: str, contents: str, timeout_seconds: float = 10.0) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        if os.getenv("DISABLE_LLM_PROVIDER") == "1":
+            raise LLMProviderError("LLM Provider disabled via DISABLE_LLM_PROVIDER=1")
+
         # Cache lookup for identical planning queries to reduce requests
         cache_key = (system_instruction, contents)
         if cache_key in self._plan_cache:
             logger.info("[ReliableLLMProvider] Cache hit for identical planning query.")
             return self._plan_cache[cache_key]
+
             
         retries = 0
         backoff = 0.5 # start backoff at 500ms
@@ -390,8 +394,12 @@ class ReliableLLMProvider(BaseLLMProvider):
         raise LLMProviderError(fatal_error_msg)
 
     def generate_response(self, system_instruction: str, contents: str, response_mime_type: str = "text/plain", timeout_seconds: float = 10.0) -> Tuple[str, Dict[str, Any]]:
+        if os.getenv("DISABLE_LLM_PROVIDER") == "1":
+            raise LLMProviderError("LLM Provider disabled via DISABLE_LLM_PROVIDER=1")
+
         # General non-planning response generator
         retries = 0
+
         backoff = 0.5
         errors_logged = []
         

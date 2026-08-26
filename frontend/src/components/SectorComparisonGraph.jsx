@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 export function SectorComparisonGraph({
   data,
   driverCode = "DRIVER",
+  comparativeDriverCode,
   className
 }) {
   if (!data || data.length === 0) {
@@ -9,9 +10,13 @@ export function SectorComparisonGraph({
         NO_SECTOR_COMPARISON_DATA
       </div>;
   }
+  const codeA = String(driverCode || "DRIVER").toUpperCase();
+  const codeB = comparativeDriverCode ? String(comparativeDriverCode).toUpperCase() : null;
+  const vsLabel = codeB ? `${codeA} vs ${codeB}` : `${codeA} vs BENCHMARK`;
+
   return <div className={cn("bg-panel border border-fw-border rounded-card p-4 flex flex-col gap-4", className)}><div className="flex justify-between items-center text-mono-meta font-mono"><span className="text-text-primary font-semibold tracking-wider flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-drs-cyan" />
           SECTOR_TIME_COMPARISON // DELTA_ANALYSIS
-        </span><span className="text-text-muted font-mono text-[10px]">{driverCode.toUpperCase()} vs BENCHMARK</span></div><div className="grid grid-cols-3 gap-3">{data.map((s) => {
+        </span><span className="text-text-muted font-mono text-[10px]">{vsLabel}</span></div><div className="grid grid-cols-3 gap-3">{data.map((s) => {
     const isFaster = s.delta <= 0;
     const deltaStr = isFaster ? `${s.delta.toFixed(3)}s` : `+${s.delta.toFixed(3)}s`;
     return <div

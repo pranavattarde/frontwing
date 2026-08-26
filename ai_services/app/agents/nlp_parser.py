@@ -236,8 +236,12 @@ def parse_semantic_query(raw_query: str, history: Optional[List[Dict[str, Any]]]
     q_norm = preprocessed["normalized"]
     q_lower = preprocessed["normalized_lower"]
     
+    if os.getenv("DISABLE_LLM_PROVIDER") == "1":
+        return _fallback_semantic_parser(preprocessed)
+
     # Try LLM-based Semantic Parser via reliable_llm_provider
     try:
+
         user_prompt = f"User Query: {q_norm}"
         if history:
             user_prompt += f"\nConversation Context: {json.dumps(history[-2:])}"
@@ -462,39 +466,60 @@ def _fallback_semantic_parser(preprocessed: Dict[str, str]) -> SemanticQueryCont
         requested_metric = "team_result"
         intent = "team_result"
         
-    # Find all drivers mentioned
-    matched_drivers = []
+    # Find all drivers mentioned, preserving user query appearance order
+    driver_matches = []
     for alias, d_name in F1_DRIVER_ALIAS_MAP.items():
-        if re.search(r'\b' + re.escape(alias) + r'\b', q_lower) and d_name not in matched_drivers:
+        m = re.search(r'\b' + re.escape(alias) + r'\b', q_lower)
+        if m:
+            driver_matches.append((m.start(), d_name))
+            
+    driver_matches.sort(key=lambda x: x[0])
+    matched_drivers = []
+    for pos, d_name in driver_matches:
+        if d_name not in matched_drivers:
             matched_drivers.append(d_name)
+            
     comparison_drivers = matched_drivers
 
-    # Check Telemetry & Telemetry Comparison
-    is_telemetry_query = any(k in q_lower for k in ["telemetry", "lap time", "lap times", "sector", "speed", "delta", "gain time", "faster"])
-    is_comparison_query = any(k in q_lower for k in ["compare", "vs", "versus", "comparison", "between", "difference"]) or len(comparison_drivers) > 1
 
-    if is_telemetry_query and is_comparison_query:
+    # Check Knowledge / Explanation Queries (Concept definitions, regulations, tyres, technical terms)
+    is_knowledge_term = any(k in q_lower for k in ["understeer", "oversteer", "drs", "tyre", "tyres", "tire", "tires", "compound", "undercut", "overcut", "dirty air", "slipstream", "downforce", "aerodynamics", "regulations"])
+    is_explanation_prefix = any(q_lower.startswith(prefix) for prefix in ["what is", "explain", "how does", "what are", "define"]) or "explain" in q_lower or "what is" in q_lower
+
+    # Check Strategy & Simulation
+    is_strategy_query = any(k in q_lower for k in ["strategy", "pit stop", "stint", "wear", "degradation", "why did he pit", "pit strategy"])
+    is_simulation_query = any(k in q_lower for k in ["what if", "simulate", "pitted 5 laps", "pitted earlier", "pitted later"])
+
+    # Check Telemetry & Driver Comparison
+    is_telemetry_query = any(k in q_lower for k in ["telemetry", "lap time", "lap timing", "lap times", "sector", "speed", "delta", "gain time", "faster"])
+    is_driver_comparison = len(comparison_drivers) >= 2 or (len(comparison_drivers) == 1 and any(k in q_lower for k in ["compare", "vs", "versus", "against", "faster than", "gap to"])) or (any(k in q_lower for k in ["compare", "versus", "vs"]) and is_telemetry_query)
+
+    if is_simulation_query:
+        intent = "simulation"
+        requested_metric = "simulation"
+        aggregation = "single"
+    elif is_strategy_query:
+        intent = "strategy"
+        requested_metric = "strategy"
+        aggregation = "single"
+    elif is_driver_comparison or (is_telemetry_query and len(comparison_drivers) >= 1):
         intent = "telemetry_comparison"
         requested_metric = "telemetry_comparison"
         aggregation = "comparison"
     elif is_telemetry_query:
         intent = "telemetry"
         requested_metric = "telemetry"
-    # Check Comparison
-    elif is_comparison_query:
-        intent = "comparison"
-        requested_metric = "comparison"
-        aggregation = "comparison"
-        
-    # Check Explanation
-    elif any(k in q_lower for k in ["explain", "what is", "drs", "undercut", "overcut"]):
-        intent = "explanation"
-        requested_metric = "explanation"
-        
-    # Check Investigation
-    elif any(k in q_lower for k in ["why", "reason", "fail", "investigate", "crash", "retire"]):
-        intent = "investigation"
-        requested_metric = "investigation"
+    elif is_explanation_prefix or is_knowledge_term or (not driver and not gp and not season and len(comparison_drivers) == 0):
+        intent = "knowledge"
+        requested_metric = "knowledge"
+        aggregation = "single"
+    elif intent in ("fastest_lap", "points", "driver_position", "team_result") or requested_metric in ("fastest_lap", "points", "driver_at_position", "finishing_position", "podium"):
+        intent = "historical_fact"
+    else:
+        # Default for factual or unspecified race queries
+        intent = "historical_fact"
+        requested_metric = requested_metric or "historical_fact"
+
         
     entities = {
         "grand_prix": gp,

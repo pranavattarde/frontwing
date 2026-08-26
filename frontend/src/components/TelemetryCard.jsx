@@ -127,15 +127,22 @@ export function TelemetryCard({
   };
   const ptA = activeHoverDist !== null ? getPointAtDist(driverA.data, activeHoverDist) : null;
   const ptB = activeHoverDist !== null && driverB ? getPointAtDist(driverB.data, activeHoverDist) : null;
+  const formatVal = (point, met) => {
+    if (!point || point[met] === undefined || point[met] === null) return "N/A";
+    const raw = point[met];
+    const num = typeof raw === "boolean" ? (raw ? 100 : 0) : Number(raw);
+    return isNaN(num) ? "N/A" : num.toFixed(0);
+  };
   return <div
     ref={containerRef}
     className="evidence-card p-3 flex flex-col justify-between select-none relative"
     style={{ height }}
   >{
     /* Top Header Row */
-  }<div className="flex justify-between items-center text-mono-meta font-mono"><div className="flex items-center gap-2"><span className="text-text-primary font-semibold uppercase">{metric.toUpperCase()}_TRACE // {driverA.code}{driverB && ` vs ${driverB.code}`}</span><span className="text-text-muted">LAP {lapNumber}</span>{highlightZone && <span className="text-drs-cyan bg-drs-cyan/10 px-1 border border-drs-cyan/20 rounded-sm">
+  }<div className="flex justify-between items-center text-mono-meta font-mono"><div className="flex items-center gap-2"><span className="text-text-primary font-semibold uppercase">{String(metric || "SPEED").toUpperCase()}_TRACE // {driverA.code}{(driverB && driverB.code) ? ` vs ${driverB.code}` : ""}</span><span className="text-text-muted">LAP {lapNumber}</span>{highlightZone && <span className="text-drs-cyan bg-drs-cyan/10 px-1 border border-drs-cyan/20 rounded-sm">
+
               ZONE_LOCK
-            </span>}</div><div className="flex items-center gap-4"><span className="text-text-muted">{trackName}</span>{onExpand && <button
+            </span>}</div><div className="flex items-center gap-4"><span className="text-text-muted">{trackName || "Circuit"}</span>{onExpand && <button
     onClick={onExpand}
     className="text-text-muted hover:text-text-primary hover:underline transition-colors"
   >
@@ -161,7 +168,7 @@ export function TelemetryCard({
       left: `${activeHoverDist / totalDistance * dimensions.width + 12}px`,
       transform: activeHoverDist / totalDistance * dimensions.width > dimensions.width - 150 ? "translateX(-110%)" : "none"
     }}
-  ><div className="text-text-primary font-semibold">DIST: {activeHoverDist}m</div><div className="flex items-center gap-1.5" style={{ color: "#00E5FF" }}><span>{driverA.code}:</span><span>{ptA ? `${ptA[metric].toFixed(0)}` : "N/A"}</span>{metric === "speed" && "km/h"}{metric === "throttle" && "%"}{metric === "brake" && "bar"}</div>{driverB && ptB && <div className="flex items-center gap-1.5" style={{ color: "#FFD600" }}><span>{driverB.code}:</span><span>{ptB[metric].toFixed(0)}</span>{metric === "speed" && "km/h"}{metric === "throttle" && "%"}{metric === "brake" && "bar"}</div>}</div></>}</div>{
+  ><div className="text-text-primary font-semibold">DIST: {activeHoverDist}m</div><div className="flex items-center gap-1.5" style={{ color: "#00E5FF" }}><span>{driverA.code}:</span><span>{formatVal(ptA, metric)}</span>{metric === "speed" && "km/h"}{metric === "throttle" && "%"}{metric === "brake" && "bar"}</div>{driverB && driverB.code && ptB && <div className="flex items-center gap-1.5" style={{ color: "#FFD600" }}><span>{driverB.code}:</span><span>{formatVal(ptB, metric)}</span>{metric === "speed" && "km/h"}{metric === "throttle" && "%"}{metric === "brake" && "bar"}</div>}</div></>}</div>{
     /* Collapsed State Summary Row */
-  }{isCollapsed && <div className="flex justify-between items-center text-mono-meta font-mono text-text-muted mt-2 border-t border-fw-border pt-1"><span>0m</span><span> Spielberg Circuit </span><span>{totalDistance}m</span></div>}</div>;
+  }{isCollapsed && <div className="flex justify-between items-center text-mono-meta font-mono text-text-muted mt-2 border-t border-fw-border pt-1"><span>0m</span><span> {trackName || "Circuit"} </span><span>{totalDistance}m</span></div>}</div>;
 }

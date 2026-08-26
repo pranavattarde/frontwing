@@ -14,6 +14,24 @@ class CacheService {
     return `cache:investigation:${hash}`;
   }
 
+  static isErrorResponse(response) {
+    if (!response || typeof response !== 'object') return true;
+    if (response.error) return true;
+    if (Array.isArray(response.errors) && response.errors.length > 0) return true;
+    if (typeof response.final_answer === 'string') {
+      const fa = response.final_answer.toLowerCase();
+      if (
+        fa.includes('something went wrong') ||
+        fa.includes('internal execution error') ||
+        fa.includes('no verified telemetry data') ||
+        fa.includes('no verified race data') ||
+        fa.includes('data_unavailable')
+      ) return true;
+    }
+    if (response.intelligence_trace && Array.isArray(response.intelligence_trace.errors) && response.intelligence_trace.errors.length > 0) return true;
+    return false;
+  }
+
   static async getCachedResponse(question, session) {
     if (!redisClient.isOpen) {
       return null;
@@ -23,8 +41,13 @@ class CacheService {
       const key = this.generateCacheKey(question, session);
       const cached = await redisClient.get(key);
       if (cached) {
-        console.log(`[Cache Hit] Serving cached response for question: "${question.substring(0, 50)}..."`);
         const parsed = JSON.parse(cached);
+        if (this.isErrorResponse(parsed)) {
+          console.log(`[Cache Invalidation] Purging cached error response for question: "${question.substring(0, 50)}..."`);
+          await redisClient.del(key);
+          return null;
+        }
+        console.log(`[Cache Hit] Serving cached response for question: "${question.substring(0, 50)}..."`);
         return {
           ...parsed,
           _cached: true,
@@ -46,6 +69,11 @@ class CacheService {
       return;
     }
 
+    if (this.isErrorResponse(response)) {
+      console.warn(`[Cache Warning] Refusing to cache error response for question: "${question.substring(0, 50)}..."`);
+      return;
+    }
+
     try {
       const key = this.generateCacheKey(question, session);
       await redisClient.set(key, JSON.stringify(response), {
@@ -56,8 +84,24 @@ class CacheService {
       console.warn('[Cache Warning] Failed to set Redis cache:', err.message);
     }
   }
+
+  static async clearInvestigationCache() {
+    if (!redisClient.isOpen) {
+      return;
+    }
+    try {
+      const keys = await redisClient.keys('cache:investigation:*');
+      if (keys && keys.length > 0) {
+        await redisClient.del(keys);
+        console.log(`[Cache Invalidation] Flushed ${keys.length} investigation cache keys.`);
+      }
+    } catch (err) {
+      console.warn('[Cache Warning] Failed to clear investigation cache:', err.message);
+    }
+  }
 }
 
 module.exports = {
   CacheService
 };
+

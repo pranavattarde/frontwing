@@ -23,7 +23,8 @@ export function StrategyTimeline({
           backgroundColor: tireColor,
           color: stint.compound === "hard" ? "#090A0C" : "#F3F5F7"
         }}
-        title={`${driverCode} Stint ${idx + 1}: ${stint.compound.toUpperCase()} (Laps ${stint.startLap}-${stint.endLap}, Wear: ${stint.wearSlope.toFixed(3)}s/lap)`}
+        title={`${driverCode} Stint ${idx + 1}: ${String(stint?.compound || "MEDIUM").toUpperCase()} (Laps ${stint.startLap}-${stint.endLap}, Wear: ${stint.wearSlope ? stint.wearSlope.toFixed(3) : "0.000"}s/lap)`}
+
       ><span className="font-semibold text-[10px] sm:text-xs">{tireLabel}{stint.startLap}-{stint.endLap}</span>{
         /* Stint details popover on hover */
       }<div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:flex flex-col items-center z-50"><div className="bg-panel border border-fw-border-active rounded-card p-2 text-text-primary text-[10px] leading-tight shadow-lg pointer-events-none whitespace-nowrap"><p className="font-semibold uppercase text-drs-cyan">{stint.compound} COMPOUND</p><p>Laps: {stint.startLap} - {stint.endLap} ({stintLaps} laps)</p><p>Degradation: {stint.wearSlope.toFixed(3)} s/lap</p></div><div className="w-1.5 h-1.5 bg-panel border-r border-b border-fw-border-active rotate-45 -mt-1" /></div></div>;

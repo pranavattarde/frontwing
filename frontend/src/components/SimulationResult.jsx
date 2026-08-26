@@ -20,7 +20,8 @@ export function SimulationResult({
   >{
     /* Header Row */
   }<div className="flex justify-between items-center text-mono-meta font-mono mb-3"><span className="text-text-primary font-semibold uppercase tracking-wider">
-          SIMULATION_RESULT // {simType.toUpperCase()}</span><div className="flex items-center gap-1.5"><span className="text-text-muted">CONFIDENCE:</span><span className="text-tire-inter font-semibold">{confidence}%</span></div></div>{
+          SIMULATION_RESULT // {String(simType || "STRATEGY").toUpperCase()}</span><div className="flex items-center gap-1.5"><span className="text-text-muted">CONFIDENCE:</span><span className="text-tire-inter font-semibold">{confidence}%</span></div></div>{
+
     /* Main Stats Block */
   }<div className="flex items-center justify-between gap-4 border-b border-fw-border pb-3"><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">POSITION_DELTA</span><div className="flex items-baseline gap-1.5 mt-0.5"><span className="text-2xl font-semibold font-data text-text-primary">
               P{simulated.position}</span><span className={cn(

@@ -137,7 +137,8 @@ ${rep["Reasoning Graph Text"]}`);
   const telemData = evidence && typeof evidence === "object" ? evidence.telemetry_tool : null;
   const simData = evidence && typeof evidence === "object" ? evidence.simulation_tool : null;
   if (telemData && (telemData.lap_times || telemData.telemetry || telemData.sector_times)) {
-    const driverCode = (telemData.driver_id || simData && simData.driver_id || "DRV").toUpperCase();
+    const driverCode = String(telemData.driver_id || (simData && simData.driver_id) || "DRV").toUpperCase();
+
     messages.push({
       id: `visualizations-${id}-${timestamp}`,
       type: "production-visualizations",
@@ -200,9 +201,12 @@ export function InvestigationThread() {
     { label: questionTitle, href: "#" }
   ];
   const lastResponse = lastResponseRef.current;
-  const sessionId = lastResponse?.evidence?.simulation_tool?.session_id || lastResponse?.evidence?.telemetry_tool?.session_id || AUSTRIAN_GP.id;
-  const trackName = lastResponse?.evidence?.telemetry_tool?.session_id ? lastResponse.evidence.telemetry_tool.session_id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : AUSTRIAN_GP.circuit;
+  const sessionId = lastResponse?.evidence?.simulation_tool?.session_id || lastResponse?.evidence?.telemetry_tool?.session_id || lastResponse?.evidence?.race_results_tool?.session_id;
+  const rawTrackName = lastResponse?.evidence?.telemetry_tool?.circuit_name || lastResponse?.evidence?.telemetry_tool?.grand_prix || lastResponse?.evidence?.race_results_tool?.grand_prix || (lastResponse?.evidence?.telemetry_tool?.session_id ? lastResponse.evidence.telemetry_tool.session_id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "Circuit");
+  const trackName = rawTrackName;
   const planningSteps = lastResponse?.planning_steps || [];
+
+
   const reasoningSteps = (planningSteps || []).map((step, idx) => {
     const [toolName, rawParams] = step.split("|");
     return {
@@ -438,8 +442,9 @@ export function InvestigationThread() {
     )}
   >{
     /* Question Header & Title Section */
-  }<div className="border-b border-fw-border pb-4 mb-6 flex flex-col gap-3"><div className="flex items-center justify-between"><span className="text-mono-meta font-mono text-drs-cyan uppercase tracking-widest">
-                INVESTIGATION_THREAD // {sessionId.toUpperCase()}</span><button
+  }<div className="border-b border-fw-border pb-4 mb-6 flex flex-col gap-3"><div className="flex items-center justify-between">            <span className="text-mono-meta font-mono text-drs-cyan uppercase tracking-widest">
+              INVESTIGATION_THREAD // {String(sessionId || id || "LIVE").toUpperCase()}
+            </span><button
     onClick={handleToggleSave}
     className={cn(
       "px-3 py-1 rounded-button font-mono text-[10px] uppercase tracking-wider border transition-colors flex items-center gap-1.5",
@@ -493,8 +498,8 @@ export function InvestigationThread() {
     }
     if (msg.type === "evidence-simulation" && msg.evidenceData) {
       const telemetryToolData = lastResponse?.evidence?.telemetry_tool;
-      const driverCodeA = telemetryToolData?.driver_id?.toUpperCase() || "PIA";
-      const driverCodeB = telemetryToolData?.comparative_driver_id?.toUpperCase() || "SAI";
+      const driverCodeA = telemetryToolData?.driver_id ? String(telemetryToolData.driver_id).toUpperCase() : "DRIVER_A";
+      const driverCodeB = telemetryToolData?.comparative_driver_id ? String(telemetryToolData.comparative_driver_id).toUpperCase() : "DRIVER_B";
       const telemetryDataA = telemetryToolData?.telemetry || [];
       const telemetryDataB = telemetryToolData?.comparative_telemetry || [];
       const lapNumber = telemetryToolData?.lap_number || 42;
@@ -523,8 +528,12 @@ export function InvestigationThread() {
     if (msg.type === "production-visualizations" && msg.evidenceData) {
       const vis = msg.evidenceData;
       const telemetryToolData = lastResponse?.evidence?.telemetry_tool;
-      const driverCodeA = telemetryToolData?.driver_id?.toUpperCase() || vis.driverCode || "VER";
+      const driverCodeA = telemetryToolData?.driver_id ? String(telemetryToolData.driver_id).toUpperCase() : (vis.driverCode ? String(vis.driverCode).toUpperCase() : "DRIVER_A");
+      const driverCodeB = telemetryToolData?.comparative_driver_id ? String(telemetryToolData.comparative_driver_id).toUpperCase() : null;
+
       const telemetryDataA = telemetryToolData?.telemetry || [];
+      const telemetryDataB = telemetryToolData?.comparative_telemetry || [];
+      const sectorTimes = (telemetryToolData?.sector_times && telemetryToolData.sector_times.length > 0) ? telemetryToolData.sector_times : vis.sectorTimes;
       const lapNumber = telemetryToolData?.lap_number || 1;
       return <div key={msg.id} className="flex flex-col gap-6 animate-slide-up"><div className="text-mono-meta font-mono text-drs-cyan uppercase tracking-widest border-b border-fw-border pb-2">
                       PRODUCTION_TELEMETRY_VISUALIZATION // 5_CHART_MATRIX
@@ -541,18 +550,21 @@ export function InvestigationThread() {
       /></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{
         /* 3. Sector Comparison */
       }<SectorComparisonGraph
-        data={vis.sectorTimes}
+        data={sectorTimes}
         driverCode={driverCodeA}
+        comparativeDriverCode={driverCodeB}
       />{
         /* 4. Speed Trace */
       }<TelemetryCard
         driverA={{ code: driverCodeA, color: "#00E5FF", data: telemetryDataA }}
+        driverB={driverCodeB ? { code: driverCodeB, color: "#FFD600", data: telemetryDataB } : null}
         metric="speed"
         lapNumber={lapNumber}
         trackName={trackName}
         variant="collapsed"
         onExpand={() => setExpandedTelemetry({
           driverA: driverCodeA,
+          driverB: driverCodeB,
           metric: "speed",
           lapNumber
         })}

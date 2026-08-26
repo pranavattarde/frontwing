@@ -10,7 +10,7 @@ REDIS_URL = settings.REDIS_URL
 import time
 
 _db_last_fail = 0.0
-_DB_FAIL_COOLDOWN = 0.5 # Seconds to skip reconnection attempts if DB is offline
+_DB_FAIL_COOLDOWN = 60.0 # Seconds to skip reconnection attempts if DB is offline
 
 def get_db_connection():
     """Returns a new connection to the PostgreSQL database."""
@@ -18,7 +18,7 @@ def get_db_connection():
     if time.time() - _db_last_fail < _DB_FAIL_COOLDOWN:
         raise ConnectionError("PostgreSQL connection circuit-breaker active (offline fallback)")
     try:
-        conn = psycopg2.connect(DATABASE_URL, connect_timeout=5)
+        conn = psycopg2.connect(DATABASE_URL, connect_timeout=1)
         return conn
     except Exception as e:
         _db_last_fail = time.time()
@@ -27,7 +27,12 @@ def get_db_connection():
 
 def execute_query(query: str, params: tuple = None, fetch: bool = False):
     """Utility method to execute a query, handle transactions, and close client resources cleanly."""
-    conn = get_db_connection()
+    try:
+        conn = get_db_connection()
+    except Exception as e:
+        logger.debug(f"Database connection unavailable: {e}")
+        return [] if fetch else None
+
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute(query, params)
@@ -40,10 +45,13 @@ def execute_query(query: str, params: tuple = None, fetch: bool = False):
     except Exception as e:
         conn.rollback()
         logger.error(f"SQL Execution Error running: '{query[:100]}': {e}")
-        raise e
+        return [] if fetch else None
     finally:
-        cur.close()
-        conn.close()
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 # 2. Redis connection pool
 try:

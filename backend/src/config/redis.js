@@ -9,8 +9,8 @@ const redisClient = createClient({
   url: redisUrl,
   socket: {
     reconnectStrategy: (retries) => {
-      // Reconnect strategy: incremental backoff capped at 3 seconds
-      return Math.min(retries * 100, 3000);
+      if (retries > 2) return new Error('Redis offline');
+      return Math.min(retries * 100, 1000);
     }
   }
 });
@@ -34,7 +34,11 @@ redisClient.on('error', (err) => {
 
 async function connectRedis() {
   if (!redisClient.isOpen) {
-    await redisClient.connect();
+    try {
+      await redisClient.connect();
+    } catch (e) {
+      console.warn('[Redis] Redis server offline:', e.message);
+    }
   }
 }
 

@@ -9,7 +9,8 @@ export function SourceViewer({
   const [showRaw, setShowRaw] = useState(false);
   return <div className={cn("bg-panel border border-fw-border rounded-card p-4 flex flex-col gap-3 select-none w-full", className)}>{
     /* Header Ticker */
-  }<div className="flex justify-between items-center border-b border-fw-border pb-2.5 mb-1 font-mono text-mono-meta"><div className="flex items-center gap-2"><span className="text-drs-cyan font-semibold uppercase">SOURCE_EVIDENCE_LOG</span><span className="text-text-muted">TYPE: {source.type.toUpperCase()}</span></div><button
+  }<div className="flex justify-between items-center border-b border-fw-border pb-2.5 mb-1 font-mono text-mono-meta"><div className="flex items-center gap-2"><span className="text-drs-cyan font-semibold uppercase">SOURCE_EVIDENCE_LOG</span><span className="text-text-muted">TYPE: {String(source?.type || "LOG").toUpperCase()}</span></div><button
+
     onClick={() => setShowRaw(!showRaw)}
     className="text-drs-cyan hover:underline"
   >{showRaw ? "[VIEW_SUMMARY]" : "[INSPECT_RAW_JSON]"}</button></div>{

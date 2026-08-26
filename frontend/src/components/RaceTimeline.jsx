@@ -49,7 +49,8 @@ export function RaceTimeline({
           isActive ? "border-fw-border-active bg-elevated/40" : "border-fw-border bg-panel group-hover:bg-elevated/20",
           TYPE_COLORS[phase.type]
         )}
-      ><div className="flex justify-between items-baseline mb-1 text-mono-meta font-mono"><span className="font-semibold uppercase tracking-wider text-[9px]">{TYPE_LABELS[phase.type] || phase.type.toUpperCase()}</span><span className="text-text-muted">
+      ><div className="flex justify-between items-baseline mb-1 text-mono-meta font-mono"><span className="font-semibold uppercase tracking-wider text-[9px]">{TYPE_LABELS[phase?.type] || String(phase?.type || "PHASE").toUpperCase()}</span><span className="text-text-muted">
+
                     LAPS {phase.startLap} - {phase.endLap}</span></div><p className="text-xs text-text-primary leading-snug">{phase.description}</p></div></motion.div>;
     })}{
       /* Incidents timeline overlay */

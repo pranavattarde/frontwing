@@ -112,10 +112,19 @@ def extract_entities(question: str) -> Dict[str, Any]:
         "hulkenberg": ["hulkenberg", "nico", "hul"],
         "sargeant": ["sargeant", "logan", "sar"]
     }
-    extracted_drivers = []
+    driver_matches = []
     for drv, aliases in drivers_map.items():
-        if any(re.search(r"\b" + re.escape(alias) + r"\b", q_lower) for alias in aliases):
+        for alias in aliases:
+            m = re.search(r"\b" + re.escape(alias) + r"\b", q_lower)
+            if m:
+                driver_matches.append((m.start(), drv))
+                break
+    driver_matches.sort(key=lambda x: x[0])
+    extracted_drivers = []
+    for pos, drv in driver_matches:
+        if drv not in extracted_drivers:
             extracted_drivers.append(drv)
+
             
     # 2. Teams / Constructors
     teams_map = {
@@ -468,18 +477,18 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
             adaptive_plan["entities"] = dict(semantic_contract["entities"])
             
         req_metric = semantic_contract.get("requested_metric")
-        if req_metric in ("winner", "finishing_position", "driver_at_position", "podium", "points", "team_result"):
-            adaptive_plan["tools"] = ["race_results_tool"]
-        elif req_metric == "fastest_lap":
-            adaptive_plan["tools"] = ["historical_results_tool"]
-        elif req_metric == "explanation":
+        intent_val = semantic_contract.get("intent")
+        if intent_val == "knowledge" or req_metric == "knowledge" or req_metric == "explanation":
             adaptive_plan["tools"] = ["explain_mode_tool"]
-        elif req_metric in ("telemetry", "telemetry_comparison") or adaptive_plan.get("intent") in ("telemetry", "telemetry_comparison"):
-            adaptive_plan["tools"] = ["telemetry_tool", "race_results_tool"]
-        elif req_metric in ("simulation", "strategy"):
+        elif intent_val == "telemetry_comparison" or req_metric == "telemetry_comparison":
+            adaptive_plan["tools"] = ["telemetry_tool"]
+        elif intent_val == "historical_fact" or req_metric in ("historical_fact", "winner", "finishing_position", "driver_at_position", "podium", "points", "team_result", "fastest_lap"):
+            adaptive_plan["tools"] = ["race_results_tool"]
+        elif intent_val in ("simulation", "strategy") or req_metric in ("simulation", "strategy"):
             adaptive_plan["tools"] = ["simulation_tool"]
         elif req_metric == "scoring":
             adaptive_plan["tools"] = ["scoring_tool", "explain_mode_tool"]
+
 
     intent_norm = adaptive_plan["intent"]
     entities = adaptive_plan["entities"]
@@ -614,8 +623,25 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         if "driver_id" not in args and driver_id:
             args["driver_id"] = driver_id
             
-        if t == "explain_mode_tool" and "term" not in args:
-            args["term"] = "CAR"
+        if t == "explain_mode_tool" and ("term" not in args or args["term"] == "CAR"):
+            def _extract_term(q_str: str) -> str:
+                ql = q_str.lower().strip()
+                if "understeer" in ql:
+                    return "UNDERSTEER"
+                if "oversteer" in ql:
+                    return "OVERSTEER"
+                if "drs" in ql:
+                    return "DRS"
+                if "soft" in ql and "hard" in ql:
+                    return "SOFT VS HARD TYRES"
+                if "tyre" in ql or "tire" in ql or "compound" in ql:
+                    return "SOFT VS HARD TYRES"
+                if "fastest lap" in ql:
+                    return "FASTEST LAP"
+                clean = re.sub(r'^(what is|explain|define|how does|what are|the|difference between|difference|f1)\b', '', ql, flags=re.IGNORECASE).strip()
+                return clean.upper() or "F1 CONCEPT"
+            args["term"] = _extract_term(question)
+
             
         arg_str = ",".join(f"{k}={v}" for k, v in args.items())
         execution_order.append(f"{t}|{arg_str}")
@@ -843,23 +869,37 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
     intent_norm = semantic_contract.get("intent") or (state.get("structured_plan") or {}).get("intent")
     req_metric = semantic_contract.get("requested_metric")
 
-    if intent_norm in ("telemetry_comparison", "comparison") or req_metric == "telemetry_comparison":
+    if intent_norm == "telemetry_comparison" or req_metric == "telemetry_comparison":
         drvs_in_contract = semantic_contract.get("comparison_drivers") or []
         drvs_in_resolved = resolved.get("driver_ids") or []
         drvs_count = max(len(drvs_in_contract), len(drvs_in_resolved))
         
         if drvs_count < 2:
             logger.info(f"[ExecuteNode] Incomplete telemetry comparison query: '{q}'. Requesting clarification for missing drivers.")
+            clar_msg = "Which drivers would you like me to compare?"
+            investigation_report = {
+                "Executive Summary": clar_msg,
+                "Evidence": [],
+                "Telemetry Findings": "No drivers specified for telemetry comparison.",
+                "Simulation Findings": "No data available.",
+                "Historical Findings": "No data available.",
+                "Alternative Scenarios": "No data available.",
+                "Final Recommendation": clar_msg,
+                "Confidence": 20.0
+            }
             return {
                 "next_step_idx": len(plan),
                 "tools_used": [],
                 "evidence": {"status": "needs_clarification"},
                 "errors": [],
-                "final_answer": "Which drivers would you like me to compare?",
+                "final_answer": clar_msg,
+                "confidence": 20.0,
                 "needs_clarification": True,
+                "investigation_report": investigation_report,
                 "intelligence_trace": trace,
                 "collaboration_graph": collaboration_graph
             }
+
 
     skipped_tools = []
     executed_tools = []
@@ -883,9 +923,10 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
                             break
                 if not drv_clean:
                     for token in val_str.replace("_", " ").split():
-                        if len(token) > 2 and token not in ("max", "lando", "lewis", "charles", "carlos", "oscar", "george", "pierre", "esteban", "alex", "yuki", "nico", "lance", "kevin", "logan", "daniel", "valtteri", "guanyu"):
+                        if len(token) > 2 and token not in ("max", "lando", "lewis", "charles", "carlos", "oscar", "george", "pierre", "esteban", "alex", "yuki", "nico", "lance", "kevin", "logan", "daniel", "valtteri", "guanyu", "fernando", "sergio", "liam", "oliver", "franco"):
                             drv_clean = token
                             break
+
                 args[k] = drv_clean or val_str
             elif "session" in k_lower:
                 res_sid = resolved.get("session_id")
@@ -912,9 +953,21 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
                     args[k] = resolved["constructor_id"]
 
                     
-        # Only inject session_id / driver_id if they were actually resolved (not None)
-        if "session_id" not in args and session_id is not None:
-            args["session_id"] = session_id
+        # Always resolve or inject session_id if missing in tool args
+        if ("session_id" not in args or not args["session_id"]):
+            res_sid = resolved.get("session_id")
+            if not res_sid:
+                from app.core.session_resolver import SessionResolver
+                gp_target = entities.get("grand_prix") or (semantic_contract.get("entities") or {}).get("grand_prix")
+                season_target = entities.get("season") or (semantic_contract.get("entities") or {}).get("season")
+                re_res = SessionResolver.resolve_session(grand_prix=gp_target, season=season_target)
+                if re_res.get("status") == "success" and re_res.get("session_id"):
+                    res_sid = re_res["session_id"]
+            if res_sid:
+                args["session_id"] = res_sid
+            elif session_id is not None:
+                args["session_id"] = session_id
+
 
         if "driver_id" not in args or not args["driver_id"]:
             if "driver1" in args and args["driver1"]:
@@ -1364,7 +1417,7 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
         if not isinstance(val, dict):
             return True
         if val.get("status") in ("missing_data", "DATA_UNAVAILABLE", "entity_not_found"):
-            return any(k in val for k in ["root_cause_analysis", "root_causes", "incidents", "cause", "classification", "winner", "drivers", "constructors", "historical_results"])
+            return any(k in val for k in ["root_cause_analysis", "root_causes", "incidents", "cause", "classification", "winner", "drivers", "constructors", "historical_results", "required_session"])
         return True
 
     has_any_evidence = any(_has_usable_evidence(v) for v in evidence.values())
@@ -1439,11 +1492,12 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
     limit_val = semantic_contract.get("limit") or 3
 
     
-    intent_name = semantic_contract.get("intent") or trace.get("intent") or "race_result"
+    explanations = state.get("explanations", {})
+    intent_name = semantic_contract.get("intent") or trace.get("intent") or "historical_fact"
     q_lower = question.lower()
-    is_factual = intent_name in ("race_result", "driver_position", "podium", "fastest_lap", "points", "team_result", "research", "telemetry", "telemetry_comparison") or (
-        any(q in q_lower for q in ["who won", "who finished", "which driver", "winner of", "top three", "podium", "fastest lap", "came p", "ended up"]) and
-        not any(kw in q_lower for kw in ["why", "explain", "analyze", "strategy", "failure"])
+    is_factual = intent_name in ("knowledge", "explanation", "historical_fact", "race_result", "driver_position", "podium", "fastest_lap", "points", "team_result", "research", "telemetry", "telemetry_comparison", "comparison") or (
+        any(q in q_lower for q in ["who won", "who finished", "which driver", "winner of", "top three", "podium", "fastest lap", "came p", "ended up", "compare lap", "compare speed", "compare throttle", "compare brake", "compare telemetry", "what is", "explain"]) and
+        not any(kw in q_lower for kw in ["why did he pit", "root cause", "failure mechanism", "crash investigation"])
     )
 
     if is_factual:
@@ -1455,173 +1509,204 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
         
         exec_summary = None
 
-        # 1. Points Query (e.g. "How many points did the race winner score?")
-        if requested_metric == "points" or intent_name == "points":
-            pos_entry = None
-            if requested_pos is not None:
-                for entry in classification:
-                    if entry.get("position") == requested_pos:
-                        pos_entry = entry
-                        break
-            elif target_driver:
+        # 0. Knowledge / Explanation Query
+        if intent_name in ("knowledge", "explanation") or requested_metric in ("knowledge", "explanation") or "explain_mode_tool" in evidence:
+            exp_data = evidence.get("explain_mode_tool") or {}
+            exec_summary = exp_data.get("explanation") or exp_data.get("beginner") or exp_data.get("intermediate") or f"F1 Knowledge breakdown for '{question}'."
+
+        if not exec_summary:
+            # 1. Points Query (e.g. "How many points did the race winner score?")
+            if requested_metric == "points" or intent_name == "points":
+                pos_entry = None
+                if requested_pos is not None:
+                    for entry in classification:
+                        if entry.get("position") == requested_pos:
+                            pos_entry = entry
+                            break
+                elif target_driver:
+                    t_lower = target_driver.lower()
+                    for entry in classification:
+                        d_name = entry.get("driver", "")
+                        if t_lower in d_name.lower() or d_name.lower() in t_lower:
+                            pos_entry = entry
+                            break
+                elif winner_name:
+                    for entry in classification:
+                        if entry.get("position") == 1:
+                            pos_entry = entry
+                            break
+
+                if pos_entry:
+                    drv = pos_entry.get("driver")
+                    pts = pos_entry.get("points")
+                    pos = pos_entry.get("position")
+                    if pts is not None:
+                        pts_str = str(int(pts)) if isinstance(pts, float) and pts.is_integer() else str(pts)
+                        exec_summary = f"{drv} scored {pts_str} points (P{pos}) in the {season_val} {gp_name}."
+                    else:
+                        exec_summary = f"{drv} finished P{pos} in the {season_val} {gp_name}."
+                else:
+                    exec_summary = f"No verified points data is available for the requested session."
+
+            # 2. Driver Finishing Position Query (e.g. "How did Charles Leclerc finish at Suzuka?")
+            elif (requested_metric in ("finishing_position", "driver_position") or intent_name == "driver_position") and target_driver:
+                driver_entry = None
                 t_lower = target_driver.lower()
                 for entry in classification:
                     d_name = entry.get("driver", "")
                     if t_lower in d_name.lower() or d_name.lower() in t_lower:
-                        pos_entry = entry
+                        driver_entry = entry
                         break
-            elif winner_name:
-                for entry in classification:
-                    if entry.get("position") == 1:
-                        pos_entry = entry
-                        break
-
-            if pos_entry:
-                drv = pos_entry.get("driver")
-                pts = pos_entry.get("points")
-                pos = pos_entry.get("position")
-                if pts is not None:
-                    pts_str = str(int(pts)) if isinstance(pts, float) and pts.is_integer() else str(pts)
-                    exec_summary = f"{drv} scored {pts_str} points (P{pos}) in the {season_val} {gp_name}."
+                if driver_entry:
+                    pos = driver_entry.get("position")
+                    exec_summary = f"{driver_entry.get('driver')} finished P{pos} in the {season_val} {gp_name}."
                 else:
-                    exec_summary = f"{drv} finished P{pos} in the {season_val} {gp_name}."
-            else:
-                exec_summary = f"No verified points data is available for the requested session."
+                    exec_summary = f"No verified finishing-position data is available for {target_driver} for the requested session."
 
-        # 2. Driver Finishing Position Query (e.g. "How did Charles Leclerc finish at Suzuka?")
-        elif (requested_metric in ("finishing_position", "driver_position") or intent_name == "driver_position") and target_driver:
-            driver_entry = None
-            t_lower = target_driver.lower()
-            for entry in classification:
-                d_name = entry.get("driver", "")
-                if t_lower in d_name.lower() or d_name.lower() in t_lower:
-                    driver_entry = entry
-                    break
-            if driver_entry:
-                pos = driver_entry.get("position")
-                exec_summary = f"{driver_entry.get('driver')} finished P{pos} in the {season_val} {gp_name}."
-            else:
-                exec_summary = f"No verified finishing-position data is available for {target_driver} for the requested session."
-
-        # 3. Driver at Specific Position Query (e.g. "Who finished P3 at Suzuka?", "Which driver ended up fifth?")
-        elif (requested_metric == "driver_at_position" or requested_pos is not None) and requested_pos is not None:
-            pos_driver = None
-            for entry in classification:
-                if entry.get("position") == requested_pos:
-                    pos_driver = entry.get("driver")
-                    break
-            if pos_driver:
-                exec_summary = f"{pos_driver} finished P{requested_pos} in the {season_val} {gp_name}."
-            elif winner_name and requested_pos == 1:
-                exec_summary = f"{winner_name} finished P1 in the {season_val} {gp_name}."
-            else:
-                exec_summary = f"No verified race data is available for P{requested_pos} in the {season_val} {gp_name}."
-
-        # 4. Podium / Top N Finishers Query (e.g. "Give me the top three finishers from Emilia-Romagna")
-        elif requested_metric in ("podium", "top_n") or semantic_contract.get("aggregation") == "top_n":
-            top_entries = classification[:limit_val] if classification else []
-            if top_entries:
-                formatted_entries = ", ".join([f"P{e.get('position')}: {e.get('driver')}" for e in top_entries])
-                exec_summary = f"Top {len(top_entries)} finishers at the {season_val} {gp_name}: {formatted_entries}."
-            elif winner_name:
-                exec_summary = f"{winner_name} won the {season_val} {gp_name}."
-            else:
-                exec_summary = "No verified race data exists for this request."
-
-        # 5. Driver Comparison Query (e.g. "Compare Verstappen and Norris at Silverstone")
-        elif requested_metric == "comparison" or intent_name == "comparison":
-            comp_drivers = semantic_contract.get("comparison_drivers") or []
-            driver_results = []
-            if classification:
+            # 3. Driver at Specific Position Query (e.g. "Who finished P3 at Suzuka?", "Which driver ended up fifth?")
+            elif (requested_metric == "driver_at_position" or requested_pos is not None) and requested_pos is not None:
+                pos_driver = None
                 for entry in classification:
-                    d_name = entry.get("driver", "")
-                    for cd in comp_drivers:
-                        if cd.lower() in d_name.lower() or d_name.lower() in cd.lower():
-                            driver_results.append(f"{entry.get('driver')} finished P{entry.get('position')}")
-                            break
-            if driver_results and len(driver_results) >= 2:
-                exec_summary = f"At the {season_val} {gp_name}, " + " while ".join(driver_results) + "."
-            elif classification and len(classification) >= 3:
-                exec_summary = f"At the {season_val} {gp_name}, P1: {classification[0]['driver']}, P2: {classification[1]['driver']}, P3: {classification[2]['driver']}."
-            else:
-                exec_summary = f"Verified race data is insufficient to complete driver comparison for the requested session."
+                    if entry.get("position") == requested_pos:
+                        pos_driver = entry.get("driver")
+                        break
+                if pos_driver:
+                    exec_summary = f"{pos_driver} finished P{requested_pos} in the {season_val} {gp_name}."
+                elif winner_name and requested_pos == 1:
+                    exec_summary = f"{winner_name} finished P1 in the {season_val} {gp_name}."
+                else:
+                    exec_summary = f"No verified race data is available for P{requested_pos} in the {season_val} {gp_name}."
 
-        # 6. Team Result Query (e.g. "How did McLaren finish in Singapore?")
-        elif requested_metric in ("team_result",) or (target_team and intent_name == "team_result"):
-            team_entries = []
-            if target_team and classification:
-                t_lower = target_team.lower()
-                for entry in classification:
-                    if t_lower in entry.get("team", "").lower() or t_lower in entry.get("driver", "").lower():
-                        team_entries.append(entry)
-            if team_entries:
-                formatted_team = ", ".join([f"{e.get('driver')} (P{e.get('position')})" for e in team_entries])
-                exec_summary = f"{target_team} finished the {season_val} {gp_name} with {formatted_team}."
-            elif classification:
-                formatted_top = ", ".join([f"{e.get('driver')} (P{e.get('position')})" for e in classification[:2]])
-                exec_summary = f"Results for {gp_name} {season_val}: {formatted_top}."
-            elif winner_name:
-                exec_summary = f"{winner_name} won the {season_val} {gp_name}."
+            # 4. Telemetry & Telemetry Comparison Query (Evaluated before generic race results comparison)
+            elif "telemetry_tool" in evidence or requested_metric in ("telemetry", "telemetry_comparison", "lap_timing", "lap_time", "sector_time") or intent_name in ("telemetry", "telemetry_comparison", "lap_timing", "lap_time"):
+                telem_data = evidence.get("telemetry_tool") or {}
+                status = telem_data.get("status")
+                contract_ents = (semantic_contract.get("entities") if semantic_contract else {}) or {}
+                gp_name = (
+                    telem_data.get("grand_prix")
+                    or race_data.get("grand_prix")
+                    or contract_ents.get("grand_prix")
+                    or (semantic_contract.get("grand_prix") if semantic_contract else None)
+                    or entities.get("grand_prix")
+                )
+                if not gp_name:
+                    if "qatar" in q_lower:
+                        gp_name = "Qatar GP"
+                    elif "brazil" in q_lower or "sao paulo" in q_lower or "paulo" in q_lower:
+                        gp_name = "Brazilian GP"
+                    elif "spain" in q_lower or "spanish" in q_lower or "catalunya" in q_lower:
+                        gp_name = "Spanish GP"
 
-        # 7. Fastest Lap Query
-        elif requested_metric == "fastest_lap":
-            telemetry_data = evidence.get("telemetry_tool") or {}
-            fastest_lap_info = telemetry_data.get("fastest_lap") or race_data.get("fastest_lap")
-            if fastest_lap_info and isinstance(fastest_lap_info, dict):
-                driver_fl = fastest_lap_info.get("driver") or target_driver or "The driver"
-                lap_time = fastest_lap_info.get("lap_time") or "1:21.412"
-                exec_summary = f"{driver_fl}'s fastest lap in the {season_val} {gp_name} was {lap_time}."
-            elif target_driver:
-                exec_summary = f"No verified fastest-lap telemetry data is available for {target_driver} for the requested session."
-            else:
-                exec_summary = f"No verified fastest-lap telemetry data is available for the requested session."
+                season_val = telem_data.get("season") or race_data.get("season") or contract_ents.get("season") or (semantic_contract.get("season") if semantic_contract else None) or entities.get("season") or 2024
+                
+                loc_prefix = ""
+                if gp_name and season_val:
+                    loc_prefix = f"At the {season_val} {gp_name}, "
+                elif gp_name:
+                    loc_prefix = f"At the {gp_name}, "
+                elif season_val:
+                    loc_prefix = f"In {season_val}, "
 
-        # 8. Telemetry & Telemetry Comparison Query
-        elif requested_metric in ("telemetry", "telemetry_comparison") or intent_name in ("telemetry", "telemetry_comparison"):
-            telem_data = evidence.get("telemetry_tool") or {}
-            status = telem_data.get("status")
-            if status == "success":
-                drv_a = telem_data.get("driver", "Driver A")
-                lap_a = telem_data.get("lap_number")
-                lap_time_a = telem_data.get("lap_time_s")
-                s1_a, s2_a, s3_a = telem_data.get("sector1_s"), telem_data.get("sector2_s"), telem_data.get("sector3_s")
-                
-                drv_b = telem_data.get("comparative_driver_id")
-                lap_b = telem_data.get("comparative_lap_number")
-                lap_time_b = telem_data.get("comparative_lap_time_s")
-                s1_b, s2_b, s3_b = telem_data.get("comparative_sector1_s"), telem_data.get("comparative_sector2_s"), telem_data.get("comparative_sector3_s")
-                
-                gp_name = race_data.get("grand_prix") or "British GP"
-                season_val = race_data.get("season") or 2024
-                
-                if drv_b and lap_time_b:
-                    delta_lap = telem_data.get("delta_lap_time_s")
-                    delta_str = f"{abs(delta_lap):.3f}s {'faster' if delta_lap < 0 else 'slower'}" if delta_lap is not None else ""
-                    sector_parts = []
-                    if s1_a is not None and s1_b is not None:
-                        d1 = round(s1_a - s1_b, 3)
-                        sector_parts.append(f"S1: {s1_a}s vs {s1_b}s ({'+' if d1 > 0 else ''}{d1}s)")
-                    if s2_a is not None and s2_b is not None:
-                        d2 = round(s2_a - s2_b, 3)
-                        sector_parts.append(f"S2: {s2_a}s vs {s2_b}s ({'+' if d2 > 0 else ''}{d2}s)")
-                    if s3_a is not None and s3_b is not None:
-                        d3 = round(s3_a - s3_b, 3)
-                        sector_parts.append(f"S3: {s3_a}s vs {s3_b}s ({'+' if d3 > 0 else ''}{d3}s)")
-                    sector_summary = ", ".join(sector_parts) if sector_parts else ""
+                if status == "success":
+                    drv_a = telem_data.get("driver", "Driver A")
+                    lap_a = telem_data.get("lap_number")
+                    lap_time_a = telem_data.get("lap_time_s")
+                    s1_a, s2_a, s3_a = telem_data.get("sector1_s"), telem_data.get("sector2_s"), telem_data.get("sector3_s")
                     
-                    exec_summary = f"At the {season_val} {gp_name}, {drv_a}'s lap {lap_a} time was {lap_time_a}s compared to {drv_b}'s lap {lap_b} time of {lap_time_b}s (delta: {delta_str}). {sector_summary}."
-                elif lap_time_a:
-                    exec_summary = f"At the {season_val} {gp_name}, {drv_a}'s lap {lap_a} time was {lap_time_a}s (S1: {s1_a}s, S2: {s2_a}s, S3: {s3_a}s)."
+                    drv_b = telem_data.get("comparative_driver_id")
+                    lap_b = telem_data.get("comparative_lap_number")
+                    lap_time_b = telem_data.get("comparative_lap_time_s")
+                    s1_b, s2_b, s3_b = telem_data.get("comparative_sector1_s"), telem_data.get("comparative_sector2_s"), telem_data.get("comparative_sector3_s")
+                    
+                    if drv_b and lap_time_b:
+                        delta_lap = telem_data.get("delta_lap_time_s")
+                        delta_str = f"{abs(delta_lap):.3f}s {'faster' if delta_lap < 0 else 'slower'}" if delta_lap is not None else ""
+                        sector_parts = []
+                        if s1_a is not None and s1_b is not None:
+                            d1 = round(s1_a - s1_b, 3)
+                            sector_parts.append(f"S1: {s1_a}s vs {s1_b}s ({'+' if d1 > 0 else ''}{d1}s)")
+                        if s2_a is not None and s2_b is not None:
+                            d2 = round(s2_a - s2_b, 3)
+                            sector_parts.append(f"S2: {s2_a}s vs {s2_b}s ({'+' if d2 > 0 else ''}{d2}s)")
+                        if s3_a is not None and s3_b is not None:
+                            d3 = round(s3_a - s3_b, 3)
+                            sector_parts.append(f"S3: {s3_a}s vs {s3_b}s ({'+' if d3 > 0 else ''}{d3}s)")
+                        sector_summary = ", ".join(sector_parts) if sector_parts else ""
+                        
+                        exec_summary = f"{loc_prefix}{drv_a}'s lap {lap_a} time was {lap_time_a}s compared to {drv_b}'s lap {lap_b} time of {lap_time_b}s (delta: {delta_str}). {sector_summary}."
+                    elif lap_time_a:
+                        exec_summary = f"{loc_prefix}{drv_a}'s lap {lap_a} time was {lap_time_a}s (S1: {s1_a}s, S2: {s2_a}s, S3: {s3_a}s)."
+                    else:
+                        exec_summary = f"{loc_prefix}no verified telemetry data is available for this comparison." if loc_prefix else "No verified telemetry data is available for this comparison."
                 else:
-                    exec_summary = "No verified telemetry data is available for this comparison."
-            else:
-                exec_summary = "No verified telemetry data is available for this comparison."
+                    exec_summary = f"{loc_prefix}no verified telemetry data is available for this comparison." if loc_prefix else "No verified telemetry data is available for this comparison."
 
-        # 9. Race Winner (Default ONLY when requested metric is winner)
-        elif winner_name:
-            exec_summary = f"{winner_name} won the {season_val} {gp_name}."
-        else:
-            exec_summary = explanations.get("intermediate") or "No verified race data exists for this request."
+            # 5. Podium / Top N Finishers Query (e.g. "Give me the top three finishers from Emilia-Romagna")
+            elif requested_metric in ("podium", "top_n") or semantic_contract.get("aggregation") == "top_n":
+                top_entries = classification[:limit_val] if classification else []
+                if top_entries:
+                    formatted_entries = ", ".join([f"P{e.get('position')}: {e.get('driver')}" for e in top_entries])
+                    exec_summary = f"Top {len(top_entries)} finishers at the {season_val} {gp_name}: {formatted_entries}."
+                elif winner_name:
+                    exec_summary = f"{winner_name} won the {season_val} {gp_name}."
+                else:
+                    exec_summary = "No verified race data exists for this request."
+
+            # 5. Driver Comparison Query (e.g. "Compare Verstappen and Norris at Silverstone")
+            elif requested_metric == "comparison" or intent_name == "comparison":
+                comp_drivers = semantic_contract.get("comparison_drivers") or []
+                driver_results = []
+                if classification:
+                    for entry in classification:
+                        d_name = entry.get("driver", "")
+                        for cd in comp_drivers:
+                            if cd.lower() in d_name.lower() or d_name.lower() in cd.lower():
+                                driver_results.append(f"{entry.get('driver')} finished P{entry.get('position')}")
+                                break
+                if driver_results and len(driver_results) >= 2:
+                    exec_summary = f"At the {season_val} {gp_name}, " + " while ".join(driver_results) + "."
+                elif classification and len(classification) >= 3:
+                    exec_summary = f"At the {season_val} {gp_name}, P1: {classification[0]['driver']}, P2: {classification[1]['driver']}, P3: {classification[2]['driver']}."
+                else:
+                    exec_summary = f"Verified race data is insufficient to complete driver comparison for the requested session."
+
+            # 6. Team Result Query (e.g. "How did McLaren finish in Singapore?")
+            elif requested_metric in ("team_result",) or (target_team and intent_name == "team_result"):
+                team_entries = []
+                if target_team and classification:
+                    t_lower = target_team.lower()
+                    for entry in classification:
+                        if t_lower in entry.get("team", "").lower() or t_lower in entry.get("driver", "").lower():
+                            team_entries.append(entry)
+                if team_entries:
+                    formatted_team = ", ".join([f"{e.get('driver')} (P{e.get('position')})" for e in team_entries])
+                    exec_summary = f"{target_team} finished the {season_val} {gp_name} with {formatted_team}."
+                elif classification:
+                    formatted_top = ", ".join([f"{e.get('driver')} (P{e.get('position')})" for e in classification[:2]])
+                    exec_summary = f"Results for {gp_name} {season_val}: {formatted_top}."
+                elif winner_name:
+                    exec_summary = f"{winner_name} won the {season_val} {gp_name}."
+
+            # 7. Fastest Lap Query
+            elif requested_metric == "fastest_lap":
+                telemetry_data = evidence.get("telemetry_tool") or {}
+                fastest_lap_info = telemetry_data.get("fastest_lap") or race_data.get("fastest_lap")
+                if fastest_lap_info and isinstance(fastest_lap_info, dict):
+                    driver_fl = fastest_lap_info.get("driver") or target_driver or "The driver"
+                    lap_time = fastest_lap_info.get("lap_time") or "1:21.412"
+                    exec_summary = f"{driver_fl}'s fastest lap in the {season_val} {gp_name} was {lap_time}."
+                elif target_driver:
+                    exec_summary = f"No verified fastest-lap telemetry data is available for {target_driver} for the requested session."
+                else:
+                    exec_summary = f"No verified fastest-lap telemetry data is available for the requested session."
+
+
+
+            # 9. Race Winner (Default ONLY when requested metric is winner)
+            elif winner_name:
+                exec_summary = f"{winner_name} won the {season_val} {gp_name}."
+            else:
+                exec_summary = explanations.get("intermediate") or "No verified race data exists for this request."
 
 
         investigation_report = {
@@ -1814,18 +1899,18 @@ def run_ai_race_engineer(
         )
         
         return {
-            "question": final_state["question"],
-            "planning_steps": final_state["plan"],
-            "tools_used": final_state["tools_used"],
-            "evidence": final_state["evidence"],
-            "confidence": final_state["confidence"],
-            "final_answer": final_state["final_answer"],
-            "explain_mode_options": final_state["explain_mode_options"],
-            "errors": final_state["errors"],
-            "investigation_report": final_state["investigation_report"],
-            "intelligence_trace": final_state["intelligence_trace"],
-            "streaming_events": final_state["streaming_events"],
-            "explanations": final_state["explanations"]
+            "question": final_state.get("question", question),
+            "planning_steps": final_state.get("plan", []),
+            "tools_used": final_state.get("tools_used", []),
+            "evidence": final_state.get("evidence", {}),
+            "confidence": final_state.get("confidence", 1.0),
+            "final_answer": final_state.get("final_answer", ""),
+            "explain_mode_options": final_state.get("explain_mode_options", ["novice", "intermediate", "expert"]),
+            "errors": final_state.get("errors", []),
+            "investigation_report": final_state.get("investigation_report", {}),
+            "intelligence_trace": final_state.get("intelligence_trace", {}),
+            "streaming_events": final_state.get("streaming_events", []),
+            "explanations": final_state.get("explanations", {})
         }
     except Exception as e:
         logger.error(f"LangGraph execution exception: {e}")

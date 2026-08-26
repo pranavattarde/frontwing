@@ -265,18 +265,31 @@ class BaseF1Tool(ABC):
         if param_name == "session_id":
             # Attempt to resolve latest session from the database ONLY if a GP was mentioned
             # If no GP mentioned, return None — do not invent a session.
-            from app.agents.resolver import _extract_circuit, _compute_session_id, _extract_year, _extract_session_type
-            circuit_id = _extract_circuit(q_lower)
-            if not circuit_id:
+            from app.agents.nlp_parser import preprocess_text, F1_CIRCUIT_ALIAS_MAP
+            from app.core.session_resolver import SessionResolver
+            preprocessed = preprocess_text(question)
+            q_lower_norm = preprocessed["normalized_lower"]
+            gp = None
+            for alias, canonical_gp in sorted(F1_CIRCUIT_ALIAS_MAP.items(), key=lambda x: len(x[0]), reverse=True):
+                if re.search(r'\b' + re.escape(alias) + r'\b', q_lower_norm):
+                    gp = canonical_gp
+                    break
+            if not gp:
                 return None  # No GP mentioned — cannot resolve session
-            year = _extract_year(q_lower)
-            session_type = _extract_session_type(q_lower)
-            return _compute_session_id(circuit_id, year, session_type)
+            year_match = re.search(r"\b(20\d{2})\b", q_lower_norm)
+            year = int(year_match.group(1)) if year_match else None
+            res = SessionResolver.resolve_session(grand_prix=gp, season=year)
+            return res.get("session_id")
 
         elif param_name == "driver_id":
             # Only resolve driver if explicitly mentioned in question
-            from app.agents.resolver import _extract_driver
-            return _extract_driver(q_lower)  # Returns None if no driver mentioned
+            from app.agents.nlp_parser import preprocess_text, F1_DRIVER_ALIAS_MAP
+            preprocessed = preprocess_text(question)
+            q_lower_norm = preprocessed["normalized_lower"]
+            for alias, canonical_driver in sorted(F1_DRIVER_ALIAS_MAP.items(), key=lambda x: len(x[0]), reverse=True):
+                if re.search(r'\b' + re.escape(alias) + r'\b', q_lower_norm):
+                    return canonical_driver
+            return None  # Returns None if no driver mentioned
 
         elif param_name == "lap_number":
             match = re.search(r"\blap\s+(\d+)\b", q_lower)

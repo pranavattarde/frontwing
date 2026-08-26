@@ -175,7 +175,13 @@ class ExplainEngineer(BaseEngineer):
         from app.core.providers import reliable_llm_provider
         
         # Try LLM synthesis
-        import sys
+        inputs = tool_inputs or {}
+        if inputs.get("term"):
+            from app.tools.adapters import ExplainModeTool
+            res = ExplainModeTool().execute(inputs)
+            if isinstance(res, dict) and res.get("explanation"):
+                return res
+
         gemini_key = os.getenv("GEMINI_API_KEY", "")
         groq_key = os.getenv("GROQ_API_KEY", "")
         is_gemini_mock = not gemini_key or "mock" in gemini_key.lower() or "dummy" in gemini_key.lower() or "aq.ab8" in gemini_key
@@ -183,6 +189,8 @@ class ExplainEngineer(BaseEngineer):
         is_offline_dev = is_gemini_mock or is_groq_mock or "unittest" in sys.modules or "pytest" in sys.modules
 
         if not is_offline_dev:
+
+
             try:
                 system_prompt = (
                     "You are the F1 Explain Engineer. Your job is to translate F1 telemetry data, scores, "
@@ -212,6 +220,16 @@ class ExplainEngineer(BaseEngineer):
             except Exception as e:
                 logger.warning(f"[Explain Engineer] LLM response synthesis failed: {e}. Falling back to rule-based templates.")
         
+        if "explain_mode_tool" in evidence and isinstance(evidence["explain_mode_tool"], dict):
+            exp_dict = evidence["explain_mode_tool"]
+            exp_ans = exp_dict.get("explanation") or exp_dict.get("beginner") or exp_dict.get("intermediate")
+            if exp_ans:
+                return {
+                    "beginner": exp_dict.get("beginner") or exp_ans,
+                    "intermediate": exp_dict.get("intermediate") or exp_ans,
+                    "engineer": exp_dict.get("engineer") or exp_ans
+                }
+
         # Fallback to pure evidence serialization to avoid templates and satisfy unit tests
         if not evidence:
             err_msg = "No evidence was returned by the execution pipeline."
