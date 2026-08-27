@@ -10,34 +10,37 @@ class TestFastF1Ingestion(unittest.TestCase):
         self.collector = FastF1Collector()
 
     @patch.object(FastF1Collector, "collect")
-    def test_load_session_endpoint(self, mock_collect):
-        mock_collect.side_effect = Exception("Offline mock mode")
+    def test_load_session_endpoint_returns_error_on_fastf1_failure(self, mock_collect):
+        """When FastF1 collect() raises, the endpoint must return status='error' — no synthetic fallback."""
+        mock_collect.side_effect = Exception("Offline mock mode: no network")
         payload = {
             "year": 2026,
             "gp": "British",
             "session": "R"
         }
-        # First load request (populates synthetic session)
-        res1 = self.client.post("/sessions/load", json=payload)
-        self.assertEqual(res1.status_code, 200)
-        json1 = res1.json()
-        self.assertIn("status", json1)
-        self.assertIn(json1["status"], ["loaded", "cached"])
-        self.assertIn("session_id", json1)
-
-        # Second load request (returns cached status to avoid downloading/processing twice)
-        res2 = self.client.post("/sessions/load", json=payload)
-        self.assertEqual(res2.status_code, 200)
-        json2 = res2.json()
-        self.assertEqual(json2["status"], "cached")
-        self.assertEqual(json2["session_id"], json1["session_id"])
+        res = self.client.post("/sessions/load", json=payload)
+        self.assertEqual(res.status_code, 200)
+        json_body = res.json()
+        self.assertIn("status", json_body)
+        # MUST be 'error', not 'loaded' or 'cached' — synthetic fallback is deleted
+        self.assertEqual(json_body["status"], "error",
+            f"Expected status='error' when FastF1 fails, got: {json_body['status']}")
+        self.assertIsNone(json_body.get("session_id"),
+            f"session_id must be None on error, got: {json_body.get('session_id')}")
+        self.assertIn("message", json_body)
+        self.assertIn("Offline mock mode", json_body["message"])
 
     @patch.object(FastF1Collector, "collect")
-    def test_collector_load_session_direct(self, mock_collect):
-        mock_collect.side_effect = Exception("Offline mock mode")
+    def test_collector_load_session_direct_returns_error_on_failure(self, mock_collect):
+        """When FastF1 collect() raises, load_session() must return explicit error — no synthetic data."""
+        mock_collect.side_effect = Exception("Offline mock mode: no network")
         res = self.collector.load_session(2026, "Monaco", "R")
         self.assertIn("status", res)
-        self.assertIn("session_id", res)
+        self.assertEqual(res["status"], "error",
+            f"Expected status='error' when FastF1 fails, got: {res['status']}")
+        self.assertIsNone(res.get("session_id"),
+            f"session_id must be None on error, got: {res.get('session_id')}")
+        self.assertIn("message", res)
 
 if __name__ == "__main__":
     unittest.main()

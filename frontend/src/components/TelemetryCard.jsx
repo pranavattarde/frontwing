@@ -1,174 +1,628 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { cn } from "@/lib/utils";
+
+/**
+ * TelemetryCard - Clinical Canvas-Based F1 Telemetry Visualizer
+ *
+ * Implements strict design system rules from docs/design_system.md:
+ * - Zero line-smoothing (miter line joins, crisp angular transitions)
+ * - Strict track distance alignment (X-axis in meters from start/finish line)
+ * - 250m slate grid intervals with 500m/1000m labels
+ * - High contrast: Chaser/Driver A (#00E5FF Neon Cyan), Defender/Driver B (#FFD600 Neon Yellow)
+ * - Brake overlay: Neon F1 Red (#FF1801) with rgba(255, 24, 1, 0.08) fill when active
+ * - High-DPI Canvas scaling with devicePixelRatio
+ * - Interactive distance-synchronized crosshair & HUD telemetry inspector
+ * - Monospace data table deep-dive mode
+ * - Zero client-side mock/placeholder fallbacks (pure backend telemetry data)
+ */
 export function TelemetryCard({
   driverA,
   driverB = null,
-  metric,
+  metric: initialMetric = "speed",
   lapNumber,
   trackName,
   highlightZone,
   variant = "collapsed",
   onHover,
   onExpand,
-  hoverDist
+  hoverDist,
+  className
 }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
+  const [activeMetric, setActiveMetric] = useState(initialMetric);
   const [localHoverDist, setLocalHoverDist] = useState(null);
-  const [dimensions, setDimensions] = useState({ width: 600, height: 120 });
-  const activeHoverDist = hoverDist !== void 0 ? hoverDist : localHoverDist;
+  const [showTable, setShowTable] = useState(false);
+  const [dimensions, setDimensions] = useState({ width: 600, height: 140 });
+
+  const activeHoverDist = hoverDist !== undefined ? hoverDist : localHoverDist;
   const isCollapsed = variant === "collapsed";
-  const height = isCollapsed ? 120 : variant === "deepDive" ? 400 : 280;
+  const isDeepDive = variant === "deepDive" || showTable;
+
+  // Sync activeMetric if initialMetric changes externally
+  useEffect(() => {
+    if (initialMetric) setActiveMetric(initialMetric);
+  }, [initialMetric]);
+
+  // Determine card height
+  const chartHeight = useMemo(() => {
+    if (isCollapsed) return 140;
+    if (activeMetric === "multi") return 360;
+    if (variant === "deepDive") return 300;
+    return 240;
+  }, [isCollapsed, activeMetric, variant]);
+
+  // ResizeObserver for dynamic responsiveness
   useEffect(() => {
     if (!containerRef.current) return;
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         setDimensions({
-          width: entry.contentRect.width || 600,
-          height
+          width: Math.max(300, entry.contentRect.width || 600),
+          height: chartHeight
         });
       }
     });
     resizeObserver.observe(containerRef.current);
     return () => resizeObserver.disconnect();
-  }, [height]);
-  const maxVal = useMemo(() => {
-    if (metric === "speed") return 340;
-    if (metric === "throttle" || metric === "brake") return 100;
-    if (metric === "gear") return 8;
-    return 100;
-  }, [metric]);
+  }, [chartHeight]);
+
+  // Validate and extract telemetry points from backend arrays
+  const dataA = useMemo(() => (Array.isArray(driverA?.data) ? driverA.data : []), [driverA?.data]);
+  const dataB = useMemo(() => (Array.isArray(driverB?.data) ? driverB.data : []), [driverB?.data]);
+  const hasData = dataA.length > 0 || dataB.length > 0;
+
+  // Calculate total track distance from real telemetry data points
   const totalDistance = useMemo(() => {
-    const data = driverA.data;
-    return data.length > 0 ? data[data.length - 1].distanceM : 4318;
-  }, [driverA.data]);
+    let maxDist = 0;
+    if (dataA.length > 0) maxDist = Math.max(maxDist, dataA[dataA.length - 1].distanceM || 0);
+    if (dataB.length > 0) maxDist = Math.max(maxDist, dataB[dataB.length - 1].distanceM || 0);
+    return maxDist > 0 ? Math.ceil(maxDist) : 5000;
+  }, [dataA, dataB]);
+
+  // Max scale values per metric
+  const getMetricConfig = useCallback((met) => {
+    switch (met) {
+      case "speed":
+        return { max: 350, min: 0, unit: "km/h", ticks: [100, 200, 300], label: "SPEED" };
+      case "throttle":
+        return { max: 100, min: 0, unit: "%", ticks: [50, 100], label: "THROTTLE" };
+      case "brake":
+        return { max: 100, min: 0, unit: "%", ticks: [50, 100], label: "BRAKE" };
+      case "gear":
+        return { max: 8, min: 0, unit: "GEAR", ticks: [2, 4, 6, 8], label: "GEAR" };
+      case "rpm":
+        return { max: 14000, min: 4000, unit: "RPM", ticks: [6000, 9000, 12000], label: "RPM" };
+      default:
+        return { max: 100, min: 0, unit: "", ticks: [50, 100], label: String(met).toUpperCase() };
+    }
+  }, []);
+
+  // Canvas render engine
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !hasData) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = dimensions.width * dpr;
-    canvas.height = dimensions.height * dpr;
+    const w = dimensions.width;
+    const h = dimensions.height;
+
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
     ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, dimensions.width, dimensions.height);
-    ctx.strokeStyle = "#1C2025";
-    ctx.lineWidth = 1;
-    ctx.font = "10px JetBrains Mono";
-    ctx.fillStyle = "#5C6470";
-    for (let m = 0; m <= totalDistance; m += 250) {
-      const x = m / totalDistance * dimensions.width;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, dimensions.height);
-      ctx.stroke();
-      if (!isCollapsed && m % 500 === 0) {
-        ctx.fillText(`${m}m`, x + 4, dimensions.height - 8);
-      }
-    }
-    if (highlightZone) {
-      const xStart = highlightZone.startM / totalDistance * dimensions.width;
-      const xEnd = highlightZone.endM / totalDistance * dimensions.width;
-      ctx.fillStyle = "rgba(0, 229, 255, 0.04)";
-      ctx.fillRect(xStart, 0, xEnd - xStart, dimensions.height);
-      ctx.strokeStyle = "rgba(0, 229, 255, 0.15)";
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.moveTo(xStart, 0);
-      ctx.lineTo(xStart, dimensions.height);
-      ctx.moveTo(xEnd, 0);
-      ctx.lineTo(xEnd, dimensions.height);
-      ctx.stroke();
+    ctx.clearRect(0, 0, w, h);
+
+    const padLeft = isCollapsed ? 10 : 38;
+    const padRight = 10;
+    const padTop = 12;
+    const padBottom = isCollapsed ? 16 : 24;
+    const plotW = Math.max(10, w - padLeft - padRight);
+    const plotH = Math.max(10, h - padTop - padBottom);
+
+    const getX = (distM) => padLeft + (distM / totalDistance) * plotW;
+
+    // Helper to draw single channel grid & traces
+    const drawChannel = (met, yOffset, channelHeight) => {
+      const cfg = getMetricConfig(met);
+      const getY = (val) => {
+        const normalized = (val - cfg.min) / (cfg.max - cfg.min);
+        const clamped = Math.max(0, Math.min(1, normalized));
+        return yOffset + channelHeight - clamped * channelHeight;
+      };
+
+      // 1. Distance Grid Lines (250m intervals per design spec)
+      ctx.strokeStyle = "#1C2025";
+      ctx.lineWidth = 1;
       ctx.setLineDash([]);
-    }
-    const drawTrace = (points, color) => {
-      if (points.length === 0) return;
-      ctx.beginPath();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5;
-      ctx.lineJoin = "miter";
-      points.forEach((pt, idx) => {
-        const x = pt.distanceM / totalDistance * dimensions.width;
-        const val = pt[metric];
-        const y = dimensions.height - val / maxVal * (dimensions.height - 20) - 10;
-        if (idx === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+      ctx.font = "9px 'JetBrains Mono', 'Roboto Mono', monospace";
+      ctx.fillStyle = "#5C6470";
+
+      const distStep = totalDistance > 6000 ? 500 : 250;
+      for (let m = 0; m <= totalDistance; m += distStep) {
+        const x = getX(m);
+        ctx.beginPath();
+        ctx.moveTo(x, yOffset);
+        ctx.lineTo(x, yOffset + channelHeight);
+        ctx.stroke();
+
+        // Distance text labels on bottom-most channel
+        if (yOffset + channelHeight >= plotH - 5) {
+          if (!isCollapsed && m % (distStep * 2) === 0) {
+            ctx.fillText(`${m}m`, x + 3, h - 6);
+          }
+        }
+      }
+
+      // 2. Metric Horizontal Reference Lines
+      cfg.ticks.forEach((tickVal) => {
+        const y = getY(tickVal);
+        ctx.strokeStyle = "#16191E";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(padLeft, y);
+        ctx.lineTo(padLeft + plotW, y);
+        ctx.stroke();
+
+        if (!isCollapsed) {
+          ctx.fillText(`${tickVal}`, 4, y + 3);
+        }
       });
-      ctx.stroke();
-      if (metric === "brake") {
-        ctx.fillStyle = "rgba(255, 24, 1, 0.08)";
-        ctx.lineTo(points[points.length - 1].distanceM / totalDistance * dimensions.width, dimensions.height);
-        ctx.lineTo(0, dimensions.height);
-        ctx.closePath();
-        ctx.fill();
+
+      // 3. Highlight Zone (if specified, e.g. apex/braking zone lock)
+      if (highlightZone && highlightZone.startM !== undefined && highlightZone.endM !== undefined) {
+        const xStart = getX(highlightZone.startM);
+        const xEnd = getX(highlightZone.endM);
+        ctx.fillStyle = "rgba(0, 229, 255, 0.05)";
+        ctx.fillRect(xStart, yOffset, xEnd - xStart, channelHeight);
+        ctx.strokeStyle = "rgba(0, 229, 255, 0.25)";
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(xStart, yOffset);
+        ctx.lineTo(xStart, yOffset + channelHeight);
+        ctx.moveTo(xEnd, yOffset);
+        ctx.lineTo(xEnd, yOffset + channelHeight);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // 4. Draw Trace Line with ZERO Line Smoothing (Pixel-precise miter joins)
+      const renderTrace = (pts, strokeColor, isDriverA) => {
+        if (!pts || pts.length === 0) return;
+
+        // Brake channel area fill when active (> 10%)
+        if (met === "brake") {
+          ctx.beginPath();
+          let inBrakeZone = false;
+          let zoneStartX = 0;
+
+          pts.forEach((pt, i) => {
+            const x = getX(pt.distanceM || 0);
+            const rawB = pt.brake;
+            const bVal = typeof rawB === "boolean" ? (rawB ? 100 : 0) : Number(rawB) || 0;
+            const y = getY(bVal);
+
+            if (bVal > 10) {
+              if (!inBrakeZone) {
+                inBrakeZone = true;
+                zoneStartX = x;
+                ctx.moveTo(x, getY(0));
+              }
+              ctx.lineTo(x, y);
+            } else {
+              if (inBrakeZone) {
+                inBrakeZone = false;
+                ctx.lineTo(x, getY(0));
+                ctx.closePath();
+                ctx.fillStyle = isDriverA ? "rgba(255, 24, 1, 0.08)" : "rgba(255, 214, 0, 0.06)";
+                ctx.fill();
+                ctx.beginPath();
+              }
+            }
+          });
+
+          if (inBrakeZone) {
+            ctx.lineTo(getX(pts[pts.length - 1].distanceM || 0), getY(0));
+            ctx.closePath();
+            ctx.fillStyle = isDriverA ? "rgba(255, 24, 1, 0.08)" : "rgba(255, 214, 0, 0.06)";
+            ctx.fill();
+          }
+        }
+
+        // Stroke line path
+        ctx.beginPath();
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 1.5;
+        ctx.lineJoin = "miter";
+        ctx.lineCap = "butt";
+
+        pts.forEach((pt, idx) => {
+          const x = getX(pt.distanceM || 0);
+          let val = pt[met];
+          if (met === "brake" && typeof val === "boolean") val = val ? 100 : 0;
+          if (typeof val !== "number") val = Number(val) || 0;
+          const y = getY(val);
+
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      };
+
+      // Render Driver B (Defender - #FFD600) then Driver A (Chaser - #00E5FF)
+      if (dataB.length > 0) {
+        renderTrace(dataB, driverB?.color || "#FFD600", false);
+      }
+      if (dataA.length > 0) {
+        renderTrace(dataA, driverA?.color || (met === "brake" ? "#FF1801" : "#00E5FF"), true);
       }
     };
-    if (driverB) {
-      drawTrace(driverB.data, "#FFD600");
+
+    // Multi-track mode: Render stacked Speed, Throttle, Brake
+    if (activeMetric === "multi" && !isCollapsed) {
+      const channelGap = 8;
+      const subH = (plotH - channelGap * 2) / 3;
+      drawChannel("speed", padTop, subH);
+      drawChannel("throttle", padTop + subH + channelGap, subH);
+      drawChannel("brake", padTop + (subH + channelGap) * 2, subH);
+    } else {
+      drawChannel(activeMetric === "multi" ? "speed" : activeMetric, padTop, plotH);
     }
-    drawTrace(driverA.data, "#00E5FF");
-  }, [dimensions, driverA, driverB, metric, maxVal, totalDistance, highlightZone, isCollapsed]);
+  }, [
+    dimensions,
+    dataA,
+    dataB,
+    activeMetric,
+    totalDistance,
+    highlightZone,
+    isCollapsed,
+    hasData,
+    driverA,
+    driverB,
+    getMetricConfig
+  ]);
+
+  // Handle crosshair cursor movement
   const handleMouseMove = (e) => {
-    if (isCollapsed) return;
+    if (isCollapsed || !hasData) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const distanceM = Math.round(x / dimensions.width * totalDistance);
-    const clampedDist = Math.max(0, Math.min(totalDistance, distanceM));
+    const padLeft = 38;
+    const padRight = 10;
+    const plotW = Math.max(10, rect.width - padLeft - padRight);
+    const relX = Math.max(0, Math.min(plotW, x - padLeft));
+    const distM = Math.round((relX / plotW) * totalDistance);
+    const clampedDist = Math.max(0, Math.min(totalDistance, distM));
     setLocalHoverDist(clampedDist);
     onHover?.(clampedDist);
   };
+
   const handleMouseLeave = () => {
     setLocalHoverDist(null);
   };
+
+  // Find closest point by distance bin
   const getPointAtDist = (points, dist) => {
-    if (points.length === 0) return null;
-    return points.reduce(
-      (prev, curr) => Math.abs(curr.distanceM - dist) < Math.abs(prev.distanceM - dist) ? curr : prev
+    if (!points || points.length === 0) return null;
+    return points.reduce((prev, curr) =>
+      Math.abs((curr.distanceM || 0) - dist) < Math.abs((prev.distanceM || 0) - dist) ? curr : prev
     );
   };
-  const ptA = activeHoverDist !== null ? getPointAtDist(driverA.data, activeHoverDist) : null;
-  const ptB = activeHoverDist !== null && driverB ? getPointAtDist(driverB.data, activeHoverDist) : null;
+
+  const ptA = activeHoverDist !== null ? getPointAtDist(dataA, activeHoverDist) : null;
+  const ptB = activeHoverDist !== null ? getPointAtDist(dataB, activeHoverDist) : null;
+
   const formatVal = (point, met) => {
     if (!point || point[met] === undefined || point[met] === null) return "N/A";
     const raw = point[met];
     const num = typeof raw === "boolean" ? (raw ? 100 : 0) : Number(raw);
     return isNaN(num) ? "N/A" : num.toFixed(0);
   };
-  return <div
-    ref={containerRef}
-    className="evidence-card p-3 flex flex-col justify-between select-none relative"
-    style={{ height }}
-  >{
-    /* Top Header Row */
-  }<div className="flex justify-between items-center text-mono-meta font-mono"><div className="flex items-center gap-2"><span className="text-text-primary font-semibold uppercase">{String(metric || "SPEED").toUpperCase()}_TRACE // {driverA.code}{(driverB && driverB.code) ? ` vs ${driverB.code}` : ""}</span><span className="text-text-muted">LAP {lapNumber}</span>{highlightZone && <span className="text-drs-cyan bg-drs-cyan/10 px-1 border border-drs-cyan/20 rounded-sm">
 
+  // Delta calculation for hover HUD
+  const getDelta = (met) => {
+    if (!ptA || !ptB) return null;
+    let vA = ptA[met];
+    let vB = ptB[met];
+    if (typeof vA === "boolean") vA = vA ? 100 : 0;
+    if (typeof vB === "boolean") vB = vB ? 100 : 0;
+    const nA = Number(vA);
+    const nB = Number(vB);
+    if (isNaN(nA) || isNaN(nB)) return null;
+    const diff = nA - nB;
+    const cfg = getMetricConfig(met);
+    return {
+      diff,
+      text: `${diff >= 0 ? "+" : ""}${diff.toFixed(0)} ${cfg.unit}`
+    };
+  };
+
+  const padLeft = isCollapsed ? 10 : 38;
+  const padRight = 10;
+  const plotW = Math.max(10, dimensions.width - padLeft - padRight);
+  const crosshairLeft = activeHoverDist !== null ? padLeft + (activeHoverDist / totalDistance) * plotW : 0;
+
+  return (
+    <div
+      ref={containerRef}
+      className={cn(
+        "evidence-card bg-panel border border-fw-border rounded-card p-3.5 flex flex-col justify-between select-none relative transition-all duration-200",
+        className
+      )}
+      style={{ minHeight: isCollapsed ? 140 : chartHeight + (showTable ? 320 : 60) }}
+    >
+      {/* Top Header Row */}
+      <div className="flex flex-wrap justify-between items-center gap-2 border-b border-fw-border pb-2.5 text-mono-meta font-mono">
+        <div className="flex items-center gap-2.5">
+          <span className="text-text-primary font-semibold uppercase tracking-wider flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-drs-cyan animate-pulse" />
+            {activeMetric.toUpperCase()}_TRACE // {driverA?.code || "DRV_A"}
+            {driverB?.code ? ` vs ${driverB.code}` : ""}
+          </span>
+          <span className="text-text-muted">LAP {lapNumber || 1}</span>
+          {highlightZone && (
+            <span className="text-drs-cyan bg-drs-cyan/10 px-1.5 py-0.5 border border-drs-cyan/20 rounded-sm text-[10px]">
               ZONE_LOCK
-            </span>}</div><div className="flex items-center gap-4"><span className="text-text-muted">{trackName || "Circuit"}</span>{onExpand && <button
-    onClick={onExpand}
-    className="text-text-muted hover:text-text-primary hover:underline transition-colors"
-  >
-              [EXPAND]
-            </button>}</div></div>{
-    /* Canvas Area */
-  }<div
-    className="relative flex-1 cursor-crosshair mt-2"
-    onMouseMove={handleMouseMove}
-    onMouseLeave={handleMouseLeave}
-  ><canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />{
-    /* Hover Crosshair Overlay */
-  }{activeHoverDist !== null && !isCollapsed && <>{
-    /* Vertical crosshair line */
-  }<div
-    className="absolute top-0 bottom-0 w-px border-l border-dashed border-text-muted/50 pointer-events-none"
-    style={{ left: `${activeHoverDist / totalDistance * dimensions.width}px` }}
-  />{
-    /* Hover Tooltip Overlay */
-  }<div
-    className="absolute top-2 bg-panel border border-fw-border-active rounded-card p-2 text-mono-meta font-mono pointer-events-none z-10 flex flex-col gap-1 shadow-xl"
-    style={{
-      left: `${activeHoverDist / totalDistance * dimensions.width + 12}px`,
-      transform: activeHoverDist / totalDistance * dimensions.width > dimensions.width - 150 ? "translateX(-110%)" : "none"
-    }}
-  ><div className="text-text-primary font-semibold">DIST: {activeHoverDist}m</div><div className="flex items-center gap-1.5" style={{ color: "#00E5FF" }}><span>{driverA.code}:</span><span>{formatVal(ptA, metric)}</span>{metric === "speed" && "km/h"}{metric === "throttle" && "%"}{metric === "brake" && "bar"}</div>{driverB && driverB.code && ptB && <div className="flex items-center gap-1.5" style={{ color: "#FFD600" }}><span>{driverB.code}:</span><span>{formatVal(ptB, metric)}</span>{metric === "speed" && "km/h"}{metric === "throttle" && "%"}{metric === "brake" && "bar"}</div>}</div></>}</div>{
-    /* Collapsed State Summary Row */
-  }{isCollapsed && <div className="flex justify-between items-center text-mono-meta font-mono text-text-muted mt-2 border-t border-fw-border pt-1"><span>0m</span><span> {trackName || "Circuit"} </span><span>{totalDistance}m</span></div>}</div>;
+            </span>
+          )}
+        </div>
+
+        {/* Channel Selector Buttons (when expanded) */}
+        {!isCollapsed && (
+          <div className="flex items-center gap-1 bg-canvas border border-fw-border rounded-card p-0.5">
+            {["speed", "throttle", "brake", "gear", "multi"].map((met) => (
+              <button
+                key={met}
+                onClick={() => setActiveMetric(met)}
+                className={cn(
+                  "px-2 py-0.5 rounded-sm text-[10px] uppercase font-mono transition-colors",
+                  activeMetric === met
+                    ? "bg-drs-cyan text-canvas font-bold shadow-sm"
+                    : "text-text-muted hover:text-text-primary hover:bg-panel"
+                )}
+              >
+                {met}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Right Header Metadata / Actions */}
+        <div className="flex items-center gap-3">
+          <span className="text-text-muted hidden sm:inline">{trackName || "Circuit"}</span>
+          {!isCollapsed && (
+            <button
+              onClick={() => setShowTable(!showTable)}
+              className={cn(
+                "px-2 py-0.5 rounded-sm text-[10px] font-mono border transition-colors",
+                showTable
+                  ? "border-drs-cyan text-drs-cyan bg-drs-cyan/10"
+                  : "border-fw-border text-text-muted hover:text-text-primary"
+              )}
+            >
+              {showTable ? "[HIDE_TABLE]" : "[DATA_TABLE]"}
+            </button>
+          )}
+          {onExpand && (
+            <button
+              onClick={onExpand}
+              className="text-drs-cyan hover:underline transition-colors font-semibold"
+            >
+              {isCollapsed ? "[EXPAND]" : "[POP_OUT]"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Canvas Area */}
+      {!hasData ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center font-mono text-xs text-text-muted gap-1">
+          <span className="text-f1-red font-semibold">// NO TELEMETRY TRACE PERSISTED</span>
+          <span>No downsampled FastF1 data points recorded for this driver and lap.</span>
+        </div>
+      ) : (
+        <div
+          className="relative flex-1 cursor-crosshair mt-2"
+          style={{ height: chartHeight - 40 }}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+        >
+          <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />
+
+          {/* Hover Crosshair & HUD Overlay */}
+          {activeHoverDist !== null && !isCollapsed && (
+            <>
+              {/* Vertical crosshair line */}
+              <div
+                className="absolute top-0 bottom-0 w-px border-l border-dashed border-drs-cyan/60 pointer-events-none"
+                style={{ left: `${crosshairLeft}px` }}
+              />
+
+              {/* Hover HUD Badge */}
+              <div
+                className="absolute top-2 bg-panel/95 border border-drs-cyan/40 rounded-card p-2.5 text-mono-meta font-mono pointer-events-none z-20 flex flex-col gap-1.5 shadow-2xl backdrop-blur-md min-w-[150px]"
+                style={{
+                  left: `${crosshairLeft + 14}px`,
+                  transform: crosshairLeft > dimensions.width - 180 ? "translateX(-115%)" : "none"
+                }}
+              >
+                <div className="text-text-primary font-bold border-b border-fw-border pb-1 flex justify-between items-center">
+                  <span>DIST: {activeHoverDist}m</span>
+                  <span className="text-[9px] text-text-muted">LAP {lapNumber || 1}</span>
+                </div>
+
+                {/* Primary Metric Value */}
+                <div className="flex flex-col gap-1 text-[11px]">
+                  <div className="flex justify-between items-center" style={{ color: "#00E5FF" }}>
+                    <span className="font-semibold">{driverA?.code || "DRV_A"}:</span>
+                    <span>
+                      {formatVal(ptA, activeMetric === "multi" ? "speed" : activeMetric)}{" "}
+                      {getMetricConfig(activeMetric === "multi" ? "speed" : activeMetric).unit}
+                    </span>
+                  </div>
+
+                  {driverB?.code && ptB && (
+                    <div className="flex justify-between items-center" style={{ color: "#FFD600" }}>
+                      <span className="font-semibold">{driverB.code}:</span>
+                      <span>
+                        {formatVal(ptB, activeMetric === "multi" ? "speed" : activeMetric)}{" "}
+                        {getMetricConfig(activeMetric === "multi" ? "speed" : activeMetric).unit}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Delta indicator */}
+                  {driverB?.code && ptB && (
+                    <div className="flex justify-between items-center border-t border-fw-border pt-1 text-[10px]">
+                      <span className="text-text-muted">DELTA:</span>
+                      <span
+                        className={cn(
+                          "font-bold",
+                          (getDelta(activeMetric === "multi" ? "speed" : activeMetric)?.diff || 0) >= 0
+                            ? "text-drs-cyan"
+                            : "text-f1-red"
+                        )}
+                      >
+                        {getDelta(activeMetric === "multi" ? "speed" : activeMetric)?.text || "0"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Multi-channel telemetry sub-metrics */}
+                {activeMetric !== "multi" && ptA && (
+                  <div className="flex items-center gap-2 border-t border-fw-border pt-1 text-[9px] text-text-muted">
+                    <span>THR: {formatVal(ptA, "throttle")}%</span>
+                    <span>BRK: {formatVal(ptA, "brake")}%</span>
+                    <span>GEAR: {formatVal(ptA, "gear")}</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Collapsed State Summary Row */}
+      {isCollapsed && hasData && (
+        <div className="flex justify-between items-center text-mono-meta font-mono text-text-muted mt-2 border-t border-fw-border pt-1">
+          <span>0m</span>
+          <span className="text-[10px] text-text-secondary uppercase">
+            {driverA?.code || "DRIVER"} ({dataA.length} PTS)
+            {driverB?.code ? ` VS ${driverB.code} (${dataB.length} PTS)` : ""}
+          </span>
+          <span>{totalDistance}m</span>
+        </div>
+      )}
+
+      {/* Deep-Dive Monospace Telemetry Grid Table */}
+      {isDeepDive && hasData && (
+        <div className="border-t border-fw-border pt-3 mt-3 flex flex-col gap-2">
+          <div className="flex justify-between items-center text-[10px] font-mono text-text-muted">
+            <span className="text-text-primary font-semibold uppercase">
+              DISTANCE_BINNED_TELEMETRY_LOG // 10M_SLICES
+            </span>
+            <span>SHOWING {Math.min(25, dataA.length)} POINTS</span>
+          </div>
+
+          <div className="overflow-x-auto max-h-[220px] overflow-y-auto border border-fw-border rounded-card bg-canvas">
+            <table className="w-full text-left font-mono text-[10px]">
+              <thead className="bg-panel border-b border-fw-border sticky top-0 text-text-muted">
+                <tr>
+                  <th className="py-1 px-2.5">DIST (m)</th>
+                  <th className="py-1 px-2" style={{ color: "#00E5FF" }}>
+                    {driverA?.code || "A"} SPD
+                  </th>
+                  {driverB?.code && (
+                    <th className="py-1 px-2" style={{ color: "#FFD600" }}>
+                      {driverB.code} SPD
+                    </th>
+                  )}
+                  {driverB?.code && <th className="py-1 px-2 text-text-primary">Δ SPD</th>}
+                  <th className="py-1 px-2" style={{ color: "#00E5FF" }}>
+                    {driverA?.code || "A"} THR
+                  </th>
+                  {driverB?.code && (
+                    <th className="py-1 px-2" style={{ color: "#FFD600" }}>
+                      {driverB.code} THR
+                    </th>
+                  )}
+                  <th className="py-1 px-2" style={{ color: "#00E5FF" }}>
+                    {driverA?.code || "A"} BRK
+                  </th>
+                  {driverB?.code && (
+                    <th className="py-1 px-2" style={{ color: "#FFD600" }}>
+                      {driverB.code} BRK
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-fw-border text-text-secondary">
+                {dataA.slice(0, 30).map((ptAItem, idx) => {
+                  const dist = ptAItem.distanceM || 0;
+                  const ptBItem = getPointAtDist(dataB, dist);
+                  const spdA = Number(ptAItem.speed) || 0;
+                  const spdB = ptBItem ? Number(ptBItem.speed) || 0 : 0;
+                  const deltaSpd = spdA - spdB;
+                  const thrA = Number(ptAItem.throttle) || 0;
+                  const thrB = ptBItem ? Number(ptBItem.throttle) || 0 : 0;
+                  const brkA = typeof ptAItem.brake === "boolean" ? (ptAItem.brake ? 100 : 0) : Number(ptAItem.brake) || 0;
+                  const brkB = ptBItem
+                    ? typeof ptBItem.brake === "boolean"
+                      ? ptBItem.brake
+                        ? 100
+                        : 0
+                      : Number(ptBItem.brake) || 0
+                    : 0;
+
+                  return (
+                    <tr
+                      key={idx}
+                      className={cn(
+                        "hover:bg-panel/80 transition-colors",
+                        activeHoverDist !== null && Math.abs(dist - activeHoverDist) < 50
+                          ? "bg-drs-cyan/10 font-bold"
+                          : ""
+                      )}
+                    >
+                      <td className="py-1 px-2.5 text-text-primary">{dist.toFixed(1)}</td>
+                      <td className="py-1 px-2" style={{ color: "#00E5FF" }}>
+                        {spdA.toFixed(0)}
+                      </td>
+                      {driverB?.code && (
+                        <td className="py-1 px-2" style={{ color: "#FFD600" }}>
+                          {ptBItem ? spdB.toFixed(0) : "-"}
+                        </td>
+                      )}
+                      {driverB?.code && (
+                        <td
+                          className={cn(
+                            "py-1 px-2",
+                            deltaSpd >= 0 ? "text-drs-cyan" : "text-f1-red font-semibold"
+                          )}
+                        >
+                          {ptBItem ? `${deltaSpd >= 0 ? "+" : ""}${deltaSpd.toFixed(0)}` : "-"}
+                        </td>
+                      )}
+                      <td className="py-1 px-2">{thrA.toFixed(0)}%</td>
+                      {driverB?.code && <td className="py-1 px-2">{ptBItem ? `${thrB.toFixed(0)}%` : "-"}</td>}
+                      <td className={cn("py-1 px-2", brkA > 0 ? "text-f1-red font-semibold" : "")}>
+                        {brkA.toFixed(0)}%
+                      </td>
+                      {driverB?.code && (
+                        <td className={cn("py-1 px-2", brkB > 0 ? "text-f1-red font-semibold" : "")}>
+                          {ptBItem ? `${brkB.toFixed(0)}%` : "-"}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

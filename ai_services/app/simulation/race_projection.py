@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Any, Tuple
 from .tire_model import get_tire_parameters_for_driver, project_natural_lap_time
 
 def project_race_timeline(
@@ -8,11 +8,13 @@ def project_race_timeline(
     grid_median_deg: Dict[str, float] = None,
     pit_loss: float = 22.0,
     overtake_difficulty: float = 0.4,
-    total_laps: int = 71
-) -> List[float]:
+    total_laps: int = 71,
+    return_details: bool = False
+) -> Any:
     """Projects the simulated lap-by-lap race timeline for the driver.
     
     Returns a list of simulated lap times (seconds) for laps 1 to total_laps.
+    If return_details=True, returns (simulated_lap_times, total_traffic_loss).
     """
     # 1. Fit/Get tire parameters (alpha, beta) for each compound used in strategy
     compounds_used = set(s["compound"].upper() for s in simulated_stints)
@@ -35,6 +37,7 @@ def project_race_timeline(
     cumulative_time = 0.0
     tire_age = 0
     current_stint_idx = 0
+    total_traffic_loss = 0.0
     
     # 3. Simulate lap-by-lap
     for k in range(1, total_laps + 1):
@@ -114,6 +117,13 @@ def project_race_timeline(
             cumulative_time = projected_cum
             
         lap_time = cumulative_time - sum(simulated_lap_times)
+        traffic_delta = lap_time - natural_lap
+        if traffic_delta > 0.001:
+            total_traffic_loss += traffic_delta
+            
         simulated_lap_times.append(lap_time)
         
+    if return_details:
+        return simulated_lap_times, total_traffic_loss
     return simulated_lap_times
+

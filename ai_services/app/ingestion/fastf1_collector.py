@@ -90,30 +90,36 @@ class FastF1Collector(BaseCollector):
 
         try:
             session = self.collect(year, gp_name, session_type)
-            if self.validate(session):
-                session_id = self.process_and_save(session)
-                FastF1Collector._ingested_sessions_cache.add(session_id)
+            if not self.validate(session):
                 return {
-                    "status": "loaded",
-                    "session_id": session_id,
-                    "message": "Session data successfully fetched from FastF1 and ingested into PostgreSQL."
+                    "status": "error",
+                    "session_id": None,
+                    "message": f"FastF1 session validation failed for {year} {gp_name} ({session_type}): session has no laps."
                 }
+            session_id = self.process_and_save(session)
+            FastF1Collector._ingested_sessions_cache.add(session_id)
+            return {
+                "status": "loaded",
+                "session_id": session_id,
+                "message": "Session data successfully fetched from FastF1 and ingested into PostgreSQL."
+            }
         except Exception as e:
-            logger.warning(f"[{self.name}] FastF1 fetch/load failed for {year} {gp_name} ({session_type}): {e}. Populating structured session dataset into PostgreSQL.")
+            logger.error(
+                f"[{self.name}] FastF1 fetch/load FAILED for {year} {gp_name} ({session_type}): {e}. "
+                f"No synthetic fallback will be used — returning explicit error status.",
+                exc_info=True
+            )
+            return {
+                "status": "error",
+                "session_id": None,
+                "message": f"FastF1 ingestion failed for {year} {gp_name} ({session_type}): {e}"
+            }
 
-        session_id = self._populate_synthetic_session(year, gp_name, session_type)
-        FastF1Collector._ingested_sessions_cache.add(session_id)
-        return {
-            "status": "loaded",
-            "session_id": session_id,
-            "message": "Session data populated into PostgreSQL."
-        }
-
-    def collect(self, year: int, gp_name: str, session_type: str = "R", load_telemetry: bool = False) -> fastf1.core.Session:
-        """Downloads and loads an F1 session data package."""
-        logger.info(f"[{self.name}] Fetching session {year} {gp_name} - {session_type} from FastF1")
+    def collect(self, year: int, gp_name: str, session_type: str = "R") -> fastf1.core.Session:
+        """Downloads and loads an F1 session data package, always including telemetry and weather."""
+        logger.info(f"[{self.name}] Fetching session {year} {gp_name} - {session_type} from FastF1 (telemetry=True, weather=True)")
         session = fastf1.get_session(year, gp_name, session_type)
-        session.load(telemetry=load_telemetry, laps=True, weather=False)
+        session.load(telemetry=True, laps=True, weather=True)
         return session
 
     def validate(self, session: fastf1.core.Session) -> bool:
@@ -266,6 +272,7 @@ class FastF1Collector(BaseCollector):
         # 4. Process driver laps, stints & telemetry (3. laps, 4. stints, 7. telemetry_metadata)
         laps_df = session.laps
         drivers_list = list(laps_df['Driver'].unique())
+        failed_telemetry_laps = []  # Track laps where telemetry persistence failed
 
         logger.info(f"[{self.name}] Processing laps for drivers: {drivers_list}")
         for drv_code in drivers_list:
@@ -326,7 +333,19 @@ class FastF1Collector(BaseCollector):
                     if telemetry_df is not None and len(telemetry_df) > 0:
                         self._downsample_and_save_telemetry(session_id, drv_id, lap_num, telemetry_df)
                 except Exception as ex:
-                    logger.debug(f"Could not load telemetry profiles for driver {drv_code} lap {lap_num}: {ex}")
+                    logger.error(
+                        f"[{self.name}] ERROR persisting telemetry for driver {drv_code} lap {lap_num} "
+                        f"in session {session_id}: {ex}",
+                        exc_info=True
+                    )
+                    failed_telemetry_laps.append((drv_code, lap_num))
+
+        if failed_telemetry_laps:
+            logger.error(
+                f"[{self.name}] Telemetry persist FAILED for {len(failed_telemetry_laps)} lap(s) in session {session_id}: {failed_telemetry_laps}"
+            )
+        else:
+            logger.info(f"[{self.name}] All telemetry persisted successfully for session {session_id}")
 
         return session_id
 
@@ -377,185 +396,6 @@ class FastF1Collector(BaseCollector):
             """,
             (session_id, driver_id, lap_number, len(downsampled), storage_path, redis_key)
         )
-
-    def _populate_synthetic_session(self, year: int, gp_name: str, session_type: str) -> str:
-        """Populates structured dataset across all 7 PostgreSQL tables for offline/2026 sessions."""
-        gp_clean = gp_name.lower().replace(" ", "_").replace("grand_prix", "").replace("gp", "").strip("_")
-        session_type_map = {
-            "R": "Race", "Q": "Qualifying", "SQ": "Sprint Qualifying",
-            "S": "Sprint", "FP1": "FP1", "FP2": "FP2", "FP3": "FP3"
-        }
-        type_str = session_type_map.get(session_type.upper(), session_type)
-        circuit_alias_map = {
-            "british": "silverstone", "britain": "silverstone", "silverstone": "silverstone",
-            "austria": "red_bull_ring", "austrian": "red_bull_ring", "spielberg": "red_bull_ring",
-            "monaco": "monaco",
-            "hungary": "hungaroring", "hungarian": "hungaroring", "budapest": "hungaroring",
-            "spain": "catalunya", "spanish": "catalunya", "barcelona": "catalunya"
-        }
-        circuit_id = circuit_alias_map.get(gp_clean, gp_clean)
-        race_id = f"{year}_{circuit_id}_gp"
-        session_id = f"{race_id}_{type_str.lower()}"
-
-        round_map = {
-            "monaco": 8,
-            "spain": 10, "catalunya": 10,
-            "austria": 11, "red_bull_ring": 11,
-            "silverstone": 12, "british": 12,
-            "hungary": 13, "hungaroring": 13
-        }
-        round_num = round_map.get(circuit_id, 99)
-
-        # Check existing race in DB to reuse canonical race_id and avoid unique_year_round conflict
-        existing_race = safe_execute_query(
-            "SELECT id FROM races WHERE year = %s AND (circuit_id ILIKE %s OR name ILIKE %s)",
-            (year, f"%{circuit_id}%", f"%{gp_name}%"),
-            fetch=True
-        )
-        if existing_race and isinstance(existing_race, list) and len(existing_race) > 0:
-            race_id = existing_race[0]["id"]
-        else:
-            race_id = f"{year}_{circuit_id}_gp"
-
-        # Check existing session in DB to reuse canonical session_id
-        existing_sess = safe_execute_query(
-            "SELECT id FROM sessions WHERE race_id = %s AND type ILIKE %s",
-            (race_id, f"%{type_str}%"),
-            fetch=True
-        )
-        if existing_sess and isinstance(existing_sess, list) and len(existing_sess) > 0:
-            session_id = existing_sess[0]["id"]
-        else:
-            session_id = f"{race_id}_{type_str.lower()}"
-
-        # 1. Circuits, Races, Sessions
-        try:
-            execute_query(
-                "INSERT INTO circuits (id, name, location, country) VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
-                (circuit_id, f"{gp_name} Grand Prix Circuit", gp_name, "United Kingdom")
-            )
-        except Exception as ex:
-            logger.debug(f"[FastF1Collector] Circuit insert note: {ex}")
-
-        try:
-            execute_query(
-                """
-                INSERT INTO races (id, circuit_id, year, round, name, date)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (year, round) DO UPDATE SET
-                    circuit_id = EXCLUDED.circuit_id,
-                    name = EXCLUDED.name
-                """,
-                (race_id, circuit_id, year, round_num, f"{gp_name} Grand Prix", f"{year}-07-14")
-            )
-        except Exception as ex:
-            logger.debug(f"[FastF1Collector] Race insert note: {ex}")
-
-        try:
-            execute_query(
-                "INSERT INTO sessions (id, race_id, type, date, status) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (id) DO UPDATE SET status = 'completed'",
-                (session_id, race_id, type_str, f"{year}-07-14", "completed")
-            )
-        except Exception as ex:
-            logger.warning(f"[FastF1Collector] Error creating base session {session_id}: {ex}")
-
-        # 2. Constructors & Drivers
-        teams = [("red_bull", "Red Bull"), ("ferrari", "Ferrari"), ("mclaren", "McLaren"), ("mercedes", "Mercedes")]
-        for tid, tname in teams:
-            safe_execute_query("INSERT INTO constructors (id, name) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING", (tid, tname))
-
-        if "monaco" in gp_clean:
-            drivers_data = [
-                ("leclerc", "ferrari", "Charles", "Leclerc", "LEC", 16, "Monégasque", 1, 1, 25.0, "Finished"),
-                ("piastri", "mclaren", "Oscar", "Piastri", "PIA", 81, "Australian", 2, 2, 18.0, "Finished"),
-                ("sainz", "ferrari", "Carlos", "Sainz", "SAI", 55, "Spanish", 3, 3, 15.0, "Finished"),
-                ("norris", "mclaren", "Lando", "Norris", "NOR", 4, "British", 4, 4, 12.0, "Finished"),
-                ("russell", "mercedes", "George", "Russell", "RUS", 63, "British", 5, 5, 10.0, "Finished"),
-                ("verstappen", "red_bull", "Max", "Verstappen", "VER", 1, "Dutch", 6, 6, 8.0, "Finished"),
-                ("hamilton", "mercedes", "Lewis", "Hamilton", "HAM", 44, "British", 7, 7, 6.0, "Finished")
-            ]
-        elif "hungary" in gp_clean or "budapest" in gp_clean or "hungaroring" in gp_clean:
-            drivers_data = [
-                ("piastri", "mclaren", "Oscar", "Piastri", "PIA", 81, "Australian", 2, 1, 25.0, "Finished"),
-                ("norris", "mclaren", "Lando", "Norris", "NOR", 4, "British", 1, 2, 18.0, "Finished"),
-                ("hamilton", "mercedes", "Lewis", "Hamilton", "HAM", 44, "British", 5, 3, 15.0, "Finished"),
-                ("leclerc", "ferrari", "Charles", "Leclerc", "LEC", 16, "Monégasque", 6, 4, 12.0, "Finished"),
-                ("verstappen", "red_bull", "Max", "Verstappen", "VER", 1, "Dutch", 3, 5, 10.0, "Finished"),
-                ("sainz", "ferrari", "Carlos", "Sainz", "SAI", 55, "Spanish", 4, 6, 8.0, "Finished")
-            ]
-        elif "austria" in gp_clean or "red_bull_ring" in gp_clean or "spielberg" in gp_clean:
-            drivers_data = [
-                ("russell", "mercedes", "George", "Russell", "RUS", 63, "British", 3, 1, 25.0, "Finished"),
-                ("piastri", "mclaren", "Oscar", "Piastri", "PIA", 81, "Australian", 7, 2, 18.0, "Finished"),
-                ("sainz", "ferrari", "Carlos", "Sainz", "SAI", 55, "Spanish", 4, 3, 15.0, "Finished"),
-                ("hamilton", "mercedes", "Lewis", "Hamilton", "HAM", 44, "British", 5, 4, 12.0, "Finished"),
-                ("verstappen", "red_bull", "Max", "Verstappen", "VER", 1, "Dutch", 1, 5, 10.0, "Finished"),
-                ("norris", "mclaren", "Lando", "Norris", "NOR", 4, "British", 2, 20, 0.0, "Collision")
-            ]
-        else:
-            drivers_data = [
-                ("verstappen", "red_bull", "Max", "Verstappen", "VER", 1, "Dutch", 1, 1, 25.0, "Finished"),
-                ("norris", "mclaren", "Lando", "Norris", "NOR", 4, "British", 2, 2, 18.0, "Finished"),
-                ("sainz", "ferrari", "Carlos", "Sainz", "SAI", 55, "Spanish", 4, 3, 15.0, "Finished"),
-                ("hamilton", "mercedes", "Lewis", "Hamilton", "HAM", 44, "British", 3, 4, 12.0, "Finished"),
-                ("leclerc", "ferrari", "Charles", "Leclerc", "LEC", 16, "Monégasque", 5, 5, 10.0, "Finished"),
-                ("russell", "mercedes", "George", "Russell", "RUS", 63, "British", 6, 6, 8.0, "Finished")
-            ]
-
-        for drv_id, team_id, fname, lname, code, num, nat, grid, pos, pts, dstatus in drivers_data:
-            safe_execute_query(
-                "INSERT INTO drivers (id, constructor_id, first_name, last_name, code, driver_number, nationality) VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
-                (drv_id, team_id, fname, lname, code, num, nat)
-            )
-            safe_execute_query(
-                "INSERT INTO race_results (session_id, driver_id, constructor_id, grid_position, position, points, status, laps_completed) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (session_id, driver_id) DO NOTHING",
-                (session_id, drv_id, team_id, grid, pos, pts, dstatus, 52 if dstatus == "Finished" else 42)
-            )
-
-            safe_execute_query(
-                "INSERT INTO stints (session_id, driver_id, stint_number, compound, start_lap, end_lap, stint_length, is_new) VALUES (%s, %s, 1, 'MEDIUM', 1, 22, 22, true) ON CONFLICT (session_id, driver_id, stint_number) DO NOTHING",
-                (session_id, drv_id)
-            )
-            safe_execute_query(
-                "INSERT INTO stints (session_id, driver_id, stint_number, compound, start_lap, end_lap, stint_length, is_new) VALUES (%s, %s, 2, 'HARD', 23, 52, 30, true) ON CONFLICT (session_id, driver_id, stint_number) DO NOTHING",
-                (session_id, drv_id)
-            )
-
-            for lap in range(1, 53):
-                ltime = 86000 + (lap * 40) + int(np.random.randint(-200, 200))
-                s1 = 28000 + int(np.random.randint(-100, 100))
-                s2 = 30000 + int(np.random.randint(-100, 100))
-                s3 = ltime - s1 - s2
-                cmpd = "MEDIUM" if lap <= 22 else "HARD"
-                is_pit = (lap == 23)
-
-                safe_execute_query(
-                    "INSERT INTO laps (session_id, driver_id, lap_number, lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound, is_pit_out_lap, is_valid) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (session_id, driver_id, lap_number) DO NOTHING",
-                    (session_id, drv_id, lap, ltime, s1, s2, s3, cmpd, is_pit, True)
-                )
-
-                dummy_points = [{"speed": 220 + (i % 80), "rpm": 11500, "gear": 6, "throttle": 90, "brake": False} for i in range(50)]
-                t_filename = f"{session_id}_{drv_id}_{lap}.json"
-                t_path = os.path.join(self.cache_dir, "telemetry", t_filename)
-                with open(t_path, "w") as f:
-                    json.dump(dummy_points, f)
-
-                safe_execute_query(
-                    "INSERT INTO telemetry_metadata (session_id, driver_id, lap_number, data_points_count, storage_path, redis_cache_key) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (session_id, driver_id, lap_number) DO NOTHING",
-                    (session_id, drv_id, lap, 50, t_path, f"telemetry:cache:{session_id}:{drv_id}:{lap}")
-                )
-
-        import datetime
-        base_time = datetime.datetime(year, 7, 14, 14, 0, 0)
-        for idx in range(10):
-            w_dt = base_time + datetime.timedelta(minutes=idx * 10)
-            w_timestamp = w_dt.strftime("%Y-%m-%d %H:%M:%S")
-            safe_execute_query(
-                "INSERT INTO weather (session_id, timestamp, air_temperature, track_temperature, humidity, rainfall, wind_direction, wind_speed) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (session_id, timestamp) DO NOTHING",
-                (session_id, w_timestamp, 22.5, 38.0, 45.0, False, 180, 12.5)
-            )
-
-        return session_id
 
 
 def pandas_is_null(val):

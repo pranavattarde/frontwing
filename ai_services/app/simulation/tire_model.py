@@ -25,10 +25,11 @@ def fit_tire_parameters(clean_laps: List[Dict]) -> Tuple[float, float]:
     clean_laps should be a list of dicts, e.g. [{"lap_number": 5, "lap_time": 71.2, "tire_age": 5}]
     """
     if len(clean_laps) < 3:
-        # Not enough data to fit, return standard fallbacks
-        return 70.0, 0.08
+        # Not enough data to fit, return average of clean laps or default
+        base = float(np.mean([lap["lap_time"] for lap in clean_laps])) if clean_laps else 80.0
+        return base, 0.08
 
-    ages = np.array([lap["tire_age"] for lap in clean_laps])
+    ages = np.array([lap.get("tire_age", lap.get("lap_number", 1)) for lap in clean_laps])
     times = np.array([lap["lap_time"] for lap in clean_laps])
     lap_numbers = np.array([lap["lap_number"] for lap in clean_laps])
 
@@ -53,18 +54,43 @@ def get_tire_parameters_for_driver(
     """Retrieves or estimates tire parameters (alpha, beta) for a target compound and driver."""
     target_compound = target_compound.upper()
     
-    # 1. Filter laps by compound to see if driver ran it
-    actual_laps_on_target = [lap for lap in driver_laps if lap.get("compound", "").upper() == target_compound and not lap.get("is_pit_out_lap", False)]
+    # Calculate driver median lap time to filter out SC / slow outliers
+    all_times = [lap["lap_time"] for lap in driver_laps if lap.get("lap_time")]
+    median_time = float(np.median(all_times)) if all_times else 80.0
+    
+    def is_clean_flying_lap(lap: Dict) -> bool:
+        t = lap.get("lap_time")
+        if t is None:
+            return False
+        # Exclude lap 1 standing start outlier
+        if lap.get("lap_number", 0) <= 1:
+            return False
+        # Exclude pit out laps
+        if lap.get("is_pit_out_lap", False):
+            return False
+        # Exclude safety car / pace outlier laps (+-15% of median)
+        if t > 1.15 * median_time or t < 0.85 * median_time:
+            return False
+        return True
+    
+    # 1. Filter clean laps on target compound
+    actual_laps_on_target = [
+        lap for lap in driver_laps 
+        if str(lap.get("compound", "")).upper() == target_compound and is_clean_flying_lap(lap)
+    ]
     
     if len(actual_laps_on_target) >= 3:
         return fit_tire_parameters(actual_laps_on_target)
         
     # 2. If target compound was not run, find another compound run by this driver to estimate base pace (alpha)
-    other_compounds = list(set([lap.get("compound", "").upper() for lap in driver_laps if lap.get("compound")]))
+    other_compounds = list(set([str(lap.get("compound", "")).upper() for lap in driver_laps if lap.get("compound")]))
     
     base_alpha = None
     for other in other_compounds:
-        other_laps = [lap for lap in driver_laps if lap.get("compound", "").upper() == other and not lap.get("is_pit_out_lap", False)]
+        other_laps = [
+            lap for lap in driver_laps 
+            if str(lap.get("compound", "")).upper() == other and is_clean_flying_lap(lap)
+        ]
         if len(other_laps) >= 3:
             alpha_other, _ = fit_tire_parameters(other_laps)
             # Estimate alpha for target compound using relative compound offsets
@@ -75,10 +101,13 @@ def get_tire_parameters_for_driver(
             
     if base_alpha is None:
         # Fallback if no clean stints are found
-        if driver_laps:
-            base_alpha = np.mean([lap["lap_time"] for lap in driver_laps])
+        clean_any = [lap for lap in driver_laps if is_clean_flying_lap(lap)]
+        if clean_any:
+            base_alpha = float(np.mean([lap["lap_time"] for lap in clean_any]))
+        elif driver_laps:
+            base_alpha = float(np.mean([lap["lap_time"] for lap in driver_laps]))
         else:
-            base_alpha = 70.0 # general baseline
+            base_alpha = 80.0 # general baseline
             
     # 3. Retrieve degradation rate (beta) from grid median or default fallbacks
     if grid_median_deg and target_compound in grid_median_deg:

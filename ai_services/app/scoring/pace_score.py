@@ -4,29 +4,28 @@ def calculate_pace_score(data: dict) -> float:
     driver_std = data.get("driver_clean_laps_std", 0.0)
     
     # 1. Consistency
-    # Scaled against a threshold (std_limit = 1.5s) to avoid relative mean compression
     std_limit = 1.5
-    consistency = max(0.0, 1.0 - (driver_std / std_limit))
+    consistency = max(0.0, min(1.0, 1.0 - (driver_std / std_limit)))
 
     # 2. Speed Margin
     # Machine potential is the faster of driver's own peak or teammate's peak clean lap
     driver_opt = data.get("driver_optimal_lap", 0.0)
-    teammate_opt = data.get("teammate_optimal_lap", 0.0)
+    teammate_opt = data.get("teammate_optimal_lap")
     
-    if driver_opt > 0 and teammate_opt > 0:
+    if driver_opt and driver_opt > 0 and teammate_opt and teammate_opt > 0:
         l_optimal = min(driver_opt, teammate_opt)
-    elif driver_opt > 0:
+    elif driver_opt and driver_opt > 0:
         l_optimal = driver_opt
     else:
-        l_optimal = 70.0  # fallback baseline
+        l_optimal = driver_mean if driver_mean > 0 else 0.0
         
-    # Scaled against a threshold (delta_limit = 2.0s) to reflect absolute time loss
     delta_limit = 2.0
     if l_optimal > 0 and driver_mean > 0:
-        speed_margin = max(0.0, 1.0 - ((driver_mean - l_optimal) / delta_limit))
+        speed_margin = max(0.0, min(1.0, 1.0 - ((driver_mean - l_optimal) / delta_limit)))
     else:
-        speed_margin = 1.0
+        speed_margin = consistency
 
     # Combined score
     score = 50.0 * consistency + 50.0 * speed_margin
     return round(score, 2)
+

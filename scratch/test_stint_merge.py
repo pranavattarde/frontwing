@@ -1,36 +1,16 @@
-from typing import List, Dict
-
-def get_pit_lane_loss(session_data: dict, driver_id: str = None) -> float:
-    """Returns the total pit stop loss time (pit lane transit + stationary service)."""
-    # Try to find optimized time from session metadata, defaulting to 22.0 seconds
-    t_opt_lane = session_data.get("t_pit_lane_opt", 20.80)
-    
-    # We assume a standard pit stop stationary time of 2.5 seconds
-    t_stationary = 2.5
-    
-    # Total pit loss is optimal lane transit + stationary time
-    # If the track has specific lane transit, use it
-    return t_opt_lane + t_stationary
-
 def adjust_stints_for_simulated_stop(
-    original_stints: List[Dict],
+    original_stints: list,
     simulated_pit_lap: int,
     target_compound: str = None,
     total_laps: int = 71
-) -> List[Dict]:
-    """Reconstructs the strategy stints by shifting a pit stop to a new lap.
-    
-    If the target driver has multiple stints, this adjusts the first stop to happen on
-    simulated_pit_lap and shifts the subsequent stints accordingly.
-    """
+) -> list:
     if not original_stints:
-        # If no stints exist, create a default 2-stint strategy
         comp = target_compound or "HARD"
         return [
             {"compound": "MEDIUM", "start_lap": 1, "end_lap": simulated_pit_lap},
             {"compound": comp.upper(), "start_lap": simulated_pit_lap + 1, "end_lap": total_laps}
         ]
-        
+
     # Step 1: Merge consecutive stints that share the same compound or are micro-stints (<= 2 laps)
     merged_stints = []
     for s in original_stints:
@@ -46,8 +26,7 @@ def adjust_stints_for_simulated_stop(
                 merged_stints.append(s_dict)
 
     stints = [dict(s) for s in merged_stints]
-    
-    # If there is only 1 stint, split it into 2 stints.
+
     if len(stints) == 1:
         comp = target_compound or "HARD"
         old_end = stints[0]["end_lap"] or total_laps
@@ -58,31 +37,47 @@ def adjust_stints_for_simulated_stop(
             "end_lap": old_end
         })
     else:
-        # If there are multiple stints, shift the boundary between Stint 1 and Stint 2
         stints[0]["end_lap"] = simulated_pit_lap
         stints[1]["start_lap"] = simulated_pit_lap + 1
-        
         if target_compound:
             stints[1]["compound"] = target_compound.upper()
-            
-        # Ensure subsequent stints preserve their length or are shifted:
+
+        # Shift subsequent stints if any
         for i in range(1, len(stints) - 1):
             stint_len = stints[i]["end_lap"] - stints[i]["start_lap"] + 1
             stints[i]["end_lap"] = stints[i]["start_lap"] + stint_len - 1
             stints[i+1]["start_lap"] = stints[i]["end_lap"] + 1
-            
+
         stints[-1]["end_lap"] = total_laps
-        
-    # Filter out any stints that have collapsed (start_lap > end_lap)
+
+    # Filter out collapsed stints
     valid_stints = [s for s in stints if s["start_lap"] <= s["end_lap"]]
-            
-    # Re-index start/end laps to make sure they are sequential and cover [1, total_laps]
+
+    # Re-index start/end laps sequentially
     current_lap = 1
-    for idx, s in enumerate(valid_stints):
+    for s in valid_stints:
         s["start_lap"] = current_lap
-        s["stint_number"] = idx + 1
         if s == valid_stints[-1]:
             s["end_lap"] = total_laps
         current_lap = s["end_lap"] + 1
-        
+
     return valid_stints
+
+# Test with Qatar 2024 stints
+qatar_stints = [
+    {'compound': 'MEDIUM', 'start_lap': 1, 'end_lap': 35, 'stint_number': 1},
+    {'compound': 'HARD', 'start_lap': 36, 'end_lap': 36, 'stint_number': 2},
+    {'compound': 'HARD', 'start_lap': 37, 'end_lap': 37, 'stint_number': 3},
+    {'compound': 'HARD', 'start_lap': 38, 'end_lap': 57, 'stint_number': 4}
+]
+res_qatar = adjust_stints_for_simulated_stop(qatar_stints, 33, "HARD", 55)
+print("Qatar (Pit Lap 33):", res_qatar)
+
+# Test with Austria 2-stop
+sainz_stints = [
+    {"compound": "MEDIUM", "start_lap": 1, "end_lap": 22, "stint_number": 1},
+    {"compound": "HARD", "start_lap": 23, "end_lap": 47, "stint_number": 2},
+    {"compound": "MEDIUM", "start_lap": 48, "end_lap": 71, "stint_number": 3}
+]
+res_sainz = adjust_stints_for_simulated_stop(sainz_stints, 19, "HARD", 71)
+print("Sainz (Pit Lap 19):", res_sainz)

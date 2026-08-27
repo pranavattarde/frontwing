@@ -61,14 +61,15 @@ class TestAIRaceEngineerBackend(unittest.TestCase):
         self.assertIn("Measures the percent of the race", res["explanation"])
 
     def test_telemetry_adapter_fallback(self):
-        """Verifies telemetry adapter returns structured coordinates or missing_data status."""
+        """Verifies telemetry adapter returns missing_data when session/telemetry doesn't exist.
+        Synthetic telemetry fallback is DELETED — this must always return missing_data for a fake session.
+        """
         tool = tool_registry.get_tool("telemetry_tool")
         res = tool.execute({"session_id": "mock_session", "driver_id": "sainz", "lap_number": 42})
-        if res.get("status") == "missing_data":
-            self.assertEqual(res["required_session"], "mock_session")
-        else:
-            self.assertEqual(res["driver_id"], "sainz")
-            self.assertEqual(res["lap_number"], 42)
+        # No synthetic fallback exists: mock_session has no real DB data, so MUST be missing_data
+        self.assertEqual(res.get("status"), "missing_data",
+            f"Expected missing_data for non-existent session, got status={res.get('status')}. "
+            f"Full response: {res}")
 
     def test_scoring_adapter_execution(self):
         """Verifies scoring adapter calculates composite and individual grades."""

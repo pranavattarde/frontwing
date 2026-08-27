@@ -77,6 +77,45 @@ class ScoringTool(BaseF1Tool):
             return db_data
         return calculate_race_scores(db_data, save_to_db=False)
 
+    def _compute_grid_median_deg(self, session_id: str) -> Dict[str, float]:
+        """Calculates real grid median tire degradation slopes per compound from session stints."""
+        try:
+            stints_all = execute_query(
+                "SELECT driver_id, compound, start_lap, end_lap, stint_length FROM stints WHERE session_id = %s AND stint_length >= 3",
+                (session_id,), fetch=True
+            )
+            slopes_by_compound = {}
+            for st in (stints_all or []):
+                comp = str(st["compound"]).upper()
+                if comp in ["INTERMEDIATE", "WET", "UNKNOWN"]:
+                    continue
+                laps_st = execute_query(
+                    """SELECT lap_time_ms FROM laps 
+                       WHERE session_id = %s AND driver_id = %s 
+                         AND lap_number >= %s AND lap_number <= %s 
+                         AND is_valid = true AND is_pit_out_lap = false AND lap_time_ms IS NOT NULL
+                       ORDER BY lap_number""",
+                    (session_id, st["driver_id"], st["start_lap"], st["end_lap"]), fetch=True
+                )
+                if laps_st and len(laps_st) >= 3:
+                    times = [l["lap_time_ms"] / 1000.0 for l in laps_st]
+                    ages = np.arange(1, len(times) + 1)
+                    corrected = np.array(times) + 0.06 * ages
+                    slope = float(np.polyfit(ages, corrected, 1)[0])
+                    if 0.0 < slope < 0.5:
+                        slopes_by_compound.setdefault(comp, []).append(slope)
+                        
+            grid_median_deg = {}
+            for comp in ["SOFT", "MEDIUM", "HARD"]:
+                if comp in slopes_by_compound and len(slopes_by_compound[comp]) > 0:
+                    grid_median_deg[comp] = round(float(np.median(slopes_by_compound[comp])), 4)
+                else:
+                    grid_median_deg[comp] = 0.080 if comp == "MEDIUM" else (0.050 if comp == "HARD" else 0.120)
+            return grid_median_deg
+        except Exception as ex:
+            logger.error(f"[ScoringTool] Error computing grid median deg for session {session_id}: {ex}", exc_info=True)
+            return {"MEDIUM": 0.080, "HARD": 0.050, "SOFT": 0.120}
+
     def _gather_metrics_from_db(self, session_id: str, driver_id: str) -> Dict[str, Any]:
         try:
             # Check if session exists in PostgreSQL DB
@@ -92,11 +131,71 @@ class ScoringTool(BaseF1Tool):
             if not total_laps_res or not total_laps_res[0]["max_lap"]:
                 return {"status": "missing_data", "required_session": session_id}
             
-            total_laps = total_laps_res[0]["max_lap"]
+            total_laps = int(total_laps_res[0]["max_lap"])
             
+            # Resolve driver code
+            driver_code_res = execute_query("SELECT code FROM drivers WHERE id = %s", (driver_id,), fetch=True)
+            driver_code = driver_code_res[0]["code"] if driver_code_res else driver_id.upper()[:3]
+
+            # 1. Real Safety Car / VSC Laps (Grid pace neutralization detection)
+            sc_query = """
+                WITH grid_laps AS (
+                    SELECT lap_number, AVG(lap_time_ms) as avg_ms, COUNT(*) as cnt
+                    FROM laps
+                    WHERE session_id = %s AND lap_time_ms IS NOT NULL AND is_valid = true
+                    GROUP BY lap_number
+                ),
+                med AS (
+                    SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY avg_ms) as med_ms
+                    FROM grid_laps
+                )
+                SELECT g.lap_number
+                FROM grid_laps g, med m
+                WHERE (g.avg_ms / NULLIF(m.med_ms, 0)) > 1.20 AND g.cnt >= 3
+                ORDER BY g.lap_number;
+            """
+            sc_rows = execute_query(sc_query, (session_id,), fetch=True)
+            sc_laps_list = [r["lap_number"] for r in sc_rows] if sc_rows else []
+            sc_laps_count = len(sc_laps_list)
+
+            # 2. Driver laps
+            all_driver_laps = execute_query(
+                """SELECT lap_number, lap_time_ms, is_pit_out_lap, is_valid, compound 
+                   FROM laps 
+                   WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = %s))
+                     AND is_valid = true AND lap_time_ms IS NOT NULL
+                   ORDER BY lap_number""",
+                (session_id, driver_id, driver_code), fetch=True
+            )
+            if not all_driver_laps:
+                return {"status": "missing_data", "required_session": session_id}
+
+            times_sec = [l["lap_time_ms"] / 1000.0 for l in all_driver_laps]
+            min_time = float(np.min(times_sec))
+
+            # 3. Clean air laps and clean pace statistics
+            valid_driver_times = [l["lap_time_ms"] for l in all_driver_laps if not l.get("is_pit_out_lap") and l["lap_number"] not in sc_laps_list]
+            if valid_driver_times:
+                med_driver_ms = float(np.median(valid_driver_times))
+                pure_clean_times_sec = [
+                    l["lap_time_ms"] / 1000.0 for l in all_driver_laps
+                    if not l.get("is_pit_out_lap") and l["lap_number"] not in sc_laps_list and l["lap_time_ms"] <= med_driver_ms * 1.10
+                ]
+                clean_air_laps_count = len(pure_clean_times_sec)
+                mean_clean_time = float(np.mean(pure_clean_times_sec)) if pure_clean_times_sec else float(np.mean(times_sec))
+                std_clean_time = float(np.std(pure_clean_times_sec)) if len(pure_clean_times_sec) > 1 else 0.0
+            else:
+                clean_air_laps_count = len(all_driver_laps)
+                mean_clean_time = float(np.mean(times_sec))
+                std_clean_time = float(np.std(times_sec)) if len(times_sec) > 1 else 0.0
+
+            # 4. Stints from DB
             stints_res = execute_query(
-                "SELECT compound, start_lap, end_lap, stint_length FROM stints WHERE session_id = %s AND driver_id = %s ORDER BY stint_number",
-                (session_id, driver_id), fetch=True
+                """SELECT compound, start_lap, end_lap, stint_length 
+                   FROM stints 
+                   WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = %s))
+                   ORDER BY stint_number""",
+                (session_id, driver_id, driver_code), fetch=True
             )
             if not stints_res:
                 return {"status": "missing_data", "required_session": session_id}
@@ -106,12 +205,17 @@ class ScoringTool(BaseF1Tool):
                 compound = str(s["compound"]).upper()
                 opt_length = 34 if compound == "HARD" else (26 if compound == "MEDIUM" else 18)
                 lap_times_res = execute_query(
-                    "SELECT lap_time_ms FROM laps WHERE session_id = %s AND driver_id = %s AND lap_number >= %s AND lap_number <= %s AND is_valid = true AND lap_time_ms IS NOT NULL",
-                    (session_id, driver_id, s["start_lap"], s["end_lap"]), fetch=True
+                    """SELECT lap_time_ms FROM laps 
+                       WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = %s))
+                         AND lap_number >= %s AND lap_number <= %s AND is_valid = true AND is_pit_out_lap = false AND lap_time_ms IS NOT NULL 
+                       ORDER BY lap_number""",
+                    (session_id, driver_id, driver_code, s["start_lap"], s["end_lap"]), fetch=True
                 )
-                clean_times = [round(l["lap_time_ms"] / 1000.0, 3) for l in lap_times_res] if lap_times_res else [71.0]
+                clean_times = [round(l["lap_time_ms"] / 1000.0, 3) for l in lap_times_res] if lap_times_res else []
                 stints.append({
                     "compound": compound,
+                    "start_lap": s["start_lap"],
+                    "end_lap": s["end_lap"],
                     "length": s["stint_length"],
                     "optimal_length": opt_length,
                     "clean_laps_times": clean_times,
@@ -119,38 +223,69 @@ class ScoringTool(BaseF1Tool):
                 })
                 
             results_res = execute_query(
-                "SELECT grid_position, position FROM race_results WHERE session_id = %s AND driver_id = %s",
-                (session_id, driver_id), fetch=True
+                """SELECT grid_position, position 
+                   FROM race_results 
+                   WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = %s))""",
+                (session_id, driver_id, driver_code), fetch=True
             )
             
-            p_start = results_res[0]["grid_position"] if (results_res and results_res[0]["grid_position"]) else 4
-            p_finish = results_res[0]["position"] if (results_res and results_res[0]["position"]) else 3
-            
-            all_driver_laps = execute_query(
-                "SELECT lap_time_ms FROM laps WHERE session_id = %s AND driver_id = %s AND is_valid = true AND lap_time_ms IS NOT NULL",
-                (session_id, driver_id), fetch=True
-            )
-            times_sec = [l["lap_time_ms"] / 1000.0 for l in all_driver_laps] if all_driver_laps else [71.450]
-            mean_time = float(sum(times_sec) / len(times_sec))
-            std_time = float(np.std(times_sec)) if len(times_sec) > 1 else 0.380
-            min_time = float(min(times_sec))
+            p_start = results_res[0]["grid_position"] if (results_res and results_res[0]["grid_position"]) else 1
+            p_finish = results_res[0]["position"] if (results_res and results_res[0]["position"]) else 1
+
+            # 5. Real Teammate optimal lap (from DB)
+            tm_query = """
+                WITH current_team AS (
+                    SELECT constructor_id 
+                    FROM race_results 
+                    WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = %s))
+                    LIMIT 1
+                ),
+                teammate_drivers AS (
+                    SELECT DISTINCT r.driver_id, d.code
+                    FROM race_results r
+                    JOIN drivers d ON r.driver_id = d.id
+                    WHERE r.session_id = %s 
+                      AND r.constructor_id = (SELECT constructor_id FROM current_team)
+                      AND d.code != %s
+                )
+                SELECT MIN(l.lap_time_ms) as min_tm_ms
+                FROM laps l
+                WHERE l.session_id = %s 
+                  AND (l.driver_id IN (SELECT driver_id FROM teammate_drivers) OR l.driver_id IN (SELECT id FROM drivers WHERE code IN (SELECT code FROM teammate_drivers)))
+                  AND l.is_valid = true AND l.lap_time_ms IS NOT NULL;
+            """
+            tm_res = execute_query(tm_query, (session_id, driver_id, driver_code, session_id, driver_code, session_id), fetch=True)
+            teammate_optimal_lap = round(tm_res[0]["min_tm_ms"] / 1000.0, 3) if (tm_res and tm_res[0]["min_tm_ms"]) else None
+
+            # 6. Grid median degradation
+            grid_median_deg = self._compute_grid_median_deg(session_id)
+
+            # 7. Pit stops
+            pit_stops = [
+                {
+                    "lap": s["end_lap"],
+                    "position_before": p_start,
+                    "position_after": p_finish,
+                    "t_stationary": 2.4,
+                    "t_pit_lane": 21.2,
+                    "is_forced_stop": False
+                }
+                for s in stints[:-1]
+            ] if len(stints) > 1 else []
 
             return {
                 "session_id": session_id,
                 "driver_id": driver_id,
                 "total_laps": total_laps,
-                "sc_laps": 4,
-                "clean_air_laps": int(total_laps * 0.8),
-                "pit_stops": [
-                    {"lap": s["end_lap"], "position_before": p_start, "position_after": p_start, "t_stationary": 2.5, "t_pit_lane": 21.3, "is_forced_stop": False}
-                    for s in stints[:-1]
-                ] if len(stints) > 1 else [],
+                "sc_laps": sc_laps_count,
+                "clean_air_laps": clean_air_laps_count,
+                "pit_stops": pit_stops,
                 "stints": stints,
-                "grid_median_deg": {"MEDIUM": 0.080, "HARD": 0.050, "SOFT": 0.120},
-                "driver_clean_laps_mean": mean_time,
-                "driver_clean_laps_std": std_time,
-                "driver_optimal_lap": min_time,
-                "teammate_optimal_lap": min_time + 0.5,
+                "grid_median_deg": grid_median_deg,
+                "driver_clean_laps_mean": round(mean_clean_time, 3),
+                "driver_clean_laps_std": round(std_clean_time, 3),
+                "driver_optimal_lap": round(min_time, 3),
+                "teammate_optimal_lap": teammate_optimal_lap,
                 "t_pit_lane_opt": 20.80,
                 "penalties_count": 0,
                 "warnings_count": 0,
@@ -159,8 +294,9 @@ class ScoringTool(BaseF1Tool):
                 "p_finish": p_finish
             }
         except Exception as e:
-            logger.warning(f"[ScoringTool] DB query error for session {session_id}: {e}")
+            logger.error(f"[ScoringTool] DB query error for session {session_id}, driver {driver_id}: {e}", exc_info=True)
             return {"status": "missing_data", "required_session": session_id}
+
 
 
 # =====================================================================
@@ -209,14 +345,25 @@ class SimulationTool(BaseF1Tool):
                 if not chk:
                     return {"status": "missing_data", "required_session": session_id}
                 
-            drv_chk = execute_query("SELECT 1 FROM laps WHERE session_id = %s AND driver_id = %s LIMIT 1", (session_id, driver_id), fetch=True)
+            drv_chk = execute_query(
+                """SELECT 1 FROM laps 
+                   WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = (SELECT code FROM drivers WHERE id = %s LIMIT 1)))
+                   LIMIT 1""",
+                (session_id, driver_id, driver_id), fetch=True
+            )
             if not drv_chk:
                 from app.ingestion.loader import ensure_session_in_db
                 ensure_session_in_db(session_id)
-                drv_chk = execute_query("SELECT 1 FROM laps WHERE session_id = %s AND driver_id = %s LIMIT 1", (session_id, driver_id), fetch=True)
+                drv_chk = execute_query(
+                    """SELECT 1 FROM laps 
+                       WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = (SELECT code FROM drivers WHERE id = %s LIMIT 1)))
+                       LIMIT 1""",
+                    (session_id, driver_id, driver_id), fetch=True
+                )
                 if not drv_chk:
                     return {"status": "missing_data", "required_session": session_id}
-        except Exception:
+        except Exception as ex:
+            logger.error(f"[SimulationTool] DB pre-check failed for session {session_id}, driver {driver_id}: {ex}", exc_info=True)
             return {"status": "missing_data", "required_session": session_id}
 
         try:
@@ -228,7 +375,7 @@ class SimulationTool(BaseF1Tool):
                 save_to_db=False
             )
         except Exception as e:
-            logger.warning(f"[SimulationTool] Strategy simulation error for session {session_id}: {e}")
+            logger.error(f"[SimulationTool] Strategy simulation error for session {session_id}, driver {driver_id}: {e}", exc_info=True)
             return {"status": "missing_data", "required_session": session_id}
 
         if not res or not isinstance(res, dict):
@@ -242,7 +389,8 @@ class SimulationTool(BaseF1Tool):
         res["pit_stop_lap"] = int(res["simulated_pit_lap"])
         res["compound_before"] = str(compound_before)
         res["compound_after"] = str(res["target_compound"])
-        res["traffic_loss"] = float(res.get("run_parameters", {}).get("pit_loss", 22.0))
+        res["traffic_loss"] = float(res.get("run_parameters", {}).get("traffic_loss", 0.0))
+        res["pit_loss"] = float(res.get("run_parameters", {}).get("pit_loss", 22.0))
         res["undercut_gain"] = float(res["simulated_net_time_gain_ms"] / 1000.0)
         res["pit_windows"] = [
             {
@@ -284,9 +432,29 @@ class StrategyTool(SimulationTool):
 
     def execute(self, inputs: Dict[str, Any]) -> Any:
         inputs_copy = dict(inputs)
-        if "simulated_pit_lap" not in inputs_copy or inputs_copy["simulated_pit_lap"] is None:
+        session_id = inputs_copy.get("session_id")
+        driver_id = inputs_copy.get("driver_id")
+        
+        if ("simulated_pit_lap" not in inputs_copy or inputs_copy["simulated_pit_lap"] is None) and session_id and driver_id:
+            try:
+                first_stint = execute_query(
+                    """SELECT end_lap, stint_length FROM stints 
+                       WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = (SELECT code FROM drivers WHERE id = %s LIMIT 1)))
+                       ORDER BY stint_number LIMIT 1""",
+                    (session_id, driver_id, driver_id), fetch=True
+                )
+                if first_stint and first_stint[0]["end_lap"]:
+                    actual_end = int(first_stint[0]["end_lap"])
+                    inputs_copy["simulated_pit_lap"] = max(1, actual_end - 2)
+                else:
+                    inputs_copy["simulated_pit_lap"] = 20
+            except Exception:
+                inputs_copy["simulated_pit_lap"] = 20
+        elif "simulated_pit_lap" not in inputs_copy or inputs_copy["simulated_pit_lap"] is None:
             inputs_copy["simulated_pit_lap"] = 20
+            
         return super().execute(inputs_copy)
+
 
 
 # =====================================================================
@@ -363,8 +531,23 @@ class TelemetryTool(BaseF1Tool):
 
         telemetry_a, lap_info_a = self._load_telemetry_from_db(session_id, driver_id, lap_number)
         if not lap_info_a and not telemetry_a:
-            return {"status": "missing_data", "message": f"No verified telemetry data in database for {driver_id} in session {session_id}."}
-            
+            return {
+                "status": "missing_data",
+                "required_session": session_id,
+                "message": f"No lap data in database for {driver_id} in session {session_id}."
+            }
+        if not telemetry_a:
+            return {
+                "status": "missing_data",
+                "reason": "no persisted telemetry for this driver/lap",
+                "message": (
+                    f"Lap data exists for {driver_id} lap {lap_number} in session {session_id}, "
+                    f"but no telemetry JSON file is on disk. "
+                    f"Re-ingest this session with FastF1Collector.collect() (telemetry=True) to populate real telemetry."
+                )
+            }
+
+
         # Query multi-lap timing data from PostgreSQL for Lap Time Graph & Tyre Degradation
         all_laps = execute_query(
             "SELECT lap_number, lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound FROM laps WHERE session_id = %s AND driver_id = %s AND is_valid = true ORDER BY lap_number",
@@ -515,7 +698,8 @@ class TelemetryTool(BaseF1Tool):
             if meta and meta[0]["storage_path"] and os.path.exists(meta[0]["storage_path"]):
                 with open(meta[0]["storage_path"], "r") as f:
                     telemetry_points = json.load(f)
-                    
+            # No synthetic fallback: if no real file exists, return empty so callers get missing_data.
+
             laps_res = execute_query(
                 "SELECT lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound, is_pit_out_lap FROM laps WHERE session_id = %s AND driver_id = %s AND lap_number = %s",
                 (session_id, driver_id, lap_number), fetch=True
@@ -523,41 +707,15 @@ class TelemetryTool(BaseF1Tool):
             if laps_res and len(laps_res) > 0:
                 lap_info = laps_res[0]
 
-            if not telemetry_points and lap_info:
-                # Dynamically generate distance-aligned telemetry points from lap & sector metrics
-                import math
-                s1_ms = lap_info.get("sector_1_ms") or 30000
-                s2_ms = lap_info.get("sector_2_ms") or 28000
-                s3_ms = lap_info.get("sector_3_ms") or 24000
-                pts = []
-                num_pts = 80
-                total_dist = 5280.0
-                for i in range(num_pts):
-                    d = round(i * (total_dist / (num_pts - 1)), 1)
-                    frac = i / (num_pts - 1)
-                    is_braking = (0.18 <= frac <= 0.23) or (0.52 <= frac <= 0.57) or (0.82 <= frac <= 0.86)
-                    if is_braking:
-                        spd = float(round(110.0 + 30.0 * math.sin(frac * math.pi * 4), 1))
-                        thr = 0.0
-                        brk = 100.0
-                        gr = 3
-                    else:
-                        spd = float(round(260.0 + 60.0 * math.sin(frac * math.pi * 2), 1))
-                        thr = 100.0
-                        brk = 0.0
-                        gr = 7 if spd > 280 else 6
-                    pts.append({
-                        "distanceM": d,
-                        "speed": spd,
-                        "throttle": thr,
-                        "brake": brk,
-                        "gear": gr
-                    })
-                telemetry_points = pts
         except Exception as e:
-            logger.warning(f"[TelemetryTool] DB telemetry fetch exception: {e}")
-            
+            logger.error(
+                f"[TelemetryTool] DB telemetry fetch FAILED for session={session_id} "
+                f"driver={driver_id} lap={lap_number}: {e}",
+                exc_info=True
+            )
+
         return telemetry_points, lap_info
+
 
 
 

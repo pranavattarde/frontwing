@@ -16,11 +16,6 @@ import { TyreDegradationGraph } from "@/components/TyreDegradationGraph";
 import { SectorComparisonGraph } from "@/components/SectorComparisonGraph";
 import { PitWindowVisualizer } from "@/components/PitWindowVisualizer";
 import { cn, generateId } from "@/lib/utils";
-import {
-  AUSTRIAN_GP,
-  TELEMETRY_PIA_LAP42,
-  TELEMETRY_SAI_LAP42
-} from "@/lib/data";
 import { submitEngineerQuery, fetchInvestigationById, toggleSaveInvestigation } from "@/lib/api";
 export function normalizeStints(stintsList, isActual) {
   if (!stintsList || !Array.isArray(stintsList)) return [];
