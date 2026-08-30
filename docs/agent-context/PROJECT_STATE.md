@@ -1,11 +1,22 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-08-30 by Antigravity (Session 014 - Query Latency, In-Memory Cache Elimination & Live Verification Audit)
-> Audit method: Direct FastAPI /engineer/query curl execution + granular UTC ISO timestamp logging + PostgreSQL/Redis state inspection (100% verified live)
+> Last updated: 2026-08-30 by Antigravity (Session 015 - LLM Provider & Planning Layer Upgrades: Execution Order Synthesis, Groq Timeouts, JSON Schema Compliance & Redis LLM Cache)
+> Audit method: Direct FastAPI /engineer/query curl execution + granular UTC ISO timestamp logging + pytest suite (21/21 passed) + live LLM & Redis cache verification (100% verified live)
 
 ---
 
 ## 1. What Works Right Now
+
+### LLM Provider & Planning Layer Resilience (VERIFIED LIVE)
+- **Automatic `execution_order` Synthesis (FIX 1)**:
+  - Planner synthesizes parameterized `execution_order` whenever the LLM returns `tools` / `entities` without an explicit `execution_order`. Queries no longer skip tool execution.
+- **Extended Synthesis Timeout & Token Management (FIX 2)**:
+  - Groq timeouts increased to 30.0s, with `max_tokens=1024` and `<think>...</think>` tag stripping for Qwen models.
+- **Groq JSON Schema Compliance & Fallback (FIX 3)**:
+  - `planning.md` prompt converted to valid JSON schema with few-shot telemetry comparison examples. Automatic fallback to unconstrained formatting with regex JSON extraction prevents `json_validate_failed` errors.
+- **Dynamic Gemini Tier & Redis LLM Response Cache (FIX 4)**:
+  - Configurable `GEMINI_MODEL=gemini-3.6-flash` and `LLM_CACHE_ENABLED=true`.
+  - Redis LLM cache (`frontwing-redis:6379`) caches both planning and response generation. Repeated queries return in **<5ms**, protecting against 20 RPD free tier limits.
 
 ### Live AI Race Engineer Pipeline & Observability Audit (VERIFIED END-TO-END)
 - **Granular UTC Timestamp Auditing Across All Stages**:

@@ -424,10 +424,33 @@ def normalize_planner_response(raw_plan: Any, fallback_adaptive_plan: Dict[str, 
         normalized["required_tools"] = fallback_adaptive_plan.get("tools", [])
 
     raw_order = raw_plan.get("execution_order") or raw_plan.get("plan") or raw_plan.get("steps") or raw_plan.get("fallback_plan")
-    if isinstance(raw_order, list) and all(isinstance(s, str) for s in raw_order):
+    if isinstance(raw_order, list) and len(raw_order) > 0 and all(isinstance(s, str) for s in raw_order):
         normalized["execution_order"] = raw_order
     else:
-        normalized["execution_order"] = fallback_adaptive_plan.get("execution_order", [])
+        # Synthesize execution_order from tools and entities to avoid silent skip
+        synth_order = []
+        ent = normalized.get("entities") or fallback_adaptive_plan.get("entities", {})
+        for t in normalized["tools"]:
+            args = {}
+            if ent.get("season") and ent.get("season") != "latest":
+                args["season"] = ent["season"]
+            if ent.get("lap") is not None:
+                args["lap"] = ent["lap"]
+            if ent.get("drivers"):
+                args["driver"] = ent["drivers"][0]
+                if len(ent["drivers"]) > 1:
+                    args["compare_driver"] = ent["drivers"][1]
+            if ent.get("grand_prix"):
+                args["grand_prix"] = ent["grand_prix"]
+            if ent.get("team"):
+                args["team"] = ent["team"]
+            if t == "explain_mode_tool":
+                args["topic"] = ent.get("topic") or ent.get("term") or ent.get("concept") or "F1 CONCEPT"
+            
+            arg_str = ",".join(f"{k}={v}" for k, v in args.items() if v is not None)
+            synth_order.append(f"{t}|{arg_str}" if arg_str else t)
+        
+        normalized["execution_order"] = synth_order or fallback_adaptive_plan.get("execution_order", [])
 
     # 4. Evidence & Confidence
     normalized["required_evidence"] = raw_plan.get("required_evidence") or fallback_adaptive_plan.get("required_evidence", [])
@@ -674,7 +697,7 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         structured_plan["confidence"] = structured_plan.get("confidence", conf)
         structured_plan["tools"] = structured_plan.get("tools", tools)
         structured_plan["required_tools"] = structured_plan.get("required_tools", tools)
-        structured_plan["execution_order"] = structured_plan.get("execution_order", execution_order)
+        structured_plan["execution_order"] = structured_plan.get("execution_order") or execution_order
         
     planning_duration_ms = int((time.time() - start_time) * 1000)
     plan_end_utc = datetime.now(timezone.utc).isoformat()

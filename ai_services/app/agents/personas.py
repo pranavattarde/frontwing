@@ -214,7 +214,7 @@ class ExplainEngineer(BaseEngineer):
                 )
                 evidence_summary = json.dumps(struct_ctx, indent=2)
                 user_content = f"Original user question: {state.get('question')}\nStructured Context:\n{evidence_summary}"
-                res_raw, _ = reliable_llm_provider.generate_response(system_prompt, user_content, response_mime_type="application/json", timeout_seconds=6.0)
+                res_raw, _ = reliable_llm_provider.generate_response(system_prompt, user_content, response_mime_type="application/json", timeout_seconds=30.0)
                 parsed = json.loads(res_raw)
                 if "beginner" in parsed and "intermediate" in parsed and "engineer" in parsed:
                     return {

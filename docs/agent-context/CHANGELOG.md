@@ -1,3 +1,43 @@
+## Session 015 -- 2026-08-30 -- LLM Provider & Planning Layer Upgrades: Execution Order Synthesis, Groq Timeouts, JSON Schema Compliance & Redis LLM Cache
+
+### What Was Changed
+- **`ai_services/app/agents/planner.py` (FIX 1 - Execution Order Synthesis)**:
+  - In `normalize_planner_response()`, added automatic synthesis of `execution_order` from `tools` list and `entities` dictionary whenever raw LLM output omits or provides an empty `execution_order`.
+  - In `plan_node`, ensured `structured_plan["execution_order"]` uses `structured_plan.get("execution_order") or execution_order` instead of silently keeping `[]`.
+  - Resolved the bug where queries with empty execution order skipped tool execution.
+- **`ai_services/app/core/providers.py` & `ai_services/app/agents/personas.py` (FIX 2 - Synthesis Timeout Extension & Token Management)**:
+  - Extended default client-side timeouts from `10.0s` / `6.0s` to `30.0s` across `GroqProvider.generate_plan`, `GroqProvider.generate_response`, `ReliableLLMProvider.generate_plan`, `ReliableLLMProvider.generate_response`, and `ExplainEngineer` in `personas.py`.
+  - Set `max_tokens=1024` and added `<think>...</think>` tag stripping for Qwen models on Groq to prevent timeout disconnects.
+- **`ai_services/app/prompts/planning.md` & `ai_services/app/core/providers.py` (FIX 3 - Groq Strict JSON Compliance & Automatic Unconstrained Fallback)**:
+  - Cleaned `planning.md` JSON schema into 100% valid JSON (removed pipe union types from JSON values), added `telemetry_comparison` intent, and added few-shot comparison examples.
+  - In `GroqProvider.generate_plan` and `GroqProvider.generate_response`, added automatic fallback to unconstrained formatting with regex extraction if `json_object` mode raises `400 json_validate_failed`.
+- **`ai_services/app/core/config.py`, `.env`, & `providers.py` (FIX 4 - Gemini Model Tier & Redis Response Cache)**:
+  - Probed available Gemini endpoints; confirmed `gemini-3.6-flash` is the active endpoint on this API key (20 request/day quota on free tier).
+  - Built an integrated **Redis LLM Cache Layer** in `ReliableLLMProvider` (`cache:llm:plan:{hash}` and `cache:llm:resp:{hash}`) with configurable TTL. Repeated queries and development runs return in **<5ms**, completely eliminating quota burn.
+  - Configured `GEMINI_MODEL` and `LLM_CACHE_ENABLED` in `config.py` and `.env`.
+
+### Why
+1. Prevent silent skip of tool execution when Groq/Gemini returns plan without explicit `execution_order`.
+2. Fix Groq Qwen synthesis timeouts caused by short 6–10s limits.
+3. Fix Groq 400 `json_validate_failed` errors on `telemetry_comparison` queries.
+4. Provide architectural quota protection against Gemini's 20 requests/day limit via high-speed Redis caching.
+
+### How It Was Verified -- Real Test Output
+- **FIX 1 Verification (`scratch/verify_fix1.py`)**:
+  - `explain drs`: Executed `knowledge_tool` and `explain_mode_tool`, evidence populated.
+  - `Compare lap timings and delta analysis for Verstappen and Norris at Qatar GP`: Executed `race_results_tool` and `telemetry_tool` sequentially, computed delta (VER lap 55 82.905s vs NOR lap 49 82.822s, +0.083s delta).
+- **FIX 2 Verification (`scratch/verify_fix2.py`)**:
+  - 5/5 consecutive queries executed on Groq (`qwen/qwen3.6-27b`) in 1.28s–2.79s without a single timeout or disconnect.
+- **FIX 3 Verification (`scratch/verify_fix3.py`)**:
+  - `compare verstappen and norris at bahrain`: Run 3/3 times consecutively against Groq with 100% valid JSON plans generated.
+- **FIX 4 Verification (`scratch/verify_fix4.py`)**:
+  - Cold call: Executed via Groq failover in `2,474ms`, stored in Redis.
+  - Warm call: Retrieved from Redis cache in **0.0035s (3.5ms)** with `cached=True` and identical response.
+- **Full Regression Test Suite**:
+  - `python -m pytest tests/test_agent.py tests/test_integration.py tests/test_scoring.py tests/test_simulation.py`: **21/21 passed (100%)** in 25.15s.
+
+---
+
 ## Session 014 -- 2026-08-30 -- Latency & Zero-Hardcode Audit: Direct Pipeline Timing, In-Memory Cache Elimination & Live Verification Trace
 
 ### What Was Changed

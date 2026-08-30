@@ -10,6 +10,9 @@ from app.agents.planner import run_ai_race_engineer
 
 class TestProductionIntegration(unittest.TestCase):
     
+    def setUp(self):
+        os.environ["LLM_CACHE_ENABLED"] = "false"
+        
     def test_startup_health_diagnostics(self):
         """Verifies startup checks complete with expected services and tools registered."""
         # This checks the expanded checks are registered in diagnostics dict

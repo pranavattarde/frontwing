@@ -53,6 +53,14 @@ class Settings:
     def MODEL_PROVIDER(self) -> str:
         return os.getenv("MODEL_PROVIDER", "gemini")
 
+    @property
+    def GEMINI_MODEL(self) -> str:
+        return os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+
+    @property
+    def LLM_CACHE_ENABLED(self) -> bool:
+        return os.getenv("LLM_CACHE_ENABLED", "true").lower() in ("true", "1", "yes")
+
     def validate_or_raise(self) -> None:
         """Validates critical variables during app initialization."""
         critical_vars = {
