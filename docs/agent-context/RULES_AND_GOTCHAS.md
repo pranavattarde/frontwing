@@ -215,3 +215,32 @@ To run all tests: pytest tests/ -v
 
 ---
 
+## Entry 015 — 2026-08-30 — Query Latency & Zero-Hardcode Verification Audit
+
+**Context & Trace Analysis (Session 011):**
+
+1. **Why Frontend Queries Rendered Suspiciously Fast (<100ms):**
+   - **Frontend Investigation Caching**: `InvestigationThread.jsx` (lines 274–285) cached completed investigation responses in browser `localStorage` keyed by `frontwing_investigation_${threadId}`. Re-opening or revisiting a thread reloads from `localStorage` in 0ms without hitting the backend API.
+   - **Backend Redis Response Caching**: `backend/src/services/cache.service.js` (lines 35–55) caches completed investigation payloads in Redis keyed by `cache:investigation:${hash}`.
+   - **Python In-Memory Plan Cache**: `ReliableLLMProvider` previously maintained a process-level `_plan_cache` dictionary. This was **completely eliminated** in Session 011 to ensure 100% live LLM dispatch on every query.
+
+2. **Fresh End-to-End Execution Trace (`"how did verstappen perform at qatar gp?"`):**
+   - **Total End-to-End Latency**: `23,366ms` (~23.4s).
+   - **NLP Intent & Contract Parsing**: Gemini `gemini-3.6-flash` live call (`6,409ms`), classified intent: `scoring`, metric: `scoring`.
+   - **Planner LLM Call**: Gemini `gemini-3.6-flash` live call (`6,411ms`), generated execution plan: `['race_results_tool|driver=verstappen,gp=Qatar GP', 'scoring_tool|driver=verstappen,gp=Qatar GP']`.
+   - **Entity / Session Resolution**: `SessionResolver` dynamically resolved `2024_qatar_gp_race` in `0ms` (FastF1 download bypassed as data is populated in PostgreSQL).
+   - **Tool 1 (`race_results_tool`)**: Queried PostgreSQL `race_results`, returned 20 rows (P1 Max Verstappen, P2 Charles Leclerc, P3 Oscar Piastri).
+   - **Tool 2 (`scoring_tool`)**: Queried PostgreSQL `sessions`, `laps` (19 timed laps), `stints` (4 stints), and teammate data in `1,612ms` (live DB queries, zero precomputed cache hit).
+   - **Mathematical Scoring (`aggregator.py`)**:
+     - Clean Laps Mean: `84.649s`, Clean Std: `1.032s`, Optimal Lap: `82.905s`, Teammate Optimal: `85.288s`.
+     - Strategy: `50.27`, Tire: `100.0`, Pace: `22.0`, Pitstop: `89.04`, Execution: `100.0` $\to$ Composite: `72.26`.
+   - **Synthesis LLM Call**: Gemini `gemini-3.6-flash` live call (`7,805ms`), synthesized progressive explanations from structured context.
+
+3. **Codebase Grep Audit (Search for Hardcoded Canned Responses):**
+   - Searched `ai_services/app` for driver `verstappen` and grand prix `qatar`.
+   - Result: 0 canned/mock answer dictionaries. All occurrences are strictly circuit aliases (`circuit_aliases.json`), NLP entity dictionaries (`nlp_parser.py`), driver lookup maps (`entity_resolver.py`), or verified test fixtures.
+
+4. **Direct Redis & PostgreSQL Audit**:
+   - Redis: Connected, total cached keys = 0.
+   - PostgreSQL: Table `scoring_results` contains 0 precomputed rows for `2024_qatar_gp_race` (confirming all scores are computed live from raw lap timing).
+

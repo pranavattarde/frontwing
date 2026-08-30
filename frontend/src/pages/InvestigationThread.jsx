@@ -15,6 +15,8 @@ import { LapTimeGraph } from "@/components/LapTimeGraph";
 import { TyreDegradationGraph } from "@/components/TyreDegradationGraph";
 import { SectorComparisonGraph } from "@/components/SectorComparisonGraph";
 import { PitWindowVisualizer } from "@/components/PitWindowVisualizer";
+import { ScoreCard } from "@/components/ScoreCard";
+import { SimulationCard } from "@/components/SimulationCard";
 import { cn, generateId } from "@/lib/utils";
 import { submitEngineerQuery, fetchInvestigationById, toggleSaveInvestigation } from "@/lib/api";
 export function normalizeStints(stintsList, isActual) {
@@ -130,7 +132,32 @@ ${rep["Reasoning Graph Text"]}`);
     }
   ];
   const telemData = evidence && typeof evidence === "object" ? evidence.telemetry_tool : null;
-  const simData = evidence && typeof evidence === "object" ? evidence.simulation_tool : null;
+  const simData = evidence && typeof evidence === "object" ? (evidence.simulation_tool || evidence.strategy_tool) : null;
+  const scoreData = evidence && typeof evidence === "object" ? evidence.scoring_tool : null;
+
+  // 1. Driver Performance Scorecard
+  if (scoreData && (scoreData.composite_score !== undefined || scoreData.pace_score !== undefined)) {
+    messages.push({
+      id: `scorecard-${id}-${timestamp}`,
+      type: "scorecard",
+      content: "Driver Performance Index",
+      evidenceData: scoreData,
+      timestamp: timestamp + 700
+    });
+  }
+
+  // 2. What-If Strategy Simulation Card
+  if (simData && (simData.simulated_pit_lap !== undefined || simData.position_change !== undefined || simData.simulated_net_time_gain_ms !== undefined)) {
+    messages.push({
+      id: `simulationcard-${id}-${timestamp}`,
+      type: "simulationcard",
+      content: "What-If Strategy Simulation",
+      evidenceData: simData,
+      timestamp: timestamp + 800
+    });
+  }
+
+  // 3. Production Telemetry Visualizations (5-Chart Matrix)
   if (telemData && (telemData.lap_times || telemData.telemetry || telemData.sector_times)) {
     const driverCode = String(telemData.driver_id || (simData && simData.driver_id) || "DRV").toUpperCase();
 
@@ -474,6 +501,20 @@ export function InvestigationThread() {
         steps={activeReasoningSteps}
         conclusion={lastResponse?.investigation_report?.["Final Recommendation"] || lastResponse?.final_answer?.slice(0, 120) || "Strategic debrief completed."}
       />}</div>;
+    }
+    if (msg.type === "scorecard" && msg.evidenceData) {
+      return <ScoreCard
+        key={msg.id}
+        data={msg.evidenceData}
+        className="animate-slide-up"
+      />;
+    }
+    if (msg.type === "simulationcard" && msg.evidenceData) {
+      return <SimulationCard
+        key={msg.id}
+        data={msg.evidenceData}
+        className="animate-slide-up"
+      />;
     }
     if (msg.type === "evidence-strategy" && msg.evidenceData) {
       const stratData = msg.evidenceData;

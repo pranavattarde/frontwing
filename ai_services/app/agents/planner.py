@@ -40,9 +40,9 @@ def classify_intent(question: str) -> str:
     import sys
     gemini_key = os.getenv("GEMINI_API_KEY", "")
     groq_key = os.getenv("GROQ_API_KEY", "")
-    is_gemini_mock = not gemini_key or "mock" in gemini_key.lower() or "dummy" in gemini_key.lower() or "aq.ab8" in gemini_key
-    is_groq_mock = not groq_key or "mock" in groq_key.lower() or "dummy" in groq_key.lower() or "gsk_" in groq_key
-    is_offline_dev = is_gemini_mock or is_groq_mock or "unittest" in sys.modules or "pytest" in sys.modules
+    is_gemini_mock = not gemini_key or "mock" in gemini_key.lower() or "dummy" in gemini_key.lower()
+    is_groq_mock = not groq_key or "mock" in groq_key.lower() or "dummy" in groq_key.lower()
+    is_offline_dev = (is_gemini_mock and is_groq_mock) or "unittest" in sys.modules or "pytest" in sys.modules
 
     if not is_offline_dev:
         try:
@@ -455,12 +455,14 @@ def validate_plan_schema(plan: Dict[str, Any]) -> bool:
 
 def plan_node(state: AgentState) -> Dict[str, Any]:
     """Node 1: Chief Race Engineer calls Gemini (with Groq failover) to generate plan."""
-    reliable_llm_provider._plan_cache.clear()
-    
     question = state.get("question", "")
     session_id = state.get("session_id")
     driver_id = state.get("driver_id")
     history = state.get("history") or []
+    
+    from datetime import datetime, timezone
+    plan_start_utc = datetime.now(timezone.utc).isoformat()
+    logger.info(f"[PLANNER_START] UTC: {plan_start_utc} | Question: \"{question}\"")
         
     # STAGE 1-6 NLP SEMANTIC PARSER INTEGRATION
     from app.agents.nlp_parser import parse_semantic_query
@@ -486,8 +488,8 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
             adaptive_plan["tools"] = ["race_results_tool"]
         elif intent_val in ("simulation", "strategy") or req_metric in ("simulation", "strategy"):
             adaptive_plan["tools"] = ["simulation_tool"]
-        elif req_metric == "scoring":
-            adaptive_plan["tools"] = ["scoring_tool", "explain_mode_tool"]
+        elif intent_val == "scoring" or req_metric == "scoring":
+            adaptive_plan["tools"] = ["scoring_tool", "race_results_tool"]
 
 
     intent_norm = adaptive_plan["intent"]
@@ -531,6 +533,10 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
             tools = normalized.get("required_tools", tools)
             if (req_metric == "comparison" or intent_norm == "comparison") and "race_results_tool" not in tools:
                 tools.insert(0, "race_results_tool")
+            if (req_metric == "scoring" or intent_norm == "scoring") and "scoring_tool" not in tools:
+                tools.insert(0, "scoring_tool")
+            if (req_metric in ("simulation", "strategy") or intent_norm in ("simulation", "strategy")) and "simulation_tool" not in tools:
+                tools.insert(0, "simulation_tool")
 
             llm_provider = metrics.get("llm_provider", "groq")
             llm_model = metrics.get("llm_model", "llama-3.3-70b-versatile")
@@ -554,10 +560,10 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         gemini_key = os.getenv("GEMINI_API_KEY", "")
         groq_key = os.getenv("GROQ_API_KEY", "")
         
-        is_gemini_mock = not gemini_key or "mock" in gemini_key.lower() or "dummy" in gemini_key.lower() or "aq.ab8" in gemini_key
-        is_groq_mock = not groq_key or "mock" in groq_key.lower() or "dummy" in groq_key.lower() or "gsk_" in groq_key
+        is_gemini_mock = not gemini_key or "mock" in gemini_key.lower() or "dummy" in gemini_key.lower()
+        is_groq_mock = not groq_key or "mock" in groq_key.lower() or "dummy" in groq_key.lower()
         
-        is_offline_dev = is_gemini_mock or is_groq_mock or "unittest" in sys.modules or "pytest" in sys.modules
+        is_offline_dev = (is_gemini_mock and is_groq_mock) or "unittest" in sys.modules or "pytest" in sys.modules
         
         if not is_offline_dev:
             raise e
@@ -671,6 +677,11 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         structured_plan["execution_order"] = structured_plan.get("execution_order", execution_order)
         
     planning_duration_ms = int((time.time() - start_time) * 1000)
+    plan_end_utc = datetime.now(timezone.utc).isoformat()
+    logger.info(
+        f"[PLANNER_END] UTC: {plan_end_utc} | Duration: {planning_duration_ms}ms | "
+        f"Provider: {llm_provider} | Tools: {tools} | Order: {structured_plan.get('execution_order')}"
+    )
     
     # Trace Timelines V3 initialization
     plan_log = {
@@ -818,10 +829,10 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
     
     def parse_step(step: str):
         if "|" in step:
-            # Use maxsplit=1 on the pipe separator
+            # Use maxsplit=1 on the first pipe separator to get tool name
             tool_name, raw_args = step.split("|", 1)
             args_dict = {}
-            for pair in raw_args.replace("&", ",").split(","):
+            for pair in raw_args.replace("&", ",").replace("|", ",").split(","):
                 if "=" in pair:
                     # Use maxsplit=1 to prevent "too many values to unpack" when value contains "="
                     k, v = pair.split("=", 1)

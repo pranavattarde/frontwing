@@ -1,11 +1,26 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-08-27 by Antigravity (Session 010 - Strategy & Simulation Engine Audit & Real Verification)
-> Audit method: SimulationTool & StrategyTool real PostgreSQL data pipeline execution + test_simulation.py (100% pass)
+> Last updated: 2026-08-30 by Antigravity (Session 014 - Query Latency, In-Memory Cache Elimination & Live Verification Audit)
+> Audit method: Direct FastAPI /engineer/query curl execution + granular UTC ISO timestamp logging + PostgreSQL/Redis state inspection (100% verified live)
 
 ---
 
 ## 1. What Works Right Now
+
+### Live AI Race Engineer Pipeline & Observability Audit (VERIFIED END-TO-END)
+- **Granular UTC Timestamp Auditing Across All Stages**:
+  - `[REQUEST_RECEIVED]`: Logs UTC timestamp, incoming question, session/driver/conversation IDs.
+  - `[PLANNER_LLM_CALL_START / END]`: Logs exact live dispatch to Gemini `gemini-3.6-flash` (or Groq failover `llama-3.3-70b-versatile`), latency in ms, token usage, and structured plan payload.
+  - `[ENTITY_RESOLUTION_START / END]`: Logs resolved season, driver_id, session_id, and race_id.
+  - `[SCORING_TOOL_START / DB_START / DB_END / MATH_START / MATH_END / END]`: Logs exact database extraction latency, raw inputs (clean lap mean/std, optimal lap times, SC laps, clean air laps, stints, grid degradation slopes), and mathematical formulas computed.
+  - `[SYNTHESIS_LLM_CALL_START / END]`: Logs synthesis LLM invocation latency and progressive explanation payloads.
+  - `[RESPONSE_SENT]`: Logs total end-to-end latency in milliseconds.
+- **Elimination of Artificial In-Memory Plan Cache**:
+  - Deleted `self._plan_cache` in `ReliableLLMProvider`. Every planning request now executes 100% live.
+- **Frontend & Backend Fast Render Clarification**:
+  - Identified why frontend renders in <100ms on thread reload: browser `localStorage` caches completed investigation threads (`frontwing_investigation_${threadId}` in `InvestigationThread.jsx` lines 274–285), and Express backend has optional Redis caching in `cache.service.js`. Direct curl calls to FastAPI `/engineer/query` execute the full live ~23.4s pipeline with live LLM planning, database queries, and score math.
+- **Zero Mock Answers in Codebase**:
+  - Full codebase grep audit confirms 0 hardcoded/canned mock responses for `verstappen` or `qatar`. All data originates dynamically from PostgreSQL `laps`, `stints`, `race_results`, and live LLM planners.
 
 ### Simulation & Strategy Sub-System (SimulationTool & StrategyTool) (VERIFIED)
 - **Elimination of All Hardcoded Constants, Ghost Pit Stops & Pace Calibration**:
@@ -33,16 +48,37 @@
   - `ai_services/tests/test_scoring.py`: 3/3 passed (100%).
   - `scratch/verify_real_scoring.py`: Verified against `2024_qatar_gp_race` (Verstappen 72.26, Hamilton 57.32) and `2023_monaco_gp_race` (Verstappen 48.71).
 
-### Frontend Telemetry Visualization (TelemetryCard + 5-Chart Matrix) (VERIFIED END-TO-END)
+### Explain Mode & Technical Knowledge Sub-System (ExplainModeTool & Knowledge Layer) (VERIFIED)
+- **Elimination of Fake/Placeholder Responses & Multi-Tier Concept Explanations**:
+  - **Isolated Knowledge Routing**: Conceptual and terminology questions (e.g. *"What is understeer?"*, *"Explain the difference between soft and hard tyres"*, *"What is DRS?"*) are routed exclusively through `explain_mode_tool` with zero forced session resolver, race results, or telemetry lookups.
+  - **Dynamic Progressive Disclosure**: Returns real multi-tier technical explanations (`novice`, `intermediate`, `expert` / `engineer`) covering vehicle dynamics, formula calculations (CAR, SPG, TSE), tire compound degradation slopes, and FIA regulations (e.g. Article 3.6 for DRS).
+  - **RAG Knowledge Layer Fallback**: Directly integrated with `rag_knowledge` (FIA Sporting Regulations, Technical Regulations, Circuit Notes, Tyre Strategy Articles) to retrieve verified documentation when queried with arbitrary technical terms.
+  - **Persona & Tool Input Normalization**: `ExplainEngineer` and `ExplainModeTool` normalize term keys (`term`, `topic`, `concept`, `query`), cleanly extracting target topics from free-form user questions.
+- **Verification Suite**:
+  - `scratch/test_explain_mode.py`: Verified 3/3 conceptual queries with zero telemetry/session routing.
+
+### Frontend Telemetry & Performance Visualization (TelemetryCard, ScoreCard, SimulationCard) (VERIFIED END-TO-END)
 - **Live Browser Verification & Recording Proof**:
-  - Validated via browser subagent session (recording: `quick_canvas_verification_1787808823256.webp`).
-  - Query executed: *"Compare Verstappen and Hamilton at Qatar GP"* (2024).
-  - Production 5-chart matrix loaded seamlessly in `InvestigationThread.jsx`:
-    1. **Lap Time Graph**: Renders lap-by-lap timing evolution.
-    2. **Tyre Degradation Graph**: Plots tire pace wear curves per stint.
-    3. **Sector Comparison Graph**: Compares S1, S2, S3 delta bars between VER and HAM.
-    4. **Speed Trace (TelemetryCard Canvas)**: HTML5 Canvas rendering real FastF1 speed traces.
-    5. **Pit Window Visualizer**: Displays pit exit delta and rival traffic windows.
+  - Validated via browser subagent sessions (recordings: `quick_canvas_verification_1787808823256.webp`, `quick_card_verify_1787818337356.webp`).
+  - **Query 1**: *"How did Verstappen perform at Qatar GP?"*
+    - **ScoreCard Component** ([ScoreCard.jsx](file:///c:/VS-Code_C_drive/Projects/FrontWing/frontend/src/components/ScoreCard.jsx)): Renders real `scoring_tool` metrics:
+      - **Composite Index**: `72.3 / 100` (Verstappen 2024 Qatar GP)
+      - **5 Score Dimensions**: Pace Index (`22.0`), Consistency (`93.1`), Racecraft (`83.3`), Strategy Execution (`50.3`), Tyre Management (`100.0`).
+      - Interactive math parameter disclosure toggle (`[+ SHOW MATHEMATICAL PARAMETERS]`).
+  - **Query 2**: *"What if Verstappen pitted on lap 30 at Qatar GP?"*
+    - **SimulationCard Component** ([SimulationCard.jsx](file:///c:/VS-Code_C_drive/Projects/FrontWing/frontend/src/components/SimulationCard.jsx)): Renders real `simulation_tool` metrics:
+      - **Pit Stop Shift**: Lap 35 $\to$ Lap 30 on HARD ($\Delta -5$ laps undercut).
+      - **Track Position**: P1 $\to$ Projected P3 ($\Delta -2$ positions).
+      - **Net Time Delta**: $-12.536\text{s}$ net race deficit.
+      - **Diagnostics Grid**: Actual Race Time (`1:17:28.592`), Simulated Total Time (`1:17:41.129`), Traffic Loss (`2.139s`), Pit Loss Transit (`23.3s`).
+      - Interactive simulation physics notes toggle (`[+ SHOW SIMULATION NOTES]`).
+  - **Query 3**: *"Compare Verstappen and Hamilton at Qatar GP"* (2024).
+    - Production 5-chart matrix loaded seamlessly in `InvestigationThread.jsx`:
+      1. **Lap Time Graph**: Renders lap-by-lap timing evolution.
+      2. **Tyre Degradation Graph**: Plots tire pace wear curves per stint.
+      3. **Sector Comparison Graph**: Compares S1, S2, S3 delta bars between VER and HAM.
+      4. **Speed Trace (TelemetryCard Canvas)**: HTML5 Canvas rendering real FastF1 speed traces.
+      5. **Pit Window Visualizer**: Displays pit exit delta and rival traffic windows.
 - **Canvas Rendering Engine ([TelemetryCard.jsx](file:///c:/VS-Code_C_drive/Projects/FrontWing/frontend/src/components/TelemetryCard.jsx))**:
   - **Zero Line-Smoothing**: `ctx.lineJoin = "miter"`, `ctx.lineWidth = 1.5`, crisp right-angle transitions for abrupt throttle/brake events per `docs/design_system.md`.
   - **Distance Alignment**: Mapped strictly to track distance (0m to 5358.9m for Qatar), featuring 250m interval slate grid lines (`#1C2025`) and distance tick labels.
@@ -78,18 +114,16 @@
 - `load_session()` returns `{"status": "error", "session_id": None}` on download/validation failure.
 - `collect()` always loads telemetry (`telemetry=True, laps=True, weather=True`).
 - `TelemetryTool._load_telemetry_from_db()` has no sine-wave synthetic generator.
+- `load_default_race_weekend()` implemented and verified in `loader.py` (resolves startup `ImportError` on empty DB).
+- `safe_execute_query()` in `fastf1_collector.py` logs all DB exceptions at `ERROR` level with `exc_info=True`.
+- Groq API key prefix validation (`gsk_`) corrected in `planner.py` and `personas.py` (no longer falsely treated as offline/mock).
 - Legacy synthetic purge executed: 2,242 fake JSON files removed from disk, 10 fake DB sessions purged.
 
 ---
 
 ## 2. What Is Broken Right Now
 
-### CRITICAL -- Latent Crash Bug
-- **`load_default_race_weekend` does not exist** (`main.py` line 51): `ImportError` at startup if called with empty DB. `loader.py` only defines `ensure_session_in_db()`.
-
 ### HIGH -- Wrong Behavior
-- **Groq key detection bug** (`planner.py` lines 43-45): `gsk_` is the real Groq key prefix; any real Groq key forces offline mode, disabling LLM classification.
-- **`safe_execute_query` silences DB errors at DEBUG level** (`fastf1_collector.py` line ~20).
 - **Ergast API is dead**: `ergast_collector.py` still calls `https://ergast.com/api/f1`.
 
 ### MEDIUM -- Data Quality

@@ -17,7 +17,7 @@ def safe_execute_query(query: str, params: tuple = (), fetch: bool = False) -> A
     try:
         return execute_query(query, params, fetch=fetch)
     except Exception as e:
-        logger.debug(f"[FastF1Collector] DB query execution bypassed (offline mode): {e}")
+        logger.error(f"[FastF1Collector] DB query execution failed: {e}", exc_info=True)
         return [] if fetch else None
 
 class FastF1Collector(BaseCollector):

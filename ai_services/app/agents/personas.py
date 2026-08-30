@@ -1,3 +1,5 @@
+import os
+import sys
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
 from app.tools.registry import tool_registry
@@ -174,19 +176,22 @@ class ExplainEngineer(BaseEngineer):
         import json
         from app.core.providers import reliable_llm_provider
         
-        # Try LLM synthesis
+        # Try tool execution for conceptual knowledge terms
         inputs = tool_inputs or {}
-        if inputs.get("term"):
+        term_val = inputs.get("term") or inputs.get("topic") or inputs.get("concept") or inputs.get("query")
+        target_q = state.get("question", "")
+        if term_val or tool_name == "explain_mode_tool" or any(k in target_q.lower() for k in ["what is", "explain", "drs", "understeer", "oversteer", "tyre", "tire", "car", "spg", "tse", "difference"]):
             from app.tools.adapters import ExplainModeTool
-            res = ExplainModeTool().execute(inputs)
+            target_term = term_val or target_q
+            res = ExplainModeTool().execute({"term": target_term, "target_audience": inputs.get("target_audience", "intermediate")})
             if isinstance(res, dict) and res.get("explanation"):
                 return res
 
         gemini_key = os.getenv("GEMINI_API_KEY", "")
         groq_key = os.getenv("GROQ_API_KEY", "")
-        is_gemini_mock = not gemini_key or "mock" in gemini_key.lower() or "dummy" in gemini_key.lower() or "aq.ab8" in gemini_key
-        is_groq_mock = not groq_key or "mock" in groq_key.lower() or "dummy" in groq_key.lower() or "gsk_" in groq_key
-        is_offline_dev = is_gemini_mock or is_groq_mock or "unittest" in sys.modules or "pytest" in sys.modules
+        is_gemini_mock = not gemini_key or "mock" in gemini_key.lower() or "dummy" in gemini_key.lower()
+        is_groq_mock = not groq_key or "mock" in groq_key.lower() or "dummy" in groq_key.lower()
+        is_offline_dev = (is_gemini_mock and is_groq_mock) or "unittest" in sys.modules or "pytest" in sys.modules
 
         if not is_offline_dev:
 

@@ -119,16 +119,14 @@ class TestAIRaceEngineerBackend(unittest.TestCase):
         self.assertIn("simulation_tool", res["evidence"])
 
     def test_planner_routing_scoring(self):
-        """Verifies routing logic runs scoring & explain tools for performance debrief questions."""
+        """Verifies routing logic runs scoring & race results tools for performance debrief questions."""
         res = run_ai_race_engineer(
             question="Analyze Sainz's race performance scores.",
             session_id="2024_austria_gp_race",
             driver_id="sainz"
         )
         self.assertIn("scoring_tool", res["tools_used"])
-        self.assertIn("explain_mode_tool", res["tools_used"])
         self.assertTrue("scoring_tool" in res["evidence"])
-        self.assertTrue("explain_mode_tool" in res["evidence"])
 
     def test_planner_graceful_error_recovery(self):
         """Verifies the planner catches tool exceptions, logs errors, and executes successfully with reduced confidence."""

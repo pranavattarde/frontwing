@@ -1,3 +1,118 @@
+## Session 014 -- 2026-08-30 -- Latency & Zero-Hardcode Audit: Direct Pipeline Timing, In-Memory Cache Elimination & Live Verification Trace
+
+### What Was Changed
+- **`ai_services/app/core/providers.py`**:
+  - **Eliminated In-Memory Plan Cache**: Completely removed `self._plan_cache` in `ReliableLLMProvider`. Every planning request now triggers live LLM planning through Gemini (with automatic failover to Groq).
+  - **Granular Timestamp Logging**: Added explicit UTC ISO timestamp logs at `[PLANNER_LLM_CALL_START]`, `[PLANNER_LLM_CALL_END]`, `[SYNTHESIS_LLM_CALL_START]`, and `[SYNTHESIS_LLM_CALL_END]` with exact millisecond latencies, provider names, models, retry attempts, and output previews.
+- **`ai_services/app/main.py`**:
+  - Added request entry `[REQUEST_RECEIVED]` and exit `[RESPONSE_SENT]` timestamp logging with total pipeline duration tracking in milliseconds.
+- **`ai_services/app/tools/adapters.py` & `ai_services/app/scoring/aggregator.py`**:
+  - Added explicit UTC ISO timestamp logs for `[SCORING_TOOL_START]`, `[SCORING_TOOL_DB_START]`, `[SCORING_TOOL_DB_END]`, `[SCORING_MATH_START]`, `[SCORING_MATH_END]`, and `[SCORING_TOOL_END]`.
+  - Added full parameter disclosure (clean mean/std, optimal lap times, SC laps, clean air laps, stints, grid degradation slopes).
+- **`ai_services/app/agents/planner.py` (`parse_step`)**:
+  - Added support for both `&` and `|` as tool argument delimiters (`raw_args.replace("&", ",").replace("|", ",").split(",")`), ensuring multi-argument LLM tool invocations cleanly parse every parameter.
+- **`ai_services/tests/test_integration.py` & `tests/test_agent.py`**:
+  - Updated integration test suite to verify direct LLM execution without plan caching (`test_reliable_llm_planning_direct_execution`) and updated scoring debrief tool assertions.
+
+### Why
+Investigated suspiciously fast query responses on the frontend for *"how did verstappen perform at qatar gp?"*. Verified the root cause of frontend rendering speed (frontend `localStorage` investigation thread caching in `InvestigationThread.jsx` and backend Redis caching in `cache.service.js`), eliminated python in-memory plan caching, and audited the live execution pipeline with granular timestamp logs.
+
+### How It Was Verified -- Real Test Output
+- **Direct HTTP Query (`scratch/test_verstappen_qatar_query.py` -> `http://127.0.0.1:8000/engineer/query`)**:
+  - **Total Pipeline Latency**: `23,366ms` (~23.4s).
+  - **NLP Parsing Call**: Gemini `gemini-3.6-flash` in `6,409ms` (Intent: `scoring`, Metric: `scoring`).
+  - **Planner LLM Call**: Gemini `gemini-3.6-flash` in `6,411ms` (`['race_results_tool|...', 'scoring_tool|...']`).
+  - **Entity/Session Resolver**: `SessionResolver` resolved `2024_qatar_gp_race` in `0ms` (FastF1 download skipped, session present in PostgreSQL).
+  - **Tool 1 (`race_results_tool`)**: Queried PostgreSQL `race_results`, returned 20 rows.
+  - **Tool 2 (`scoring_tool`)**: Queried PostgreSQL `sessions`, `laps`, `stints`, and teammate data in `1,612ms`.
+  - **Aggregator Mathematical Output**: Strategy: `50.27`, Tire: `100.0`, Pace: `22.0`, Pitstop: `89.04`, Execution: `100.0` -> Composite: `72.26`.
+  - **Synthesis LLM Call**: Gemini `gemini-3.6-flash` in `7,805ms`.
+- **Codebase Grep Audit**: Zero hardcoded mock responses for `verstappen` or `qatar`.
+- **Direct Redis & PostgreSQL Audit (`scratch/audit_db_redis.py`)**:
+  - Redis total cached keys: `0`.
+  - PostgreSQL `scoring_results`: `0` rows (100% computed live).
+- **Unit & Integration Regression Suite**: 15/15 passed in `test_agent.py` and `test_integration.py` (100%).
+
+---
+
+## Session 013 -- 2026-08-27 -- ScoreCard & SimulationCard Components Built and Verified End-to-End in Browser
+
+### What Was Changed
+- **`frontend/src/components/ScoreCard.jsx`**:
+  - Built production `ScoreCard` component displaying the 5 performance dimensions (Pace Index, Consistency, Racecraft, Strategy Execution, Tyre Management) with colored progress bars, metric badges, and interactive mathematical parameters disclosure.
+- **`frontend/src/components/SimulationCard.jsx`**:
+  - Built production `SimulationCard` component displaying what-if strategy simulation outcomes: Pit Stop Shift (Actual vs Simulated lap/compound), Track Position delta ($P1 \to P3$, $-2\text{ POS}$), Net Time Delta ($-12.536\text{s}$), and full diagnostic breakdown (Actual Time, Simulated Time, Traffic Loss, Pit Transit Loss).
+- **`frontend/src/pages/InvestigationThread.jsx`**:
+  - Wired `ScoreCard` and `SimulationCard` into `mapResponseToMessages()` and the message rendering hierarchy, enabling direct visual presentation of `scoring_tool` and `simulation_tool` evidence payloads.
+- **`ai_services/app/agents/nlp_parser.py` & `planner.py`**:
+  - Added explicit semantic rules and routing for driver performance/scoring queries (`intent = "scoring"`) and what-if simulation queries (`intent = "simulation"`).
+  - Fixed missing `sys` import in `personas.py`.
+
+### Why
+Previously, `scoring_tool` and `simulation_tool` calculations were computed on the backend but lacked dedicated frontend visualization cards in `InvestigationThread.jsx`.
+
+### How It Was Verified -- Real Test Output
+- **Browser Subagent Session** (Recording: `quick_card_verify_1787818337356.webp`):
+  1. Query *"How did Verstappen perform at Qatar GP?"*: Successfully loaded `ScoreCard` with Composite Index `72.3 / 100`, Pace Index `22.0`, Consistency `93.1`, Strategy `50.3`, Tyre `100.0`. Screenshot: `score_card_test_1_1787818401616.png`.
+  2. Query *"What if Verstappen pitted on lap 30 at Qatar GP?"*: Successfully loaded `SimulationCard` with Pit Stop Shift `Lap 35 -> Lap 30 (HARD)`, Track Position `P3 (-2 POS)`, Net Time Delta `-12.536s`, Traffic Loss `2.139s`. Screenshot: `sim_card_test_2_1787818453412.png`.
+- **Build & Unit Tests**:
+  - `npm run build`: 433 modules transformed, 0 errors.
+  - `pytest`: 8/8 passed (100%).
+
+---
+
+## Session 012 -- 2026-08-27 -- Startup load_default_race_weekend Implemented, Groq Key Detection Fixed & safe_execute_query Error Logging Upgraded
+
+### What Was Changed
+- **`ai_services/app/ingestion/loader.py` (`load_default_race_weekend`)**:
+  - Implemented `load_default_race_weekend(year: int = 2024, gp_name: str = "Qatar", session_type: str = "R")` using `FastF1Collector`.
+  - Fixes the latent `ImportError` on startup when `sessions` table is empty in PostgreSQL.
+- **`ai_services/app/agents/planner.py` & `ai_services/app/agents/personas.py` (Groq Key Prefix Detection)**:
+  - Removed `"gsk_" in groq_key` from mock/dummy key checks (`gsk_` is the authentic Groq key prefix).
+  - Updated `is_offline_dev` logic to require `(is_gemini_mock and is_groq_mock)` rather than `or`, enabling pure Groq environments to run online without forced rule-based fallback.
+- **`ai_services/app/ingestion/fastf1_collector.py` (`safe_execute_query`)**:
+  - Changed error logging from `logger.debug` to `logger.error(..., exc_info=True)` per RULES_AND_GOTCHAS.md Entry 002.
+
+### Why
+1. Prevent startup crashes if the database is newly initialized or empty.
+2. Allow active online LLM execution when Groq API keys (`gsk_...`) are configured.
+3. Ensure PostgreSQL errors in FastF1 ingestion are prominently visible with full stack traces rather than silently silenced at DEBUG level.
+
+### How It Was Verified -- Real Test Output
+Verified via `scratch/test_startup_and_fixes.py`:
+- Test 1 (Loader imports): Successfully imported `load_default_race_weekend` and `ensure_session_in_db` from `app.ingestion.loader`.
+- Test 2 (FastAPI startup on empty DB): `startup_event()` cleanly triggered background seeding on empty DB simulation with 0 errors.
+- Test 3 (Groq key detection): Real Groq key (`gsk_...`) detected as online (`is_groq_mock: False`, `is_offline: False`).
+- Test 4 (safe_execute_query): DB exception correctly logged at `ERROR` level with `exc_info=True`.
+- Regression: Pytest unit test suite (`test_simulation.py`, `test_scoring.py`, `test_fastf1_ingestion.py`) passed 8/8 (100%).
+
+---
+
+## Session 011 -- 2026-08-27 -- ExplainModeTool Audited, RAG & Multi-Tier Concept Explanations Verified Without Forcing Session Lookups
+
+### What Was Changed
+- **`ai_services/app/tools/adapters.py` (`ExplainModeTool`)**:
+  - Replaced canned/static responses with multi-tier concept explanations (`beginner`, `intermediate`, `engineer`) covering vehicle dynamics (understeer/oversteer), formula metrics (CAR, SPG, TSE), tire compound physics, and FIA Technical Regulations (Article 3.6 for DRS).
+  - Integrated direct fallback retrieval from `rag_knowledge` (FIA Technical/Sporting Regulations, Circuit Notes, Tyre Strategy) to dynamically answer arbitrary racing concepts.
+  - Implemented robust regex query cleaning to strip leading prompt prefixes (`what is`, `explain`, `difference between`).
+- **`ai_services/app/agents/personas.py` (`ExplainEngineer`)**:
+  - Normalized parameter passthrough across alias keys (`term`, `topic`, `concept`, `query`), ensuring planner-generated tool calls seamlessly route to `ExplainModeTool`.
+- **`ai_services/app/agents/planner.py`**:
+  - Ensured conceptual queries (e.g. *"What is understeer?"*, *"What is DRS?"*, *"Explain tyre differences"*) route exclusively to `['explain_mode_tool']` without forcing race/session lookups or calling `telemetry_tool` or `race_results_tool`.
+- **`ai_services/app/core/providers.py`**:
+  - Added robust JSON extraction regex and `response_format={"type": "json_object"}` safeguards for Groq failover provider.
+
+### Why
+Per project architecture, knowledge queries must remain pure knowledge queries and provide multi-tiered technical explanations without being forced through the session resolver or race telemetry lookup pipeline.
+
+### How It Was Verified -- Real Test Output
+All 3 queries verified via `scratch/test_explain_mode.py`:
+1. "What is understeer?" -> Routed exclusively to `explain_mode_tool` (zero telemetry/session lookups).
+2. "Explain the difference between soft and hard tyres" -> Routed exclusively to `explain_mode_tool` (zero telemetry/session lookups).
+3. "What is DRS?" -> Routed exclusively to `explain_mode_tool` (zero telemetry/session lookups).
+
+---
+
 ## Session 010 -- 2026-08-27 -- SimulationTool & StrategyTool Audited, Hardcoded Values Eliminated & Real FastF1 What-If Simulations Verified
 
 ### What Was Changed

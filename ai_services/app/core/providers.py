@@ -205,11 +205,15 @@ class GroqProvider(BaseLLMProvider):
                     {"role": "user", "content": contents}
                 ],
                 model="qwen/qwen3.6-27b",
+                response_format={"type": "json_object"},
                 temperature=0.0,
                 timeout=timeout_seconds
             )
             raw_text = chat_completion.choices[0].message.content.strip()
-            if raw_text.startswith("```"):
+            json_match = re.search(r"(\{.*\})", raw_text, flags=re.DOTALL)
+            if json_match:
+                raw_text = json_match.group(1).strip()
+            elif raw_text.startswith("```"):
                 raw_text = re.sub(r"^```[a-zA-Z]*\n|```$", "", raw_text, flags=re.MULTILINE).strip()
                 
             parsed = json.loads(raw_text)
@@ -247,19 +251,18 @@ class GroqProvider(BaseLLMProvider):
         start_time = time.time()
         try:
             client = Groq(api_key=key)
-            response_format = None
-            if response_mime_type == "application/json":
-                response_format = {"type": "json_object"}
-            chat_completion = client.chat.completions.create(
-                messages=[
+            kwargs = {
+                "messages": [
                     {"role": "system", "content": system_instruction},
                     {"role": "user", "content": contents}
                 ],
-                model="qwen/qwen3.6-27b",
-                temperature=0.0,
-                response_format=response_format,
-                timeout=timeout_seconds
-            )
+                "model": "qwen/qwen3.6-27b",
+                "temperature": 0.0,
+                "timeout": timeout_seconds
+            }
+            if response_mime_type == "application/json":
+                kwargs["response_format"] = {"type": "json_object"}
+            chat_completion = client.chat.completions.create(**kwargs)
             raw_text = chat_completion.choices[0].message.content.strip()
             latency_ms = int((time.time() - start_time) * 1000)
             
@@ -294,49 +297,45 @@ class ReliableLLMProvider(BaseLLMProvider):
     def __init__(self):
         self.gemini = GeminiProvider()
         self.groq = GroqProvider()
-        self._plan_cache = {}
         
     def generate_plan(self, system_instruction: str, contents: str, timeout_seconds: float = 10.0) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         if os.getenv("DISABLE_LLM_PROVIDER") == "1":
             raise LLMProviderError("LLM Provider disabled via DISABLE_LLM_PROVIDER=1")
-
-        # Cache lookup for identical planning queries to reduce requests
-        cache_key = (system_instruction, contents)
-        if cache_key in self._plan_cache:
-            logger.info("[ReliableLLMProvider] Cache hit for identical planning query.")
-            return self._plan_cache[cache_key]
-
             
         retries = 0
         backoff = 0.5 # start backoff at 500ms
         errors_logged = []
         
+        from datetime import datetime, timezone
+        call_start_utc = datetime.now(timezone.utc).isoformat()
+        logger.info(f"[PLANNER_LLM_CALL_START] UTC: {call_start_utc} | Initiating live planning engine dispatch.")
+        
         # 1. Attempt Gemini (up to 2 retries)
-        logger.info("[ReliableLLMProvider] Initiating Gemini planning call.")
         for attempt in range(3):
             start_time = time.time()
+            attempt_utc = datetime.now(timezone.utc).isoformat()
             try:
-                logger.info(f"[ReliableLLMProvider] Selected provider: Gemini, Model: gemini-3.6-flash, Attempt: {attempt + 1}/3, Start: {start_time}")
+                logger.info(f"[PLANNER_LLM_ATTEMPT] UTC: {attempt_utc} | Provider: Gemini | Model: gemini-3.6-flash | Attempt: {attempt + 1}/3")
                 plan, metrics = self.gemini.generate_plan(system_instruction, contents, timeout_seconds)
                 end_time = time.time()
                 latency_ms = int((end_time - start_time) * 1000)
+                call_end_utc = datetime.now(timezone.utc).isoformat()
                 logger.info(
-                    f"[ReliableLLMProvider] Gemini call SUCCEEDED. End: {end_time}, Latency: {latency_ms}ms, "
-                    f"Response parsing: SUCCESS. Result: {plan}"
+                    f"[PLANNER_LLM_CALL_END] UTC: {call_end_utc} | Provider: Gemini | Model: gemini-3.6-flash | "
+                    f"Latency: {latency_ms}ms | Status: SUCCESS | Plan: {plan}"
                 )
                 metrics["retries"] = retries
-                self._plan_cache[cache_key] = (plan, metrics)
                 return plan, metrics
             except Exception as e:
                 end_time = time.time()
                 latency_ms = int((end_time - start_time) * 1000)
                 err_msg = f"Gemini Attempt {attempt + 1} failed (Latency: {latency_ms}ms). Exception: {e}"
-                logger.warning(f"[ReliableLLMProvider] {err_msg}")
+                logger.warning(f"[PLANNER_LLM_ATTEMPT_FAILED] {err_msg}")
                 errors_logged.append(err_msg)
                 
                 # Check for fatal error to trigger immediate failover
                 if is_fatal_error(e):
-                    logger.warning("[ReliableLLMProvider] Non-retryable Gemini error detected (fatal/429/quota). Failover immediately without retrying.")
+                    logger.warning("[PLANNER_LLM_FAILOVER_TRIGGERED] Non-retryable Gemini error detected (fatal/429/quota). Failover immediately without retrying.")
                     retries += 1
                     break
                     
@@ -358,18 +357,18 @@ class ReliableLLMProvider(BaseLLMProvider):
                 plan, metrics = self.groq.generate_plan(system_instruction, contents, timeout_seconds)
                 end_time = time.time()
                 latency_ms = int((end_time - start_time) * 1000)
+                call_end_utc = datetime.now(timezone.utc).isoformat()
                 logger.info(
-                    f"[ReliableLLMProvider] Groq call SUCCEEDED. End: {end_time}, Latency: {latency_ms}ms, "
-                    f"Response parsing: SUCCESS. Result: {plan}"
+                    f"[PLANNER_LLM_CALL_END] UTC: {call_end_utc} | Provider: Groq | Model: llama-3.3-70b-versatile | "
+                    f"Latency: {latency_ms}ms | Status: SUCCESS | Plan: {plan}"
                 )
                 metrics["retries"] = retries
-                self._plan_cache[cache_key] = (plan, metrics)
                 return plan, metrics
             except Exception as e:
                 end_time = time.time()
                 latency_ms = int((end_time - start_time) * 1000)
                 err_msg = f"Groq Attempt {attempt + 1} failed (Latency: {latency_ms}ms). Exception: {e}"
-                logger.warning(f"[ReliableLLMProvider] {err_msg}")
+                logger.warning(f"[PLANNER_LLM_ATTEMPT_FAILED] {err_msg}")
                 errors_logged.append(err_msg)
                 
                 # Check for fatal error to trigger immediate failover
@@ -399,24 +398,36 @@ class ReliableLLMProvider(BaseLLMProvider):
 
         # General non-planning response generator
         retries = 0
-
         backoff = 0.5
         errors_logged = []
         
-        logger.info("[ReliableLLMProvider] Initiating Gemini response call.")
+        from datetime import datetime, timezone
+        call_start_utc = datetime.now(timezone.utc).isoformat()
+        logger.info(f"[SYNTHESIS_LLM_CALL_START] UTC: {call_start_utc} | Initiating live response synthesis.")
+        
         for attempt in range(3):
             start_time = time.time()
+            attempt_utc = datetime.now(timezone.utc).isoformat()
             try:
+                logger.info(f"[SYNTHESIS_LLM_ATTEMPT] UTC: {attempt_utc} | Provider: Gemini | Model: gemini-3.6-flash | Attempt: {attempt + 1}/3")
                 text, metrics = self.gemini.generate_response(system_instruction, contents, response_mime_type, timeout_seconds)
+                end_time = time.time()
+                latency_ms = int((end_time - start_time) * 1000)
+                call_end_utc = datetime.now(timezone.utc).isoformat()
+                logger.info(
+                    f"[SYNTHESIS_LLM_CALL_END] UTC: {call_end_utc} | Provider: Gemini | Model: gemini-3.6-flash | "
+                    f"Latency: {latency_ms}ms | Status: SUCCESS | Output Preview: {text[:120]}..."
+                )
                 metrics["retries"] = retries
                 return text, metrics
             except Exception as e:
-                latency_ms = int((time.time() - start_time) * 1000)
+                end_time = time.time()
+                latency_ms = int((end_time - start_time) * 1000)
                 err_msg = f"Gemini response Attempt {attempt + 1} failed (Latency: {latency_ms}ms). Exception: {e}"
-                logger.warning(f"[ReliableLLMProvider] {err_msg}")
+                logger.warning(f"[SYNTHESIS_LLM_ATTEMPT_FAILED] {err_msg}")
                 errors_logged.append(err_msg)
                 if is_fatal_error(e):
-                    logger.warning("[ReliableLLMProvider] Non-retryable Gemini error. Failover immediately.")
+                    logger.warning("[SYNTHESIS_LLM_FAILOVER_TRIGGERED] Non-retryable Gemini error. Failover immediately to Groq.")
                     retries += 1
                     break
                 retries += 1
@@ -426,17 +437,26 @@ class ReliableLLMProvider(BaseLLMProvider):
                 backoff *= 2.0
                 
         backoff = 0.5
-        logger.info("[ReliableLLMProvider] Initiating Groq failover response call.")
         for attempt in range(3):
             start_time = time.time()
+            attempt_utc = datetime.now(timezone.utc).isoformat()
             try:
+                logger.info(f"[SYNTHESIS_LLM_ATTEMPT] UTC: {attempt_utc} | Provider: Groq | Model: llama-3.3-70b-versatile | Attempt: {attempt + 1}/3")
                 text, metrics = self.groq.generate_response(system_instruction, contents, response_mime_type, timeout_seconds)
+                end_time = time.time()
+                latency_ms = int((end_time - start_time) * 1000)
+                call_end_utc = datetime.now(timezone.utc).isoformat()
+                logger.info(
+                    f"[SYNTHESIS_LLM_CALL_END] UTC: {call_end_utc} | Provider: Groq | Model: llama-3.3-70b-versatile | "
+                    f"Latency: {latency_ms}ms | Status: SUCCESS | Output Preview: {text[:120]}..."
+                )
                 metrics["retries"] = retries
                 return text, metrics
             except Exception as e:
-                latency_ms = int((time.time() - start_time) * 1000)
+                end_time = time.time()
+                latency_ms = int((end_time - start_time) * 1000)
                 err_msg = f"Groq response Attempt {attempt + 1} failed (Latency: {latency_ms}ms). Exception: {e}"
-                logger.warning(f"[ReliableLLMProvider] {err_msg}")
+                logger.warning(f"[SYNTHESIS_LLM_ATTEMPT_FAILED] {err_msg}")
                 errors_logged.append(err_msg)
                 if is_fatal_error(e):
                     retries += 1

@@ -173,12 +173,22 @@ class EntityResolver:
                 logger.warning(f"[EntityResolver] SessionResolver returned DATA_UNAVAILABLE for gp={gp_input}")
                 resolved_ids["status"] = "entity_not_found"
 
+        from datetime import datetime, timezone
+        import time
+        er_start_time = time.time()
+        er_start_utc = datetime.now(timezone.utc).isoformat()
+        logger.info(f"[ENTITY_RESOLUTION_START] UTC: {er_start_utc} | Resolving planner entities: {planner_entities}")
+
         print("=========== ENTITY RESOLUTION ===========")
         print(f"Planner Entities: {planner_entities}")
         print(f"Entities Found: {entities_found}")
         print(f"Database Matches: {db_matches}")
         print(f"Resolved IDs: {resolved_ids}")
         print("=========================================")
+
+        er_duration_ms = int((time.time() - er_start_time) * 1000)
+        er_end_utc = datetime.now(timezone.utc).isoformat()
+        logger.info(f"[ENTITY_RESOLUTION_END] UTC: {er_end_utc} | Latency: {er_duration_ms}ms | Resolved IDs: {resolved_ids}")
 
         resolved_ids["status"] = resolved_ids.get("status", "resolved")
         return resolved_ids

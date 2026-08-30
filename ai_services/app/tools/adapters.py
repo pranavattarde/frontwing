@@ -1,4 +1,6 @@
 import os
+import time
+from datetime import datetime, timezone
 import json
 import numpy as np
 from typing import Dict, Any, List
@@ -38,16 +40,27 @@ class ScoringTool(BaseF1Tool):
         }
         
     def execute(self, inputs: Dict[str, Any]) -> Any:
+        from datetime import datetime, timezone
+        tool_start_time = time.time()
+        tool_start_utc = datetime.now(timezone.utc).isoformat()
+        
         session_id = inputs["session_id"]
         driver_id = inputs["driver_id"]
         data = inputs.get("data")
+        
+        logger.info(
+            f"[SCORING_TOOL_START] UTC: {tool_start_utc} | Session: {session_id} | Driver: {driver_id} | Explicit Data Provided: {bool(data)}"
+        )
         
         # If explicit metrics are provided, use them directly
         if data:
             payload = dict(data)
             payload["session_id"] = session_id
             payload["driver_id"] = driver_id
-            return calculate_race_scores(payload, save_to_db=False)
+            res = calculate_race_scores(payload, save_to_db=False)
+            tool_end_time = time.time()
+            logger.info(f"[SCORING_TOOL_END] UTC: {datetime.now(timezone.utc).isoformat()} | Duration: {int((tool_end_time - tool_start_time) * 1000)}ms | Result: {res}")
+            return res
 
         # Check if pre-calculated scoring results exist in PostgreSQL
         try:
@@ -60,7 +73,7 @@ class ScoringTool(BaseF1Tool):
             pre_res = execute_query(sql_pre, (session_id, driver_id), fetch=True)
             if pre_res and len(pre_res) > 0:
                 row = pre_res[0]
-                return {
+                res = {
                     "strategy_score": float(row["strategy_score"]),
                     "tire_score": float(row["tire_management_score"]),
                     "pace_score": float(row["pace_efficiency_score"]),
@@ -68,14 +81,29 @@ class ScoringTool(BaseF1Tool):
                     "execution_score": float(row["race_execution_score"]),
                     "composite_score": float(row["composite_score"])
                 }
-        except Exception:
-            pass
+                tool_end_time = time.time()
+                logger.info(f"[SCORING_TOOL_CACHE_HIT_DB] Found pre-calculated scoring_results in DB. Duration: {int((tool_end_time - tool_start_time) * 1000)}ms | Result: {res}")
+                return res
+        except Exception as pre_ex:
+            logger.debug(f"[ScoringTool] pre-calc lookup skipped: {pre_ex}")
 
         # Otherwise, attempt to construct metrics from the PostgreSQL database
+        logger.info(f"[SCORING_TOOL_DB_START] Querying PostgreSQL for raw timing/laps/stints metrics for {session_id}/{driver_id}")
+        db_start = time.time()
         db_data = self._gather_metrics_from_db(session_id, driver_id)
+        db_duration = int((time.time() - db_start) * 1000)
+        logger.info(f"[SCORING_TOOL_DB_END] PostgreSQL queries completed in {db_duration}ms. Status: {db_data.get('status', 'success')}")
+        
         if isinstance(db_data, dict) and db_data.get("status") == "missing_data":
+            tool_end_time = time.time()
+            logger.info(f"[SCORING_TOOL_END] UTC: {datetime.now(timezone.utc).isoformat()} | Duration: {int((tool_end_time - tool_start_time) * 1000)}ms | Result: missing_data")
             return db_data
-        return calculate_race_scores(db_data, save_to_db=False)
+            
+        res = calculate_race_scores(db_data, save_to_db=False)
+        tool_end_time = time.time()
+        tool_duration_ms = int((tool_end_time - tool_start_time) * 1000)
+        logger.info(f"[SCORING_TOOL_END] UTC: {datetime.now(timezone.utc).isoformat()} | Total ScoringTool Duration: {tool_duration_ms}ms | Final Scores: {res}")
+        return res
 
     def _compute_grid_median_deg(self, session_id: str) -> Dict[str, float]:
         """Calculates real grid median tire degradation slopes per compound from session stints."""
@@ -799,53 +827,64 @@ class ExplainModeTool(BaseF1Tool):
         }
         
     def execute(self, inputs: Dict[str, Any]) -> Any:
-        term = inputs["term"].upper()
-        term_raw = str(inputs.get("term", "")).strip()
-        term = term_raw.upper()
-        audience = inputs.get("target_audience", "intermediate")
+        import re
+        term_raw = str(inputs.get("term") or inputs.get("topic") or inputs.get("concept") or inputs.get("query") or inputs.get("question") or "").strip()
+        audience = str(inputs.get("target_audience", "intermediate")).lower()
+        
+        # Clean term for matching
+        cleaned = re.sub(r'^(what is|explain|define|how does|what are|the|difference between|difference|f1)\b', '', term_raw, flags=re.IGNORECASE).strip()
+        term = (cleaned or term_raw).upper()
         
         formulas = {
             "CAR": {
                 "name": "Clean Air Ratio",
                 "formula": "CAR = (sum(Gap_i(k) > 1.5s) / (N - N_SC)) * 100",
                 "novice": "Measures the percent of the race spent in clear air (more than 1.5s behind the car in front) away from turbulence.",
-                "expert": "CAR isolates clean air laps by filtering safety car periods (N_SC) to establish true clean-air stint ratios."
+                "intermediate": "Calculates the proportion of laps completed in clear air (>1.5s gap to car ahead), excluding safety car laps to quantify dirty-air exposure.",
+                "expert": "CAR isolates clean air laps by filtering safety car periods (N_SC) to establish true clean-air stint ratios: CAR = (sum(Gap_i(k) > 1.5s) / (N - N_SC)) * 100."
             },
             "SPG": {
                 "name": "Strategic Position Gain",
                 "formula": "SPG = 50 + 10 * sum(gain - overtakes_on_track)",
                 "novice": "Ranks how many positions you gained during pit stops without counting standard track passes.",
-                "expert": "Quantifies pure under/overcut efficiency by tracking post-stop position gain while explicitly subtracting active telemetry overtakes."
+                "intermediate": "Tracks net positions gained through pit stop strategy (undercut/overcut) while explicitly separating on-track passes.",
+                "expert": "Quantifies pure under/overcut efficiency by tracking post-stop position gain while explicitly subtracting active telemetry overtakes: SPG = 50 + 10 * sum(gain - overtakes_on_track)."
             },
             "TSE": {
                 "name": "Tire Stint Efficiency",
                 "formula": "TSE = 100 - avg((abs(Length_s - O_C) / O_C) * 100)",
                 "novice": "Grades whether tyre compound stints were run too short or too long compared to optimal lap guidelines.",
-                "expert": "Computes normalized stint length deviations against compound targets (Soft=18, Medium=26, Hard=34) with DNF exclusions."
+                "intermediate": "Evaluates stint duration against optimal compound targets (Soft=18, Medium=26, Hard=34 laps) adjusted for fuel and track conditions.",
+                "expert": "Computes normalized stint length deviations against compound targets (Soft=18, Medium=26, Hard=34) with DNF exclusions: TSE = 100 - avg((abs(Length_s - O_C) / O_C) * 100)."
             },
             "UNDERSTEER": {
                 "name": "Understeer Dynamics",
-                "novice": "Understeer occurs when a car turns less than the driver intends, causing the front tyres to slip and slide outward wide of the corner apex.",
-                "expert": "Understeer is a handling dynamic where front tyre slip angles exceed rear slip angles (alpha_front > alpha_rear), causing yaw velocity deficiency."
+                "novice": "Understeer occurs when a car turns less than the driver intends, causing the front tyres to slip and slide outward wide of the corner apex ('pushing').",
+                "intermediate": "Understeer is a vehicle handling characteristic where the front axle loses lateral grip before the rear axle, causing the car to run wide on corner entry or mid-corner.",
+                "expert": "Understeer is a handling dynamic where front tyre slip angles exceed rear slip angles (alpha_front > alpha_rear), causing a yaw velocity deficiency and lateral acceleration saturation at the front axle."
             },
             "OVERSTEER": {
                 "name": "Oversteer Dynamics",
-                "novice": "Oversteer occurs when the rear of the car slides outward, causing the car to turn more sharply than intended.",
-                "expert": "Oversteer is a handling instability where rear tyre slip angles exceed front slip angles (alpha_rear > alpha_front), producing positive yaw acceleration."
+                "novice": "Oversteer occurs when the rear of the car slides outward, causing the car to turn more sharply than intended ('loose rear').",
+                "intermediate": "Oversteer is a handling imbalance where the rear tyres break traction before the front tyres, causing the rear to rotate outward and requiring opposite lock steering.",
+                "expert": "Oversteer is a handling instability where rear tyre slip angles exceed front slip angles (alpha_rear > alpha_front), producing positive yaw acceleration and potential spin if uncorrected."
             },
             "DRS": {
                 "name": "Drag Reduction System",
                 "novice": "DRS opens an adjustable flap in the rear wing on designated straights when within 1 second of a leading car, boosting top speed for overtaking.",
-                "expert": "DRS alters rear wing aerodynamic profile, reducing total vehicle drag coefficient by ~20% and yielding an 8-12 km/h top-speed delta."
+                "intermediate": "Drag Reduction System (DRS) allows trailing drivers within 1.0 second at the detection point to open the rear wing flap in designated zones, increasing straight-line speed by 10-12 km/h.",
+                "expert": "DRS opens the rear wing mainplane slot gap to the FIA maximum 85mm, reducing vehicle drag coefficient (Cd) by ~20-25% to generate an 8-12 km/h top-speed advantage on straights (FIA Technical Regulations Article 3.6)."
             },
             "SOFT VS HARD TYRES": {
                 "name": "Tyre Compound Comparison",
                 "novice": "Soft tyres use a softer rubber compound providing maximum grip and fastest lap times, but degrade quickly. Hard tyres use a durable compound lasting much longer with slightly lower immediate grip.",
-                "expert": "Soft compounds exhibit higher viscoelastic hysteresis and peak friction coefficient (mu_peak) at the cost of accelerated thermal degradation and graining. Hard compounds optimize mechanical durability and thermal stability across long stints."
+                "intermediate": "Soft tyres provide peak grip and qualifying speed but suffer higher thermal degradation (~0.12 s/lap wear). Hard tyres offer lower immediate grip but maintain consistent pace over long stints (~0.05 s/lap wear).",
+                "expert": "Soft compounds exhibit higher viscoelastic hysteresis and peak friction coefficient (mu_peak) at the cost of accelerated thermal degradation and graining. Hard compounds optimize mechanical durability and thermal stability across long stints with lower degradation slopes."
             },
             "FASTEST LAP": {
                 "name": "Fastest Lap Standard",
                 "novice": "The fastest single lap time set during a Grand Prix by any driver finishing in the top 10.",
+                "intermediate": "The single quickest lap time recorded during the Grand Prix; awards 1 bonus championship point if the driver finishes in the top 10 classification.",
                 "expert": "The fastest official lap time registered in the FIA timing system during the race session, requiring driver classification within top 10 positions for bonus point allocation."
             }
         }
@@ -856,24 +895,41 @@ class ExplainModeTool(BaseF1Tool):
             matched_key = term
         else:
             for k in formulas:
-                if k in term or term in k or (("SOFT" in term or "TYRE" in term or "TIRE" in term) and "SOFT" in k):
+                if k in term or term in k or (("SOFT" in term or "HARD" in term) and ("TYRE" in term or "TIRE" in term) and "SOFT" in k):
                     matched_key = k
                     break
 
         if matched_key:
             res = formulas[matched_key]
+            exp_text = res.get(audience, res.get("intermediate", res.get("novice")))
             return {
                 "term": term_raw,
                 "name": res["name"],
-                "explanation": res.get(audience, res.get("novice", "F1 technical concept explanation.")),
+                "explanation": exp_text,
                 "beginner": res.get("novice"),
-                "intermediate": res.get("novice"),
+                "intermediate": res.get("intermediate", res.get("novice")),
                 "engineer": res.get("expert")
+            }
+            
+        # RAG Knowledge Retrieval Fallback
+        rag_results = rag_knowledge.retrieve(term_raw, limit=2)
+        if rag_results:
+            rag_content = " ".join([d.get("content", "") for d in rag_results if d.get("content")])
+            sources = list(set([d.get("source", "") for d in rag_results if d.get("source")]))
+            return {
+                "term": term_raw,
+                "name": f"F1 Concept: {term_raw}",
+                "explanation": rag_content,
+                "beginner": f"{term_raw}: {rag_content}",
+                "intermediate": f"{term_raw} (Sources: {', '.join(sources)}): {rag_content}",
+                "engineer": f"{term_raw} technical specifications from {', '.join(sources)}: {rag_content}",
+                "sources": sources
             }
             
         return {
             "term": term_raw,
-            "explanation": f"F1 Concept Analysis for '{term_raw}': Key factors include aerodynamic balance, mechanical tyre grip, and stint management.",
+            "name": f"F1 Technical Analysis: {term_raw}",
+            "explanation": f"Technical analysis for {term_raw} in Formula 1.",
             "beginner": f"Overview of {term_raw} in Formula 1.",
             "intermediate": f"Technical dynamics governing {term_raw}.",
             "engineer": f"Telemetry and engineering parameters associated with {term_raw}."

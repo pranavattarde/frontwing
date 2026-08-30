@@ -14,7 +14,16 @@ def calculate_race_scores(data: dict, save_to_db: bool = True) -> dict:
     session_id = data.get("session_id", "mock_session")
     driver_id = data.get("driver_id", "mock_driver")
 
-    logger.info(f"[Aggregator] Running score computations for session: {session_id}, driver: {driver_id}")
+    from datetime import datetime, timezone
+    agg_start = datetime.now(timezone.utc).isoformat()
+    logger.info(
+        f"[SCORING_MATH_START] UTC: {agg_start} | Session: {session_id} | Driver: {driver_id} | "
+        f"Clean Mean: {data.get('driver_clean_laps_mean')}s | Clean Std: {data.get('driver_clean_laps_std')}s | "
+        f"Optimal Lap: {data.get('driver_optimal_lap')}s | Teammate Optimal: {data.get('teammate_optimal_lap')}s | "
+        f"Clean Air Laps: {data.get('clean_air_laps')} | SC Laps: {data.get('sc_laps')} | "
+        f"Total Laps: {data.get('total_laps')} | Stints: {len(data.get('stints', []))} | "
+        f"Grid Median Deg: {data.get('grid_median_deg')}"
+    )
 
     strategy = calculate_strategy_score(data)
     tire = calculate_tire_score(data)
@@ -34,7 +43,11 @@ def calculate_race_scores(data: dict, save_to_db: bool = True) -> dict:
         "composite_score": composite
     }
 
-    logger.info(f"[Aggregator] Calculation outcomes: {results}")
+    agg_end = datetime.now(timezone.utc).isoformat()
+    logger.info(
+        f"[SCORING_MATH_END] UTC: {agg_end} | Strategy: {strategy} | Tire: {tire} | "
+        f"Pace: {pace} | Pitstop: {pitstop} | Execution: {execution} | Composite: {composite}"
+    )
 
     if save_to_db:
         try:

@@ -1,4 +1,6 @@
 import os
+import time
+from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
@@ -130,6 +132,15 @@ class QueryRequest(BaseModel):
 @app.post("/engineer/query")
 def engineer_query(req: QueryRequest):
     """Interacts with the AI Race Engineer StateGraph to execute queries and gather evidence."""
+    req_start_time = time.time()
+    req_start_utc = datetime.now(timezone.utc).isoformat()
+    logger.info(
+        f"\n======================================================\n"
+        f"[REQUEST_RECEIVED] UTC: {req_start_utc}\n"
+        f"Question: \"{req.question}\"\n"
+        f"Caller Session ID: {req.session_id} | Caller Driver ID: {req.driver_id} | Conversation ID: {req.conversation_id}\n"
+        f"======================================================"
+    )
     try:
         session_id = req.session_id
         driver_id = req.driver_id
@@ -165,9 +176,25 @@ def engineer_query(req: QueryRequest):
                 context
             )
             
+        total_duration_ms = int((time.time() - req_start_time) * 1000)
+        req_end_utc = datetime.now(timezone.utc).isoformat()
+        logger.info(
+            f"\n======================================================\n"
+            f"[RESPONSE_SENT] UTC: {req_end_utc}\n"
+            f"Question: \"{req.question}\"\n"
+            f"Total End-to-End Latency: {total_duration_ms}ms\n"
+            f"Tools Used: {response.get('tools_used', [])}\n"
+            f"Final Answer Preview: {str(response.get('final_answer', ''))[:100]}...\n"
+            f"======================================================"
+        )
         return response
     except Exception as e:
-        logger.error(f"Error executing AI Race Engineer query: {e}")
+        total_duration_ms = int((time.time() - req_start_time) * 1000)
+        req_end_utc = datetime.now(timezone.utc).isoformat()
+        logger.error(
+            f"[REQUEST_FAILED] UTC: {req_end_utc} | Latency: {total_duration_ms}ms | Error: {e}",
+            exc_info=True
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 

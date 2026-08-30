@@ -219,7 +219,9 @@ RULES:
 8. "Compare Verstappen and Norris telemetry at X", "Compare lap times of X and Y", "Compare sector times", "Where did X gain time on Y?", "Compare speed" -> intent = "telemetry_comparison", requested_metric = "telemetry_comparison", comparison_drivers = ["Max Verstappen", "Lando Norris"], aggregation = "comparison".
 9. "Compare Verstappen and Norris at X" (position/general) -> intent = "comparison", requested_metric = "comparison", comparison_drivers = ["Max Verstappen", "Lando Norris"].
 10. "Explain DRS" -> intent = "explanation", requested_metric = "explanation".
-11. Leave "season" as NULL unless a 4-digit year (e.g. 2024, 2023) is explicitly mentioned in the query.
+11. "How did Verstappen perform at X?", "Verstappen performance at X", "Score Verstappen at X", "Rate Verstappen" -> intent = "scoring", requested_metric = "scoring", requested_driver = "Max Verstappen".
+12. "What if Verstappen pitted on lap 30 at X?", "Simulate Verstappen pitting on lap 30" -> intent = "simulation", requested_metric = "simulation", requested_driver = "Max Verstappen".
+13. Leave "season" as NULL unless a 4-digit year (e.g. 2024, 2023) is explicitly mentioned in the query.
 
 Respond with ONLY valid JSON."""
 
@@ -487,8 +489,9 @@ def _fallback_semantic_parser(preprocessed: Dict[str, str]) -> SemanticQueryCont
     is_explanation_prefix = any(q_lower.startswith(prefix) for prefix in ["what is", "explain", "how does", "what are", "define"]) or "explain" in q_lower or "what is" in q_lower
 
     # Check Strategy & Simulation
+    is_simulation_query = any(k in q_lower for k in ["what if", "simulate", "pitted 5 laps", "pitted earlier", "pitted later", "pitted on lap", "pitted lap", "pit on lap"])
     is_strategy_query = any(k in q_lower for k in ["strategy", "pit stop", "stint", "wear", "degradation", "why did he pit", "pit strategy"])
-    is_simulation_query = any(k in q_lower for k in ["what if", "simulate", "pitted 5 laps", "pitted earlier", "pitted later"])
+    is_scoring_query = any(k in q_lower for k in ["perform", "performance", "score", "scorecard", "rate", "rating", "score card"]) or (driver and "how did" in q_lower and not any(k in q_lower for k in ["finish", "win", "qualify", "p1", "p2", "p3"]))
 
     # Check Telemetry & Driver Comparison
     is_telemetry_query = any(k in q_lower for k in ["telemetry", "lap time", "lap timing", "lap times", "sector", "speed", "delta", "gain time", "faster"])
@@ -497,6 +500,10 @@ def _fallback_semantic_parser(preprocessed: Dict[str, str]) -> SemanticQueryCont
     if is_simulation_query:
         intent = "simulation"
         requested_metric = "simulation"
+        aggregation = "single"
+    elif is_scoring_query:
+        intent = "scoring"
+        requested_metric = "scoring"
         aggregation = "single"
     elif is_strategy_query:
         intent = "strategy"
