@@ -11,16 +11,22 @@ const getAuthHeaders = () => {
   }
   return headers;
 };
-export async function submitEngineerQuery(question, conversationId, signal) {
+export async function submitEngineerQuery(question, conversationId, signal, context = {}) {
   const backendUrl = getBackendUrl();
-  console.log(`[API Client] Submitting query to gateway: ${backendUrl}/engineer/query`, { question, conversationId });
+  console.log(`[API Client] Submitting query to gateway: ${backendUrl}/engineer/query`, { question, conversationId, context });
   try {
     const response = await fetch(`${backendUrl}/engineer/query`, {
       method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify({
         question,
-        conversation_id: conversationId
+        conversation_id: conversationId,
+        session_id: context.session_id,
+        driver_id: context.driver_id,
+        grand_prix: context.grand_prix,
+        season: context.season,
+        drivers: context.drivers,
+        context: context
       }),
       signal
     });
@@ -147,3 +153,19 @@ export async function getMe() {
     return null;
   }
 }
+
+export async function fetchBackfillStatus(sessionId) {
+  const backendUrl = getBackendUrl();
+  try {
+    const response = await fetch(`${backendUrl}/sessions/backfill-status/${encodeURIComponent(sessionId)}`, {
+      method: "GET",
+      headers: getAuthHeaders()
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (err) {
+    console.warn(`[API Client] Failed to fetch backfill status for ${sessionId}:`, err);
+    return null;
+  }
+}
+

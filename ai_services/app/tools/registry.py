@@ -42,8 +42,8 @@ class BaseF1Tool(ABC):
 
     def validate_output(self, output: Any) -> None:
         """Validates tool execution output payload structure and types."""
-        # status: missing_data is always valid
-        if isinstance(output, dict) and output.get("status") == "missing_data":
+        # status: missing_data, backfilling, DATA_UNAVAILABLE are valid
+        if isinstance(output, dict) and output.get("status") in ("missing_data", "backfilling", "DATA_UNAVAILABLE"):
             return
             
         name = self.name
@@ -61,6 +61,8 @@ class BaseF1Tool(ABC):
         elif name in ["simulation_tool", "strategy_tool"]:
             if not isinstance(output, dict):
                 raise ToolValidationError(f"{name} output must be a dictionary")
+            if output.get("actual_stints") is not None or output.get("actual_pit_stops") is not None:
+                return
             required = ["pit_stop_lap", "compound_before", "compound_after", "traffic_loss", "undercut_gain"]
             for r in required:
                 if r not in output:
@@ -212,6 +214,13 @@ class BaseF1Tool(ABC):
         required = schema.get("required", [])
         properties = schema.get("properties", {})
 
+        # Map common aliases before checking missing required parameters
+        if "simulated_pit_lap" in required and (inputs.get("simulated_pit_lap") is None):
+            for alias_k in ("pit_lap", "lap", "pit_stop_lap"):
+                if inputs.get(alias_k) is not None:
+                    inputs["simulated_pit_lap"] = inputs[alias_k]
+                    break
+
         # Attempt to infer only from question text — never from hardcoded defaults
         for req_param in required:
             if req_param not in inputs or inputs[req_param] is None:
@@ -298,10 +307,19 @@ class BaseF1Tool(ABC):
             return None  # No lap number mentioned
 
         elif param_name == "simulated_pit_lap":
-            match = re.search(r"\blap\s+(\d+)\b", q_lower)
+            for alias_k in ("pit_lap", "lap", "pit_stop_lap"):
+                if inputs.get(alias_k) is not None:
+                    try:
+                        return int(inputs[alias_k])
+                    except (ValueError, TypeError):
+                        pass
+            match = re.search(r"\b(?:lap|on|at|pit\s+(?:on|at)?|box\s+(?:on|at)?|pitted\s+(?:on|at)?)\s*(\d+)\b", q_lower)
             if match:
                 return int(match.group(1))
-            return None  # No pit lap mentioned
+            num_match = re.search(r"\b(\d{1,2})\b", q_lower)
+            if num_match and any(w in q_lower for w in ["what if", "simulate", "pitted", "pit", "box", "strategy"]):
+                return int(num_match.group(1))
+            return None
 
         elif param_name == "term":
             # Only extract if explicitly mentioned

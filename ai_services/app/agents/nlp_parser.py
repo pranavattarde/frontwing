@@ -33,6 +33,13 @@ class SemanticQueryContract(TypedDict):
     confidence: float
 
 
+UNSUPPORTED_METRIC_KEYWORDS = [
+    "psi", "brake pressure", "brake psi", "pedal pressure", "tire temperature", "tyre temperature",
+    "carcass temperature", "steering wheel angle", "steering angle", "pit crew", "crew member",
+    "crew headcount", "downforce in kg", "front wing downforce", "wind tunnel", "aero coefficient",
+    "fuel flow rate", "engine oil temperature", "oil temperature", "suspension travel", "damper velocity"
+]
+
 # =====================================================================
 # STAGE 2 — APPLICATION-LEVEL TEXT PREPROCESSING
 # =====================================================================
@@ -226,59 +233,21 @@ RULES:
 Respond with ONLY valid JSON."""
 
 
-def parse_semantic_query(raw_query: str, history: Optional[List[Dict[str, Any]]] = None) -> SemanticQueryContract:
-    """Stage 4 & 6: Main entry point for NLP Semantic Query Understanding.
+def parse_semantic_query(raw_query: str, history: Optional[List[Dict[str, Any]]] = None, context: Optional[Dict[str, Any]] = None) -> SemanticQueryContract:
+    """Stage 4 & 6: Deterministic & efficient NLP Semantic Query Understanding.
     
     1. Preprocesses raw text.
-    2. Runs LLM Semantic Understanding (Gemini primary, Groq failover).
-    3. Validates and normalizes output into a SemanticQueryContract.
-    4. Falls back gracefully to deterministic rule-based semantic parser if offline/testing.
+    2. Runs high-speed deterministic semantic parsing for entities, metrics, and intents.
+    3. Merges caller context seamlessly for follow-up questions.
+    4. Merges semantic extraction into the downstream Planning execution.
     """
     preprocessed = preprocess_text(raw_query)
-    q_norm = preprocessed["normalized"]
-    q_lower = preprocessed["normalized_lower"]
-    
-    if os.getenv("DISABLE_LLM_PROVIDER") == "1":
-        return _fallback_semantic_parser(preprocessed)
-
-    # Try LLM-based Semantic Parser via reliable_llm_provider
-    try:
-
-        user_prompt = f"User Query: {q_norm}"
-        if history:
-            user_prompt += f"\nConversation Context: {json.dumps(history[-2:])}"
-            
-        raw_response, metadata = reliable_llm_provider.generate_response(
-            SYSTEM_NLP_PROMPT,
-            user_prompt,
-            timeout_seconds=4.0
-        )
-        
-        # Clean markdown wrappers if present
-        clean_json = raw_response.strip()
-        if clean_json.startswith("```json"):
-            clean_json = clean_json[7:]
-        if clean_json.startswith("```"):
-            clean_json = clean_json[3:]
-        if clean_json.endswith("```"):
-            clean_json = clean_json[:-3]
-        clean_json = clean_json.strip()
-        
-        parsed = json.loads(clean_json)
-        
-        # Validate & complete schema
-        contract = _build_contract_from_parsed(preprocessed, parsed)
-        logger.info(f"[NLP Parser] LLM parsed intent '{contract['intent']}' / metric '{contract['requested_metric']}' for query: '{q_norm}'")
-        return contract
-        
-    except Exception as e:
-        logger.debug(f"[NLP Parser] LLM semantic parsing unavailable/failed ({e}). Executing deterministic semantic fallback.")
-        
-    # Deterministic Rule-Based Semantic Parser Fallback
-    return _fallback_semantic_parser(preprocessed)
+    contract = _fallback_semantic_parser(preprocessed, context=context)
+    logger.info(f"[NLP Parser] Semantic intent '{contract['intent']}' / metric '{contract['requested_metric']}' for query: '{preprocessed['normalized']}'")
+    return contract
 
 
-def _build_contract_from_parsed(preprocessed: Dict[str, str], parsed: Dict[str, Any]) -> SemanticQueryContract:
+def _build_contract_from_parsed(preprocessed: Dict[str, str], parsed: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> SemanticQueryContract:
     """Helper to convert and canonicalize parsed JSON into SemanticQueryContract."""
     entities = parsed.get("entities") or {}
     
@@ -318,11 +287,24 @@ def _build_contract_from_parsed(preprocessed: Dict[str, str], parsed: Dict[str, 
         year_match = re.search(r'\b(202[0-9])\b', preprocessed["normalized"])
         season = int(year_match.group(1)) if year_match else None
         
+    # Context fallback
+    if context:
+        if not driver and context.get("driver_id"):
+            driver = context.get("driver_id")
+        if not gp and context.get("grand_prix"):
+            gp = context.get("grand_prix")
+        if not season and context.get("season"):
+            season = context.get("season")
+
     entities["grand_prix"] = gp
     entities["circuit"] = circuit
     entities["season"] = season
     entities["driver"] = driver
     entities["team"] = team
+    
+    comparison_drivers = parsed.get("comparison_drivers", [])
+    if not comparison_drivers and context and context.get("drivers"):
+        comparison_drivers = list(context.get("drivers"))
     
     return SemanticQueryContract(
         raw_query=preprocessed["raw"],
@@ -337,13 +319,13 @@ def _build_contract_from_parsed(preprocessed: Dict[str, str], parsed: Dict[str, 
         aggregation=parsed.get("aggregation", "single"),
         entities=entities,
         filters=parsed.get("filters", {}),
-        comparison_drivers=parsed.get("comparison_drivers", []),
+        comparison_drivers=comparison_drivers,
         needs_clarification=parsed.get("needs_clarification", False),
         confidence=float(parsed.get("confidence", 0.95))
     )
 
 
-def _fallback_semantic_parser(preprocessed: Dict[str, str]) -> SemanticQueryContract:
+def _fallback_semantic_parser(preprocessed: Dict[str, str], context: Optional[Dict[str, Any]] = None) -> SemanticQueryContract:
     """Deterministic Rule-Based Semantic Parser Fallback.
     
     Guarantees 100% reliable semantic query contracts during offline dev,
@@ -401,6 +383,15 @@ def _fallback_semantic_parser(preprocessed: Dict[str, str]) -> SemanticQueryCont
         if re.search(r'\b' + re.escape(alias) + r'\b', q_lower):
             team = canonical_team
             break
+
+    # Context fallback for entities if not present in query string
+    if context:
+        if not driver and context.get("driver_id"):
+            driver = context.get("driver_id")
+        if not gp and context.get("grand_prix"):
+            gp = context.get("grand_prix")
+        if not season and context.get("season"):
+            season = context.get("season")
             
     # 5. Position / Metric Determination
     requested_position = None
@@ -428,22 +419,22 @@ def _fallback_semantic_parser(preprocessed: Dict[str, str]) -> SemanticQueryCont
         aggregation = "top_n"
     else:
         pos_match = re.search(r'\b(?:p(\d+)|(\d+)(?:st|nd|rd|th))\b', q_lower)
-        if pos_match:
+        if pos_match and any(w in q_lower for w in ["finish", "who", "place", "which driver", "ended", "came", "was", "finisher", "position"]):
             requested_position = int(pos_match.group(1) or pos_match.group(2))
             requested_metric = "driver_at_position"
-        elif re.search(r'\b(first|winner|won|1st|victory)\b', q_lower):
+        elif re.search(r'\b(first|winner|won|1st|victory)\b', q_lower) and any(w in q_lower for w in ["who", "which", "winner", "won", "victory", "first", "1st"]):
             requested_position = 1
             requested_metric = "winner"
-        elif re.search(r'\b(second|2nd)\b', q_lower):
+        elif re.search(r'\b(second|2nd)\b', q_lower) and any(w in q_lower for w in ["who", "which", "place", "came", "finished", "was"]):
             requested_position = 2
             requested_metric = "driver_at_position"
-        elif re.search(r'\b(third|3rd)\b', q_lower):
+        elif re.search(r'\b(third|3rd)\b', q_lower) and any(w in q_lower for w in ["who", "which", "place", "came", "finished", "was"]):
             requested_position = 3
             requested_metric = "driver_at_position"
-        elif re.search(r'\b(fourth|4th)\b', q_lower):
+        elif re.search(r'\b(fourth|4th)\b', q_lower) and any(w in q_lower for w in ["who", "which", "place", "came", "finished", "was"]):
             requested_position = 4
             requested_metric = "driver_at_position"
-        elif re.search(r'\b(fifth|5th)\b', q_lower):
+        elif re.search(r'\b(fifth|5th)\b', q_lower) and any(w in q_lower for w in ["who", "which", "place", "came", "finished", "was"]):
             requested_position = 5
             requested_metric = "driver_at_position"
 
@@ -454,12 +445,16 @@ def _fallback_semantic_parser(preprocessed: Dict[str, str]) -> SemanticQueryCont
         intent = "fastest_lap"
         
     # Check Points
-    elif "point" in q_lower or "points" in q_lower or "score" in q_lower:
+    elif "point" in q_lower or "points" in q_lower:
         requested_metric = "points"
         intent = "points"
         
-    # Check Driver Specific Finishing Position ("How did Leclerc finish?")
-    elif driver and ("finish" in q_lower or "result" in q_lower or "where did" in q_lower or "how did" in q_lower or "place" in q_lower):
+    # Check Driver Specific Finishing Position ("How did Leclerc finish?", "what was his race result and finishing position?")
+    elif (driver or any(p in q_lower for p in ["his", "their", "he", "they", "driver"])) and any(k in q_lower for k in ["finish", "result", "where did", "how did", "place", "position", "standings"]):
+        requested_metric = "finishing_position"
+        intent = "driver_position"
+
+    elif any(k in q_lower for k in ["race result", "finishing position", "race results", "final result", "classification", "who finished"]):
         requested_metric = "finishing_position"
         intent = "driver_position"
         
@@ -482,24 +477,54 @@ def _fallback_semantic_parser(preprocessed: Dict[str, str]) -> SemanticQueryCont
             matched_drivers.append(d_name)
             
     comparison_drivers = matched_drivers
+    if not comparison_drivers and context and context.get("drivers"):
+        comparison_drivers = list(context.get("drivers"))
 
+    # Check Unsupported Metric Queries (metrics not available in timing/telemetry datasets)
+    UNSUPPORTED_METRIC_KEYWORDS = [
+        "psi", "brake pressure in psi", "pedal pressure", "tire temperature", "tyre temperature",
+        "carcass temperature", "steering wheel angle", "steering angle", "pit crew", "crew member",
+        "crew headcount", "downforce in kg", "front wing downforce", "wind tunnel", "aero coefficient",
+        "fuel flow rate", "engine oil temperature", "oil temperature", "suspension travel", "damper velocity"
+    ]
+    is_unsupported_query = any(k in q_lower for k in UNSUPPORTED_METRIC_KEYWORDS)
 
     # Check Knowledge / Explanation Queries (Concept definitions, regulations, tyres, technical terms)
-    is_knowledge_term = any(k in q_lower for k in ["understeer", "oversteer", "drs", "tyre", "tyres", "tire", "tires", "compound", "undercut", "overcut", "dirty air", "slipstream", "downforce", "aerodynamics", "regulations"])
-    is_explanation_prefix = any(q_lower.startswith(prefix) for prefix in ["what is", "explain", "how does", "what are", "define"]) or "explain" in q_lower or "what is" in q_lower
+    is_knowledge_term = any(k in q_lower for k in ["understeer", "oversteer", "drs", "compound", "undercut", "overcut", "dirty air", "slipstream", "downforce", "aerodynamics", "regulations", "graining", "blistering", "porpoising", "ground effect", "diffuser", "venturi", "plank", "skid block", "technical directive", "difference between"])
+    is_explanation_prefix = any(q_lower.startswith(prefix) for prefix in ["what is", "explain", "how does", "what are", "define", "describe", "what causes"]) or "explain" in q_lower or "difference between" in q_lower
 
-    # Check Strategy & Simulation
-    is_simulation_query = any(k in q_lower for k in ["what if", "simulate", "pitted 5 laps", "pitted earlier", "pitted later", "pitted on lap", "pitted lap", "pit on lap"])
-    is_strategy_query = any(k in q_lower for k in ["strategy", "pit stop", "stint", "wear", "degradation", "why did he pit", "pit strategy"])
-    is_scoring_query = any(k in q_lower for k in ["perform", "performance", "score", "scorecard", "rate", "rating", "score card"]) or (driver and "how did" in q_lower and not any(k in q_lower for k in ["finish", "win", "qualify", "p1", "p2", "p3"]))
+    # Check Strategy, Pit Timing & Simulation
+    is_simulation_query = any(k in q_lower for k in ["what if", "simulate", "pitted 5 laps", "pitted earlier", "pitted later", "pitted on lap", "pitted lap", "pit on lap", "pit lap", "pitted on"])
+    is_pit_timing_query = (any(k in q_lower for k in ["when did", "what lap did", "which lap did", "pit stop", "pitted", "pit in", "pit out", "pit lap", "pit stops", "pit timing", "pit window"]) and any(k in q_lower for k in ["pit", "pitted", "stop", "box", "stint"])) and not is_simulation_query
+    is_investigation_query = any(k in q_lower for k in ["what went wrong", "went wrong", "what happened to", "why did", "loss of pace", "lost position", "lost pace", "root cause", "investigate", "struggled", "struggle"]) and not is_simulation_query
+    is_strategy_query = (any(k in q_lower for k in ["strategy", "stint", "why did he pit", "pit strategy"]) or (not is_explanation_prefix and any(k in q_lower for k in ["wear", "degradation"]))) and not is_pit_timing_query and not is_simulation_query and not is_investigation_query
+    is_scoring_query = (any(k in q_lower for k in ["perform", "performance", "score", "scorecard", "rate", "rating", "score card"]) or (driver and "how did" in q_lower and not any(k in q_lower for k in ["finish", "win", "qualify", "p1", "p2", "p3", "result", "position", "pit", "pitted"]))) and not is_investigation_query
 
     # Check Telemetry & Driver Comparison
-    is_telemetry_query = any(k in q_lower for k in ["telemetry", "lap time", "lap timing", "lap times", "sector", "speed", "delta", "gain time", "faster"])
-    is_driver_comparison = len(comparison_drivers) >= 2 or (len(comparison_drivers) == 1 and any(k in q_lower for k in ["compare", "vs", "versus", "against", "faster than", "gap to"])) or (any(k in q_lower for k in ["compare", "versus", "vs"]) and is_telemetry_query)
+    is_telemetry_query = any(k in q_lower for k in ["telemetry", "lap time", "lap timing", "lap times", "sector", "speed", "top speed", "delta", "gain time", "faster", "pace"])
+    has_comparison_keywords = any(k in q_lower for k in ["compare", "vs", "versus", "against", "faster than", "gap to", "delta between", "both", "their"])
+    is_true_comparison = len(comparison_drivers) >= 2 or (len(comparison_drivers) == 1 and has_comparison_keywords)
 
-    if is_simulation_query:
+    if is_unsupported_query:
+        intent = "unsupported_metric"
+        requested_metric = "unsupported_metric"
+        aggregation = "single"
+    elif is_explanation_prefix or (is_knowledge_term and not is_simulation_query and not is_strategy_query and not is_scoring_query and not is_telemetry_query and not is_pit_timing_query and not is_investigation_query):
+        intent = "knowledge"
+        requested_metric = "knowledge"
+        aggregation = "single"
+    elif is_simulation_query:
         intent = "simulation"
         requested_metric = "simulation"
+        aggregation = "single"
+        requested_position = None
+    elif is_investigation_query:
+        intent = "investigation"
+        requested_metric = "root_cause_investigation"
+        aggregation = "single"
+    elif is_pit_timing_query:
+        intent = "pit_stop_timing"
+        requested_metric = "pit_stops"
         aggregation = "single"
     elif is_scoring_query:
         intent = "scoring"
@@ -509,33 +534,27 @@ def _fallback_semantic_parser(preprocessed: Dict[str, str]) -> SemanticQueryCont
         intent = "strategy"
         requested_metric = "strategy"
         aggregation = "single"
-    elif is_driver_comparison or (is_telemetry_query and len(comparison_drivers) >= 1):
+    elif is_true_comparison and is_telemetry_query:
         intent = "telemetry_comparison"
         requested_metric = "telemetry_comparison"
         aggregation = "comparison"
+    elif is_true_comparison:
+        intent = "comparison"
+        requested_metric = "comparison"
+        aggregation = "comparison"
     elif is_telemetry_query:
         intent = "telemetry"
-        requested_metric = "telemetry"
-    elif is_explanation_prefix or is_knowledge_term or (not driver and not gp and not season and len(comparison_drivers) == 0):
-        intent = "knowledge"
-        requested_metric = "knowledge"
+        requested_metric = "lap_telemetry"
         aggregation = "single"
-    elif intent in ("fastest_lap", "points", "driver_position", "team_result") or requested_metric in ("fastest_lap", "points", "driver_at_position", "finishing_position", "podium"):
+    elif intent in ("fastest_lap", "points", "driver_position", "team_result", "podium", "top_n") or requested_metric in ("fastest_lap", "points", "driver_at_position", "finishing_position", "podium", "top_n", "winner"):
         intent = "historical_fact"
     else:
         # Default for factual or unspecified race queries
         intent = "historical_fact"
         requested_metric = requested_metric or "historical_fact"
 
-        
-    entities = {
-        "grand_prix": gp,
-        "circuit": circuit,
-        "season": season,
-        "driver": driver,
-        "team": team
-    }
-    
+    confidence_score = 0.15 if is_unsupported_query else 0.95
+
     return SemanticQueryContract(
         raw_query=q_raw,
         normalized_query=q_norm,
@@ -547,9 +566,15 @@ def _fallback_semantic_parser(preprocessed: Dict[str, str]) -> SemanticQueryCont
         requested_team=team,
         limit=limit,
         aggregation=aggregation,
-        entities=entities,
+        entities={
+            "grand_prix": gp,
+            "circuit": circuit,
+            "season": season,
+            "driver": driver,
+            "team": team
+        },
         filters={},
         comparison_drivers=comparison_drivers,
         needs_clarification=False,
-        confidence=0.95
+        confidence=confidence_score
     )

@@ -58,6 +58,10 @@ class Settings:
         return os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 
     @property
+    def GROQ_MODEL(self) -> str:
+        return os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+
+    @property
     def LLM_CACHE_ENABLED(self) -> bool:
         return os.getenv("LLM_CACHE_ENABLED", "true").lower() in ("true", "1", "yes")
 

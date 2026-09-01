@@ -134,25 +134,24 @@ class InvestigationCorrelator:
         has_telemetry_or_strategy = bool(telemetry_findings or strategy_findings)
         
         if not reasoning_graph:
-            if results_findings:
-                reasoning_graph = [results_findings[0]]
-            else:
-                reasoning_graph = ["Verified race classification retrieved from PostgreSQL"]
-
-        reasoning_graph_text = "\n↓\n".join(reasoning_graph)
-        
-        # 6. Executive Summary Synthesis
-        if has_telemetry_or_strategy and len(reasoning_graph) >= 2:
-            exec_summary = (
-                f"Root-Cause Investigation Analysis:\n"
-                f"The primary performance bottleneck is traced to: {reasoning_graph[0]} leading to {reasoning_graph[1]}. "
-                f"Establishing the {reasoning_graph[-1]}."
-            )
-        elif results_findings:
-            first_res = results_findings[0]
-            exec_summary = f"Verified race data shows: {first_res}, but available telemetry and strategy evidence is insufficient to establish a specific root cause."
+            reasoning_graph = []
+            reasoning_graph_text = "Insufficient data for root cause analysis."
+            exec_summary = "Insufficient data for root cause analysis."
+            final_rec = "Insufficient data for root cause analysis."
         else:
-            exec_summary = "Verified race classification retrieved, but telemetry evidence is insufficient to establish a specific root cause."
+            reasoning_graph_text = "\n↓\n".join(reasoning_graph)
+            if has_telemetry_or_strategy and len(reasoning_graph) >= 2:
+                exec_summary = (
+                    f"Root-Cause Investigation Analysis:\n"
+                    f"The primary performance bottleneck is traced to: {reasoning_graph[0]} leading to {reasoning_graph[1]}. "
+                    f"Establishing the {reasoning_graph[-1]}."
+                )
+            elif results_findings:
+                first_res = results_findings[0]
+                exec_summary = f"Verified race data shows: {first_res}, but available telemetry and strategy evidence is insufficient to establish a specific root cause."
+            else:
+                exec_summary = f"Root-Cause Analysis: {reasoning_graph[0]}."
+            final_rec = f"Root Cause Chain: {reasoning_graph_text.replace(chr(10), ' -> ')}"
         
         return {
             "reasoning_graph": reasoning_graph,
@@ -163,5 +162,5 @@ class InvestigationCorrelator:
             "historical_findings": "\n".join(results_findings) if results_findings else "No historical standings parsed.",
             "regulations_findings": "\n".join(regulations_findings) if regulations_findings else "No specific regulatory infractions logged.",
             "alternative_scenarios": "Maintain current stint guidelines based on verified classification data." if not strategy_findings else "Pitting earlier into clean air recovers predicted position delta.",
-            "final_recommendation": f"Root Cause Chain: {reasoning_graph_text.replace(chr(10), ' -> ')}"
+            "final_recommendation": final_rec
         }

@@ -106,7 +106,8 @@ class SessionResolver:
         cls,
         grand_prix: Optional[str] = None,
         season: Optional[int] = None,
-        session_type: str = "Race"
+        session_type: str = "Race",
+        load_telemetry: bool = False
     ) -> Dict[str, Any]:
         gp_clean = cls._clean_gp_name(grand_prix)
         
@@ -189,14 +190,19 @@ class SessionResolver:
 
         # 2. If session or results missing: Auto-ingest via FastF1
         if not session_id or not has_results:
-            logger.info(f"[SessionResolver] Session missing or unpopulated for year={target_year}, gp={gp_clean}. Triggering FastF1 auto-ingestion...")
-            fastf1_downloaded = True
+            logger.info(f"[SessionResolver] Session missing or unpopulated for year={target_year}, gp={gp_clean}. Triggering FastF1 auto-ingestion (telemetry={load_telemetry})...")
             try:
                 collector = FastF1Collector()
-                load_res = collector.load_session(target_year, grand_prix or gp_clean, stype_str)
+                load_res = collector.load_session(target_year, grand_prix or gp_clean, stype_str, load_telemetry=load_telemetry)
                 if load_res and load_res.get("session_id"):
                     session_id = load_res["session_id"]
                     has_results = True
+                    res_cnt = execute_query(
+                        "SELECT COUNT(*) as cnt FROM race_results WHERE session_id = %s",
+                        (session_id,), fetch=True
+                    )
+                    if res_cnt and res_cnt[0]["cnt"] > 0:
+                        rows_inserted = res_cnt[0]["cnt"]
             except Exception as e:
                 logger.warning(f"[SessionResolver] FastF1 download exception: {e}")
 

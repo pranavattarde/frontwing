@@ -1,3 +1,167 @@
+## Session 019 -- 2026-09-01 -- Simulation Parameter Normalization, Honest Simulation/Scoring Fallbacks, & Elimination of Fake Root-Cause Boilerplate
+
+### What Was Changed
+- **`ai_services/app/tools/adapters.py`, `app/tools/registry.py`, `app/simulation/simulation_engine.py`, & `app/agents/planner.py` (FIX E - Simulation Parameter Canonicalization & Alias Normalization)**:
+  - In `adapters.py` (`SimulationTool.execute` and `StrategyTool.execute`), established `simulated_pit_lap` as the canonical parameter name while seamlessly accepting `pit_lap`, `lap`, and `pit_stop_lap` aliases.
+  - In `registry.py` (`validate_input` and `infer_parameter`), added regex parsing and parameter alias copying for `simulated_pit_lap` from user simulation questions.
+  - In `simulation_engine.py` (`load_session_data_from_db`), resolved full driver names (e.g. `"Oscar Piastri"`, `"Charles Leclerc"`, `"George Russell"`) to candidate database IDs and three-letter driver codes (`"PIA"`, `"LEC"`, `"RUS"`), preventing empty stint/lap results.
+  - In `planner.py` (`plan_node`, `execute_node`, and `synth_order`), ensured `simulated_pit_lap` is passed correctly to `SimulationTool.execute`.
+- **`ai_services/app/agents/nlp_parser.py` & `app/agents/planner.py` (FIX F - Wrong-Substitution Fallback Elimination & Position Disambiguation)**:
+  - In `nlp_parser.py`, guarded `pos_match` so that integer regex matching (e.g. `P18`, `lap 27`) only triggers `driver_at_position` when the query is explicitly asking about finishing positions (e.g. `who`, `finish`, `place`, `came`, `was`). Explicitly cleared `requested_position` for simulation/what-if queries.
+  - In `planner.py` (`_has_usable_evidence`), removed `"required_session"` from valid evidence keys so tools returning `missing_data` are not falsely treated as valid evidence.
+  - In `planner.py` (`_humanize_errors`), implemented honest analyst fallback messages for simulation and scoring failures (`"I wasn't able to run that simulation for {driver}."`, `"No verified scoring data is available for {driver}."`) instead of substituting unrelated finishing positions (e.g. "No verified race data for P23") or race winners.
+- **`ai_services/app/agents/investigation_correlator.py`, `app/agents/personas.py`, `app/tools/adapters.py`, `app/agents/nlp_parser.py`, & `app/agents/planner.py` (FIX G - Fake Root Cause Boilerplate Elimination & Diagnostic Routing)**:
+  - Removed all occurrences of the static boilerplate `"Verified race classification retrieved from PostgreSQL"` and fake `"Root Cause Chain:"` across the entire codebase.
+  - In `personas.py` (`InvestigationEngineer.execute`), ensured `root_cause_analysis` is NEVER attached to `race_results_tool` outputs.
+  - In `investigation_correlator.py`, replaced static PostgreSQL text with dynamic causal DAG generation based on actual telemetry deltas, tire degradation, and scoring metrics, or an honest `"Insufficient data for root cause analysis."` when telemetry/scoring evidence is unavailable.
+  - In `nlp_parser.py` and `planner.py`, routed follow-up diagnostic questions (e.g. *"what went wrong with X's strategy/pace"*, *"why did X struggle"*) to `["scoring_tool", "strategy_tool", "race_results_tool"]`, citing computed values (Pace Score, Tire Management Score, Strategy Score, pit stop timings, finishing deltas).
+
+### How It Was Verified -- Real Test Output
+- **Test Suite (`ai_services/tests/test_fixes_e_f_g.py`)**:
+  - `test_fix_e_simulation_parameter_binding_query1` (Piastri lap 18 Qatar 2024): PASSED (`simulation_tool` executed, computed undercut gain/loss).
+  - `test_fix_e_simulation_parameter_binding_query2` (Leclerc lap 32 Bahrain 2024): PASSED (`simulation_tool` executed).
+  - `test_fix_e_simulation_parameter_binding_query3` (Russell lap 25 Austria 2024): PASSED (`simulation_tool` executed).
+  - `test_fix_f_no_wrong_substitution_fallback_query1` (Colapinto Monaco 2024 - did not race): PASSED (honest simulation error message, 0 P27 position fallback).
+  - `test_fix_f_no_wrong_substitution_fallback_query2` (Sargeant Singapore 2024 - did not race): PASSED (honest simulation error message, 0 P14 position fallback).
+  - `test_fix_f_no_wrong_substitution_fallback_query3` (Sargeant Abu Dhabi 2024 - did not race): PASSED (honest scoring error message, 0 winner fallback).
+  - `test_fix_g_race_results_tool_has_no_fake_root_cause`: PASSED (`race_results_tool` contains 0 fake `root_cause_analysis`).
+  - `test_fix_g_root_cause_investigation_query1` (Leclerc strategy British GP 2024): PASSED (cites computed strategy scores/pit laps, 0 static boilerplate).
+  - `test_fix_g_root_cause_investigation_query2` (Norris pace Austrian GP 2024): PASSED (cites computed pace scores/stints, 0 static boilerplate).
+  - `test_fix_g_root_cause_investigation_query3` (Perez struggle Spanish GP 2024): PASSED (cites computed score deltas, 0 static boilerplate).
+  - **Result: 10/10 passed (100% pass rate)**.
+- **Verification Suite (`ai_services/tests/test_fixes_verification.py`)**: 13/13 passed.
+- **Full Execution Pipeline (`ai_services/tests/test_execution_pipeline.py`)**: 20/20 passed.
+
+---
+
+## Session 018 -- 2026-08-31 -- Async Telemetry Backfill, Comparative Telemetry Preservation, Unified Context Merging, Pit Stop Timing & Honest Unsupported Metrics
+
+### What Was Changed
+- **`ai_services/app/ingestion/fastf1_collector.py`, `app/tools/adapters.py`, `app/main.py`, `backend/src/controllers/session.controller.js`, `backend/src/routes/session.routes.js`, `frontend/src/lib/api.js`, & `frontend/src/pages/InvestigationThread.jsx` (FIX A - Async Telemetry Backfill & Live Progress Polling)**:
+  - In `fastf1_collector.py`, added an asynchronous background worker pool with `start_async_backfill(session_id)` and `get_backfill_job(session_id)`.
+  - Added stage descriptions and real progress tracking callbacks (`progress_callback(pct, stage_desc)`) across the backfill pipeline.
+  - In `TelemetryTool.execute()`, when a session lacks telemetry, kicks off the async backfill job in a daemon thread and returns immediate status: `"backfilling"` (<200ms) with `progress_pct`, `stage`, and `job` metadata instead of blocking for 4+ minutes.
+  - Exposed `/sessions/backfill-status/{session_id}` endpoint in FastAPI and Express proxy route `/sessions/backfill-status/:sessionId`.
+  - In `InvestigationThread.jsx`, implemented honest progress polling loop updating user with real stage progress and automatically re-submitting the query upon 100% completion.
+- **`ai_services/app/tools/adapters.py` & `app/ingestion/fastf1_collector.py` (FIX B - Dual-Driver Comparative Telemetry Preservation)**:
+  - In `TelemetryTool.execute()`, traced and resolved driver matching using `_resolve_driver_candidates` against both `drivers` and `telemetry_metadata` tables.
+  - Parsed comparative driver parameters (`comparative_driver_id`, `compare_driver`, `driver_b`, `driver2`) and loaded telemetry arrays for BOTH Driver A and Driver B.
+  - Guaranteed final payload contains `comparative_driver_id`, `comparative_lap_number`, `comparative_lap_time_s`, `comparative_sector1_s`, `comparative_sector2_s`, `comparative_sector3_s`, `comparative_telemetry`, `comparative_speed_trace`, `sector_times`, and `delta_lap_time_s`.
+  - In `fastf1_collector.py`, ensured fastest lap (`drv_laps.pick_fastest()`) is always preserved in telemetry extraction alongside downsampled laps.
+- **`ai_services/app/agents/nlp_parser.py`, `app/agents/planner.py`, & `app/core/entity_resolver.py` (FIX C - Context Merging & Single-Driver Telemetry Separation)**:
+  - Separated single-driver telemetry requests (`"give verstappen's lap timing telemetry at japan"`) as `intent = "telemetry"` / `requested_metric = "lap_telemetry"`, avoiding false classification as `telemetry_comparison` which previously triggered clarification blockers.
+  - True multi-driver queries (`"compare verstappen and norris"`) are classified as `intent = "telemetry_comparison"` / `requested_metric = "telemetry_comparison"`.
+  - In `planner.py`, ensured single-driver telemetry queries execute immediately without blocking, while multi-driver queries merge context drivers seamlessly.
+- **`ai_services/app/tools/adapters.py`, `app/agents/nlp_parser.py`, & `app/agents/planner.py` (FIX D - Pit Stop Timing Wiring & Honest Unsupported Metric Responses)**:
+  - In `StrategyTool.execute()`, queried `stints` table to calculate `actual_stints` and `actual_pit_stops` (with pit laps, compound in, compound out).
+  - In `nlp_parser.py`, added `is_pit_timing_query` (`intent = "pit_stop_timing"`, `requested_metric = "pit_stops"`) and `UNSUPPORTED_METRIC_KEYWORDS` (`intent = "unsupported_metric"`, `confidence = 0.15`).
+  - In `planner.py`:
+    - Pit stop timing queries report exact pit laps (e.g., *"At the 2024 Japanese GP, Max Verstappen pitted on Lap 16 (MEDIUM -> HARD), Lap 34 (HARD -> HARD)."*).
+    - Unsupported metric queries (e.g. brake PSI, tyre carcass temperature, steering wheel angle, pit crew headcounts) explicitly answer *"I do not currently have verified data for this metric in the database. FrontWing tracks verified race classifications, lap timings, sector deltas, tire compound stints, pit stop laps, weather conditions, and high-frequency telemetry"* with low confidence (15%) rather than substituting unrelated race results.
+    - Confined `winner_name` fallback strictly to queries explicitly asking for race winner.
+
+### Why
+1. Telemetry auto-backfill can take minutes on fresh sessions; returning an immediate async status with live progress prevents HTTP timeouts and blocking the UI.
+2. Dual-driver telemetry comparisons require returning both drivers' telemetry traces, sector deltas, and lap time deltas in the response payload.
+3. Single-driver telemetry queries should execute directly without asking for comparative drivers.
+4. Prevent the AI system from hallucinating or substituting irrelevant race winners when asked about unsupported data metrics or pit stop timing.
+
+### How It Was Verified -- Real Test Output
+- **Comprehensive 13-Query Verification Suite (`tests/test_fixes_verification.py`)**:
+  - `test_fix_a_async_backfill_immediate_response`: PASSED (returns status `"backfilling"`, `job`, `progress_pct`, `stage`).
+  - `test_fix_b_query_1_norris_vs_leclerc_monza`: PASSED (dual-driver comparative telemetry returned).
+  - `test_fix_b_query_2_sainz_vs_russell_bahrain`: PASSED (dual-driver comparative telemetry returned).
+  - `test_fix_b_query_3_perez_and_piastri_austria`: PASSED (dual-driver comparative telemetry returned).
+  - `test_fix_c_query_1_leclerc_lap_timing_monza`: PASSED (single-driver telemetry executed, 0 clarification blocks).
+  - `test_fix_c_query_2_norris_throttle_silverstone`: PASSED (single-driver telemetry executed).
+  - `test_fix_c_query_3_russell_speed_profile_spa`: PASSED (single-driver telemetry executed).
+  - `test_fix_d_pit_timing_query_1_verstappen_japan`: PASSED (exact pit stops on Lap 16 & Lap 34 reported).
+  - `test_fix_d_pit_timing_query_2_norris_silverstone`: PASSED (exact pit stops reported).
+  - `test_fix_d_pit_timing_query_3_leclerc_monza`: PASSED (exact pit stops reported).
+  - `test_fix_d_unsupported_query_1_brake_pressure_psi`: PASSED (honest "I do not currently have verified data for this metric", confidence <= 30%).
+  - `test_fix_d_unsupported_query_2_pit_crew_headcount`: PASSED (honest "I do not currently have verified data for this metric").
+  - `test_fix_d_unsupported_query_3_tire_carcass_temp`: PASSED (honest "I do not currently have verified data for this metric").
+  - **Result: 13 passed in 11.24s (100% pass rate)**.
+- **Pytest Suite (`pytest`)**:
+  - All unit, integration, sprint, and end-to-end test suites passed.
+
+---
+
+## Session 017 -- 2026-08-31 -- FastF1 Telemetry Lazy Ingestion & Auto-Backfill, Multi-Turn Context Entity Merging, and Queried Driver Extraction
+
+### What Was Changed
+- **`ai_services/app/ingestion/fastf1_collector.py`, `app/core/session_resolver.py`, & `app/core/entity_resolver.py` (FIX 1 - FastF1 Lazy Ingestion)**:
+  - Added `load_telemetry: bool = False` flag to `FastF1Collector.load_session()` and `SessionResolver.resolve_session()`.
+  - In `entity_resolver.py`, checked if `"telemetry_tool"` is in `planned_tools`. If not present (e.g. race results, scoring, winner queries), FastF1 auto-ingestion downloads with `load_telemetry=False` (results, laps, stints, weather only), reducing cold ingestion latency from >36s down to 2.18s–13.76s.
+  - Telemetry is loaded only when `telemetry_tool` is explicitly part of the execution plan.
+- **`ai_services/app/ingestion/fastf1_collector.py` & `app/tools/adapters.py` (FIX 2 - Telemetry Auto-Backfill)**:
+  - Implemented `FastF1Collector.backfill_telemetry(session_id)` to upgrade existing sessions in DB to include full telemetry without wiping existing laps/stints/results.
+  - In `TelemetryTool.execute()`, added self-healing auto-backfill: when telemetry metadata count == 0 for a session, it triggers `backfill_telemetry` and loads distance-binned telemetry traces for all drivers, preventing missing data errors.
+- **`ai_services/app/core/entity_resolver.py`, `app/agents/planner.py`, & `app/agents/nlp_parser.py` (FIX 3 - Multi-Turn Context Merging)**:
+  - In `EntityResolver.resolve()`, merged `state.get("context")` into `planner_entities` (season, grand_prix, session_id, driver_id, drivers) before session resolution runs.
+  - In `nlp_parser.py`, updated `parse_semantic_query` and `_fallback_semantic_parser` to accept caller `context` and correctly classify follow-up / pronoun queries (e.g. *"what was his race result and finishing position?"*, *"who had higher top speed?"*, *"Compare their race pace and telemetry"*) as `driver_position` / `telemetry_comparison` instead of misclassifying them as `knowledge` concept definitions.
+- **`frontend/src/pages/InvestigationThread.jsx` & `ai_services/app/agents/planner.py` (FIX 4 - Queried Driver Extraction)**:
+  - In `InvestigationThread.jsx` (`getParentContext()`), extracted queried drivers from `resp.drivers`, `trace.entities.drivers`, and `trace.semantic_contract.comparison_drivers` instead of incidental podium classifications.
+  - In `planner.py`, ensured `run_ai_race_engineer` returns top-level `drivers` corresponding strictly to user queried comparison drivers.
+
+### Why
+1. Prevent wasteful ~30+ second telemetry downloads during initial race results queries when telemetry is not needed.
+2. Self-heal sessions that exist in the database with results/laps but lack telemetry when the user later requests telemetry comparisons.
+3. Fix follow-up chips and pronoun questions losing parent context or misclassifying into explain mode.
+4. Prevent suggestion chips from picking up incidental podium drivers instead of the actual drivers the user requested.
+
+### How It Was Verified -- Real Test Output
+- **FIX 1 Timing Verification (`scratch/test_fixes_suite.py`)**:
+  - Saudi Arabia 2024 (winner query): **8.85s** (telemetry skipped).
+  - Bahrain 2024 (winner query): **13.76s** (telemetry skipped).
+  - Azerbaijan 2024 (winner query): **2.18s** (telemetry skipped). All well under 36s ceiling.
+- **FIX 2 Backfill Verification (`scratch/test_fixes_suite.py`)**:
+  - Auto-backfilled `2024_dutch_gp_race` and `2024_monaco_gp_race` upon telemetry tool invocation; all 20 drivers' telemetry saved and queried.
+- **FIX 3 & FIX 4 End-to-End Suite (`scratch/test_fixes_3_and_4.py`)**:
+  - Scenario 1 (Leclerc vs Sainz Monaco follow-up telemetry): Inherited session and drivers, auto-backfilled telemetry, returned 53 telemetry data points.
+  - Scenario 2 (Alonso Australia follow-up finishing position): Classified as `driver_position`, executed `race_results_tool`, returned Alonso P8.
+  - Scenario 3 (Piastri vs Norris Hungary top speed): Classified as `telemetry_comparison`, executed `telemetry_tool`.
+  - Non-podium Driver Comparison Queries (Tsunoda vs Gasly Bahrain, Alonso vs Stroll Saudi Arabia, Hulkenberg vs Magnussen Austria): 3/3 captured exact queried drivers and avoided podium fallback.
+- **Pytest Suite (`pytest`)**:
+  - 40/40 tests passed across `test_agentic.py`, `test_adaptive_planner.py`, `test_agent.py`, `test_scoring.py`, `test_simulation.py`, `test_sprint3.py`, `test_sprint4.py`, `test_sprint5.py` in 25.00s.
+
+---
+
+## Session 016 -- 2026-08-30 -- LLM Provider Modernization (GPT-OSS-120B), Call Quota Optimization (3->1 Call), Multi-Turn Context Retention & Knowledge Intent Reconciliation
+
+### What Was Changed
+- **`ai_services/app/core/config.py`, `.env`, & `providers.py` (FIX 1 - Groq Model Modernization)**:
+  - Replaced all references to decommissioned `llama-3.3-70b-versatile` and `qwen3.6-27b` with `openai/gpt-oss-120b`.
+- **`ai_services/app/agents/nlp_parser.py` (FIX 2 - Redundant NLP LLM Call Elimination)**:
+  - Streamlined `parse_semantic_query` to rely entirely on deterministic keyword and entity analysis, eliminating the duplicate preliminary LLM classification call.
+  - Merged complete intent/entity/tool planning into the downstream Planning LLM call, reducing LLM calls per query by 33–66% (from 3 down to 1–2 per query).
+- **`frontend/src/lib/api.js`, `InvestigationThread.jsx`, `ai_services/app/main.py`, & `planner.py` (FIX 3 - Multi-Turn Follow-Up Context Retention)**:
+  - Enhanced frontend `InvestigationThread.jsx` with `getParentContext()` extracting `session_id`, `driver_id`, `drivers`, `grand_prix`, and `season` from the active investigation.
+  - Updated `submitEngineerQuery` in `api.js` and FastAPI `/engineer/query` to receive and forward `context`.
+  - Updated `AgentState`, `adaptive_plan_extract`, `plan_node`, and `execute_node` in `planner.py` to inherit parent drivers and session context when clicking suggestions like *"Compare lap timings and delta analysis"*.
+- **`ai_services/app/agents/planner.py` & `nlp_parser.py` (FIX 4 - Knowledge Intent & Tool Selection Reconciliation)**:
+  - Enforced strict constraints in `normalize_planner_response` and `plan_node`: when `intent in ("knowledge", "explanation")` or question has conceptual prefixes (`"what is"`, `"explain"`, `"difference between"`), tools and execution order are strictly locked to `["explain_mode_tool"]` or `["knowledge_tool"]`.
+  - In `synthesize_node`, populated `investigation_report["Executive Summary"]` with technical explanations from `explain_mode_tool` and `knowledge_tool`, preventing misleading "No verified race data exists" fallback messages.
+- **`ai_services/app/agents/context_builder.py` (LLM Context Compression)**:
+  - Compressed dense FastF1 trace arrays (`telemetry`, `comparative_telemetry`, `speed_trace`, `simulated_lap_times`) in `normalize_evidence_item`, reducing synthesis prompt payload from ~16,500 tokens to <500 tokens (97% token reduction) and eliminating Groq 8,000 TPM limit errors.
+
+### Why
+1. Replace decommissioned Groq model with recommended `openai/gpt-oss-120b`.
+2. Stop burning 3 LLM calls per query by consolidating NLP parsing and planning.
+3. Fix suggestion chips losing driver/session context on follow-up investigations.
+4. Prevent data tool execution errors and misleading missing-data messages on conceptual knowledge queries.
+
+### How It Was Verified -- Real Test Output
+- **FIX 1 & FIX 2 (`scratch/verify_fix2_calls.py`)**:
+  - Tested 5 different query archetypes; confirmed total LLM call counts dropped from 3 to 1 (race result: 1 call, telemetry: 2 calls, knowledge: 1 call, scoring: 1 call, simulation: 1 call).
+- **FIX 3 & FIX 4 (`scratch/verify_fixes_3_and_4.py`)**:
+  - Follow-up context retention: Tested parent query followed by *"Compare lap timings and delta analysis"* with context; confirmed `telemetry_tool` executed for VER & NOR at Qatar GP without needing clarification.
+  - Knowledge reconciliation: Tested 3 original technical questions (*"Explain how ground effect venturi tunnels generate aerodynamic downforce"*, *"What is the difference between thermal tire degradation and mechanical graining?"*, *"Explain the function and regulation of the F1 technical directive on plank wear and skid blocks"*); confirmed 3/3 routed strictly to `explain_mode_tool` without data errors.
+- **Targeted Test Suites (`pytest`)**:
+  - `tests/test_scoring.py`, `tests/test_simulation.py`, `tests/test_investigation_correlator.py`, `tests/test_conversational_investigations.py`, `tests/test_api.py`, `tests/test_agentic.py`, `tests/test_adaptive_planner.py`, `tests/test_agent.py`, `tests/test_sprint3.py`, `tests/test_sprint4.py`, `tests/test_sprint5.py`: **38/38 passed (100%)**.
+
+---
+
 ## Session 015 -- 2026-08-30 -- LLM Provider & Planning Layer Upgrades: Execution Order Synthesis, Groq Timeouts, JSON Schema Compliance & Redis LLM Cache
 
 ### What Was Changed

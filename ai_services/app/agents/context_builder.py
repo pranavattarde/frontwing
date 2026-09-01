@@ -59,6 +59,12 @@ def normalize_evidence_item(tool_name: str, payload: Any, question: str = "") ->
     category = category_map.get(tool_name, "general")
     cleaned_payload = clean_empty_fields(payload) or {}
     
+    # Compress dense trace arrays to keep LLM context token-efficient
+    if isinstance(cleaned_payload, dict):
+        for array_key in ["telemetry", "comparative_telemetry", "speed_trace", "comparative_speed_trace", "simulated_lap_times"]:
+            if array_key in cleaned_payload and isinstance(cleaned_payload[array_key], list) and len(cleaned_payload[array_key]) > 10:
+                cleaned_payload[array_key] = cleaned_payload[array_key][:5] + cleaned_payload[array_key][-5:]
+    
     confidence = 0.95
     if isinstance(cleaned_payload, dict):
         confidence = float(cleaned_payload.get("confidence", 0.95))

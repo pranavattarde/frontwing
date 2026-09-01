@@ -18,7 +18,7 @@ import { PitWindowVisualizer } from "@/components/PitWindowVisualizer";
 import { ScoreCard } from "@/components/ScoreCard";
 import { SimulationCard } from "@/components/SimulationCard";
 import { cn, generateId } from "@/lib/utils";
-import { submitEngineerQuery, fetchInvestigationById, toggleSaveInvestigation } from "@/lib/api";
+import { submitEngineerQuery, fetchInvestigationById, toggleSaveInvestigation, fetchBackfillStatus } from "@/lib/api";
 export function normalizeStints(stintsList, isActual) {
   if (!stintsList || !Array.isArray(stintsList)) return [];
   return stintsList.map((s) => ({
@@ -326,7 +326,7 @@ export function InvestigationThread() {
     setIsLoading(false);
     setErrorMsg("Investigation thread not found. Please submit a question from the home screen.");
   };
-  const executeQuery = async (queryText, currentId) => {
+  const executeQuery = async (queryText, currentId, contextData = {}) => {
     const activeId = currentId || id || generateId();
     executedQueriesRef.current.add(activeId);
     inFlightRef.current = true;
@@ -339,7 +339,43 @@ export function InvestigationThread() {
     setAbortController(controller);
     const startTime = Date.now();
     try {
-      const apiResponse = await submitEngineerQuery(queryText, activeId, controller.signal);
+      let apiResponse = await submitEngineerQuery(queryText, activeId, controller.signal, contextData);
+
+      // FIX A: Handle async background backfill with honest progress indicator
+      if (apiResponse && apiResponse.status === "backfilling") {
+        const backfillSessionId = apiResponse.session_id;
+        setLoadingStage("loading_data");
+        setLoadingDetail(apiResponse.stage || `Downloading telemetry package for ${backfillSessionId}...`);
+
+        let completed = false;
+        let attempts = 0;
+        const maxAttempts = 120;
+
+        while (!completed && attempts < maxAttempts) {
+          if (controller.signal.aborted) break;
+          await new Promise((r) => setTimeout(r, 2500));
+          attempts++;
+          const statusRes = await fetchBackfillStatus(backfillSessionId);
+          if (statusRes) {
+            if (statusRes.status === "completed") {
+              completed = true;
+              setLoadingDetail("Telemetry ingestion complete! Synthesizing telemetry findings...");
+              break;
+            } else if (statusRes.status === "failed") {
+              throw new Error(statusRes.error || "Telemetry backfill failed.");
+            } else if (statusRes.stage) {
+              const pct = statusRes.progress_pct ? ` (${statusRes.progress_pct}%)` : "";
+              setLoadingDetail(`${statusRes.stage}${pct}`);
+            }
+          }
+        }
+
+        if (completed && !controller.signal.aborted) {
+          // Re-submit query automatically to obtain the complete synthesized response with telemetry
+          apiResponse = await submitEngineerQuery(queryText, activeId, controller.signal, contextData);
+        }
+      }
+
       lastResponseRef.current = apiResponse;
       const endTime = Date.now();
       const elapsedSeconds = ((endTime - startTime) / 1e3).toFixed(1);
@@ -415,12 +451,54 @@ export function InvestigationThread() {
     localStorage.removeItem(`frontwing_investigation_${id}`);
     navigate("/");
   };
+  const getParentContext = () => {
+    const resp = lastResponseRef.current || {};
+    const ev = resp.evidence || {};
+    const trace = resp.intelligence_trace || {};
+    
+    // Extract actual queried drivers (FIX 4: Never pull incidental podium/classification drivers)
+    let drivers = [];
+    if (resp.drivers && Array.isArray(resp.drivers) && resp.drivers.length > 0) {
+      drivers = resp.drivers.map(d => String(d).toLowerCase().trim());
+    } else if (trace.entities?.drivers && Array.isArray(trace.entities.drivers) && trace.entities.drivers.length > 0) {
+      drivers = trace.entities.drivers.map(d => String(d).toLowerCase().trim());
+    } else if (trace.semantic_contract?.comparison_drivers && Array.isArray(trace.semantic_contract.comparison_drivers) && trace.semantic_contract.comparison_drivers.length > 0) {
+      drivers = trace.semantic_contract.comparison_drivers.map(d => String(d).toLowerCase().trim());
+    } else if (ev.telemetry_tool?.driver_id && ev.telemetry_tool?.compare_driver) {
+      drivers = [String(ev.telemetry_tool.driver_id).toLowerCase().trim(), String(ev.telemetry_tool.compare_driver).toLowerCase().trim()];
+    } else if (ev.telemetry_tool?.driver_a && ev.telemetry_tool?.driver_b) {
+      drivers = [String(ev.telemetry_tool.driver_a).toLowerCase().trim(), String(ev.telemetry_tool.driver_b).toLowerCase().trim()];
+    } else if (ev.scoring_tool?.driver_id) {
+      drivers = [String(ev.scoring_tool.driver_id).toLowerCase().trim()];
+    } else if (ev.simulation_tool?.driver_id) {
+      drivers = [String(ev.simulation_tool.driver_id).toLowerCase().trim()];
+    } else if (ev.race_results_tool?.driver_id) {
+      drivers = [String(ev.race_results_tool.driver_id).toLowerCase().trim()];
+    } else if (trace.entities?.driver) {
+      drivers = [String(trace.entities.driver).toLowerCase().trim()];
+    }
+
+    const driverId = drivers.length > 0 ? drivers[0] : (ev.scoring_tool?.driver_id || ev.simulation_tool?.driver_id || ev.telemetry_tool?.driver_id || trace.entities?.driver);
+    const resolvedSessionId = sessionId || ev.race_results_tool?.session_id || ev.telemetry_tool?.session_id || ev.simulation_tool?.session_id || ev.scoring_tool?.session_id || trace.resolved_session_id;
+    const grandPrix = resp.grand_prix || ev.race_results_tool?.grand_prix || ev.telemetry_tool?.grand_prix || ev.simulation_tool?.grand_prix || trace.entities?.grand_prix || (resolvedSessionId ? resolvedSessionId.replace(/^\d{4}_/, "").replace(/_gp.*$/, " GP").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : undefined);
+    const season = resp.season || ev.race_results_tool?.season || ev.telemetry_tool?.season || trace.entities?.season || (resolvedSessionId && /^\d{4}/.test(resolvedSessionId) ? parseInt(resolvedSessionId.slice(0, 4)) : 2024);
+    
+    return {
+      session_id: resolvedSessionId || undefined,
+      driver_id: driverId || undefined,
+      drivers: drivers.length > 0 ? drivers : undefined,
+      grand_prix: grandPrix,
+      season: season
+    };
+  };
   const handleSuggestionClick = (suggestion) => {
     if (isLoading || isStreaming) return;
-    executeQuery(suggestion);
+    const parentContext = getParentContext();
+    executeQuery(suggestion, null, parentContext);
   };
   const handleFollowUpSubmit = (query) => {
     if (isLoading || isStreaming || !query.trim()) return;
+    const parentContext = getParentContext();
     setMessages((prev) => [
       ...prev.filter((m) => m.type !== "follow-up"),
       {
@@ -430,7 +508,7 @@ export function InvestigationThread() {
         timestamp: Date.now()
       }
     ]);
-    executeQuery(query);
+    executeQuery(query, null, parentContext);
   };
   if (errorMsg) {
     return <div className="min-h-screen bg-canvas flex flex-col items-center justify-center p-6 text-text-secondary"><div className="max-w-md w-full border border-drs-cyan/30 bg-panel/50 rounded-card p-8 flex flex-col gap-6 items-center text-center shadow-lg relative overflow-hidden backdrop-blur-md"><div className="absolute inset-0 bg-[linear-gradient(to_right,#1c2025_1px,transparent_1px),linear-gradient(to_bottom,#1c2025_1px,transparent_1px)] bg-[size:24px_24px] opacity-5" /><div className="w-12 h-12 rounded-full border border-drs-cyan/20 flex items-center justify-center bg-drs-cyan/5 animate-pulse"><span className="text-drs-cyan font-bold text-lg font-mono">!</span></div><div className="flex flex-col gap-2"><h2 className="text-md font-mono text-text-primary uppercase tracking-widest">System Alert</h2><p className="text-text-muted text-xs leading-relaxed">{errorMsg}</p></div><div className="flex gap-4 w-full pt-2"><button

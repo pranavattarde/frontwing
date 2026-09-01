@@ -30,11 +30,12 @@ class TestFastF1Ingestion(unittest.TestCase):
         self.assertIn("message", json_body)
         self.assertIn("Offline mock mode", json_body["message"])
 
+    @patch.object(FastF1Collector, "find_existing_session_id", return_value=None)
     @patch.object(FastF1Collector, "collect")
-    def test_collector_load_session_direct_returns_error_on_failure(self, mock_collect):
+    def test_collector_load_session_direct_returns_error_on_failure(self, mock_collect, mock_find):
         """When FastF1 collect() raises, load_session() must return explicit error — no synthetic data."""
         mock_collect.side_effect = Exception("Offline mock mode: no network")
-        res = self.collector.load_session(2026, "Monaco", "R")
+        res = self.collector.load_session(2026, "British", "R")
         self.assertIn("status", res)
         self.assertEqual(res["status"], "error",
             f"Expected status='error' when FastF1 fails, got: {res['status']}")

@@ -9,6 +9,7 @@ class AgentState(TypedDict):
     question: str
     session_id: Optional[str]
     driver_id: Optional[str]
+    context: Optional[Dict[str, Any]]
     
     # Plan & Execution Tracker
     plan: List[str]

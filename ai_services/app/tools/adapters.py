@@ -360,7 +360,18 @@ class SimulationTool(BaseF1Tool):
     def execute(self, inputs: Dict[str, Any]) -> Any:
         session_id = inputs["session_id"]
         driver_id = inputs["driver_id"]
-        simulated_pit_lap = inputs["simulated_pit_lap"]
+        simulated_pit_lap = inputs.get("simulated_pit_lap")
+        if simulated_pit_lap is None:
+            for k in ("pit_lap", "lap", "pit_stop_lap"):
+                if inputs.get(k) is not None:
+                    simulated_pit_lap = inputs[k]
+                    break
+        if simulated_pit_lap is None:
+            return {"status": "missing_data", "required_session": session_id, "missing_param": "simulated_pit_lap"}
+        try:
+            simulated_pit_lap = int(simulated_pit_lap)
+        except (ValueError, TypeError):
+            return {"status": "missing_data", "required_session": session_id, "missing_param": "simulated_pit_lap"}
         target_compound = inputs.get("target_compound")
         
         # Check PostgreSQL DB for session & driver lap data
@@ -373,20 +384,32 @@ class SimulationTool(BaseF1Tool):
                 if not chk:
                     return {"status": "missing_data", "required_session": session_id}
                 
+            d_str = str(driver_id).lower().strip()
+            last_word = d_str.replace("_", " ").split()[-1]
+            drv_res = execute_query(
+                """SELECT id, code FROM drivers 
+                   WHERE id = %s OR code ILIKE %s OR last_name ILIKE %s OR id ILIKE %s OR (first_name || ' ' || last_name) ILIKE %s LIMIT 1""",
+                (d_str, d_str, f"%{last_word}%", f"%{last_word}%", f"%{d_str}%"),
+                fetch=True
+            )
+            canonical_driver_id = drv_res[0]["id"] if drv_res else d_str
+            drv_code = drv_res[0]["code"] if drv_res else last_word.upper()[:3]
+            cand_ids = [d_str, canonical_driver_id, drv_code.lower(), drv_code.upper()]
+
             drv_chk = execute_query(
                 """SELECT 1 FROM laps 
-                   WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = (SELECT code FROM drivers WHERE id = %s LIMIT 1)))
+                   WHERE session_id = %s AND (driver_id = ANY(%s) OR driver_id IN (SELECT id FROM drivers WHERE code = %s))
                    LIMIT 1""",
-                (session_id, driver_id, driver_id), fetch=True
+                (session_id, cand_ids, drv_code), fetch=True
             )
             if not drv_chk:
                 from app.ingestion.loader import ensure_session_in_db
                 ensure_session_in_db(session_id)
                 drv_chk = execute_query(
                     """SELECT 1 FROM laps 
-                       WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = (SELECT code FROM drivers WHERE id = %s LIMIT 1)))
+                       WHERE session_id = %s AND (driver_id = ANY(%s) OR driver_id IN (SELECT id FROM drivers WHERE code = %s))
                        LIMIT 1""",
-                    (session_id, driver_id, driver_id), fetch=True
+                    (session_id, cand_ids, drv_code), fetch=True
                 )
                 if not drv_chk:
                     return {"status": "missing_data", "required_session": session_id}
@@ -463,25 +486,97 @@ class StrategyTool(SimulationTool):
         session_id = inputs_copy.get("session_id")
         driver_id = inputs_copy.get("driver_id")
         
-        if ("simulated_pit_lap" not in inputs_copy or inputs_copy["simulated_pit_lap"] is None) and session_id and driver_id:
+        # Query actual stints for the driver to extract real pit stop timing
+        actual_stints = []
+        actual_pit_stops = []
+        if session_id and driver_id:
             try:
-                first_stint = execute_query(
-                    """SELECT end_lap, stint_length FROM stints 
-                       WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = (SELECT code FROM drivers WHERE id = %s LIMIT 1)))
-                       ORDER BY stint_number LIMIT 1""",
-                    (session_id, driver_id, driver_id), fetch=True
-                )
-                if first_stint and first_stint[0]["end_lap"]:
-                    actual_end = int(first_stint[0]["end_lap"])
-                    inputs_copy["simulated_pit_lap"] = max(1, actual_end - 2)
-                else:
-                    inputs_copy["simulated_pit_lap"] = 20
-            except Exception:
+                d_str = str(driver_id).lower().strip()
+                last_word = d_str.replace("_", " ").split()[-1]
+                drv_matches = execute_query(
+                    """SELECT id, code FROM drivers 
+                       WHERE id = %s OR code ILIKE %s OR last_name ILIKE %s OR id ILIKE %s OR (first_name || ' ' || last_name) ILIKE %s""",
+                    (d_str, d_str, f"%{last_word}%", f"%{last_word}%", f"%{d_str}%"),
+                    fetch=True
+                ) or []
+                cand_ids = [d_str, last_word]
+                for r in drv_matches:
+                    for v in (r.get("id"), r.get("code")):
+                        if v and v not in cand_ids:
+                            cand_ids.append(v)
+
+                stints_rows = execute_query(
+                    """SELECT stint_number, compound, start_lap, end_lap, stint_length
+                       FROM stints 
+                       WHERE session_id = %s AND (driver_id = ANY(%s) OR driver_id IN (SELECT id FROM drivers WHERE code = ANY(%s)))
+                       ORDER BY stint_number ASC""",
+                    (session_id, cand_ids, cand_ids), fetch=True
+                ) or []
+                for s in stints_rows:
+                    actual_stints.append({
+                        "stint": int(s["stint_number"]),
+                        "compound": str(s.get("compound", "UNKNOWN")).upper(),
+                        "start_lap": int(s["start_lap"]),
+                        "end_lap": int(s["end_lap"]),
+                        "stint_length": int(s["stint_length"])
+                    })
+                # If multiple stints, pit stops occurred at the end of each non-final stint
+                for i in range(len(actual_stints) - 1):
+                    current_stint = actual_stints[i]
+                    next_stint = actual_stints[i + 1]
+                    actual_pit_stops.append({
+                        "pit_stop_number": i + 1,
+                        "lap": current_stint["end_lap"],
+                        "lap_number": current_stint["end_lap"],
+                        "compound_in": current_stint["compound"],
+                        "compound_out": next_stint["compound"],
+                        "compound": next_stint["compound"]
+                    })
+            except Exception as st_ex:
+                logger.warning(f"[StrategyTool] Failed to query actual stints: {st_ex}")
+
+        if "simulated_pit_lap" not in inputs_copy or inputs_copy["simulated_pit_lap"] is None:
+            for k in ("pit_lap", "lap", "pit_stop_lap"):
+                if inputs_copy.get(k) is not None:
+                    inputs_copy["simulated_pit_lap"] = inputs_copy[k]
+                    break
+
+        has_explicit_sim = "simulated_pit_lap" in inputs_copy and inputs_copy["simulated_pit_lap"] is not None
+        if not has_explicit_sim and actual_stints:
+            return {
+                "status": "success",
+                "session_id": session_id,
+                "driver_id": driver_id,
+                "actual_stints": actual_stints,
+                "actual_pit_stops": actual_pit_stops,
+                "pit_stops": actual_pit_stops,
+                "pit_windows": [
+                    {
+                        "stint": s["stint"],
+                        "window_start_lap": max(1, s["end_lap"] - 2),
+                        "window_end_lap": s["end_lap"] + 2,
+                        "target_compound": s["compound"]
+                    }
+                    for s in actual_stints
+                ]
+            }
+
+        if not has_explicit_sim and session_id and driver_id:
+            if actual_stints:
+                actual_end = actual_stints[0]["end_lap"]
+                inputs_copy["simulated_pit_lap"] = max(1, actual_end - 2)
+            else:
                 inputs_copy["simulated_pit_lap"] = 20
-        elif "simulated_pit_lap" not in inputs_copy or inputs_copy["simulated_pit_lap"] is None:
+        elif not has_explicit_sim:
             inputs_copy["simulated_pit_lap"] = 20
             
-        return super().execute(inputs_copy)
+        res = super().execute(inputs_copy)
+        if isinstance(res, dict):
+            res["actual_stints"] = actual_stints
+            res["actual_pit_stops"] = actual_pit_stops
+            if actual_pit_stops:
+                res["pit_stops"] = actual_pit_stops
+        return res
 
 
 
@@ -516,22 +611,25 @@ class TelemetryTool(BaseF1Tool):
         
     def execute(self, inputs: Dict[str, Any]) -> Any:
         session_id = inputs.get("session_id")
-        driver_id = inputs.get("driver_id")
+        driver_id = inputs.get("driver_id") or inputs.get("driver") or inputs.get("driver_a") or inputs.get("driver1")
         lap_number = inputs.get("lap_number")
-        comp_driver_id = inputs.get("comparative_driver_id")
+        comp_driver_id = inputs.get("comparative_driver_id") or inputs.get("compare_driver") or inputs.get("driver_b") or inputs.get("driver2")
         
         if not session_id or not driver_id:
             return {"status": "missing_data", "message": "session_id and driver_id are required for telemetry queries"}
         
-        driver_id = str(driver_id).lower().strip().split()[-1]
+        # Clean driver tokens
+        driver_id = str(driver_id).lower().strip()
         if comp_driver_id:
-            comp_driver_id = str(comp_driver_id).lower().strip().split()[-1]
+            comp_driver_id = str(comp_driver_id).lower().strip()
         
         # Auto-query fastest lap for driver A if lap_number not explicitly provided
         if lap_number is None:
             fastest_lap_row = execute_query(
-                "SELECT lap_number FROM laps WHERE session_id = %s AND driver_id = %s ORDER BY lap_time_ms ASC LIMIT 1",
-                (session_id, driver_id), fetch=True
+                """SELECT lap_number FROM laps 
+                   WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = (SELECT code FROM drivers WHERE id = %s LIMIT 1)))
+                   ORDER BY lap_time_ms ASC LIMIT 1""",
+                (session_id, driver_id, driver_id), fetch=True
             )
             if fastest_lap_row and fastest_lap_row[0].get("lap_number"):
                 lap_number = int(fastest_lap_row[0]["lap_number"])
@@ -557,7 +655,46 @@ class TelemetryTool(BaseF1Tool):
         circuit_name = sess_meta[0].get("circuit_name") if (sess_meta and sess_meta[0].get("circuit_name")) else "Circuit"
         season_val = int(sess_meta[0].get("season")) if (sess_meta and sess_meta[0].get("season")) else 2024
 
+        comp_lap_number = inputs.get("comparative_lap_number")
+        if comp_driver_id and comp_lap_number is None:
+            fastest_b_row = execute_query(
+                """SELECT lap_number FROM laps 
+                   WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = (SELECT code FROM drivers WHERE id = %s LIMIT 1)))
+                   ORDER BY lap_time_ms ASC LIMIT 1""",
+                (session_id, comp_driver_id, comp_driver_id), fetch=True
+            )
+            if fastest_b_row and fastest_b_row[0].get("lap_number"):
+                comp_lap_number = int(fastest_b_row[0]["lap_number"])
+            else:
+                comp_lap_number = lap_number
+
         telemetry_a, lap_info_a = self._load_telemetry_from_db(session_id, driver_id, lap_number)
+        telemetry_b, lap_info_b = (None, None)
+        if comp_driver_id:
+            telemetry_b, lap_info_b = self._load_telemetry_from_db(session_id, comp_driver_id, comp_lap_number)
+
+        if not telemetry_a or (comp_driver_id and not telemetry_b):
+            # Check if session exists in DB but lacks telemetry_metadata
+            telem_cnt = execute_query(
+                "SELECT COUNT(*) as cnt FROM telemetry_metadata WHERE session_id = %s",
+                (session_id,), fetch=True
+            )
+            if not telem_cnt or telem_cnt[0]["cnt"] == 0:
+                # FIX A: Launch async background backfill task and return immediate status
+                from app.ingestion.fastf1_collector import start_async_backfill, get_backfill_job
+                job = get_backfill_job(session_id)
+                if not job or job.get("status") != "in_progress":
+                    job = start_async_backfill(session_id)
+                logger.info(f"[TelemetryTool] Async telemetry backfill started for {session_id}. Returning immediate processing status.")
+                return {
+                    "status": "backfilling",
+                    "session_id": session_id,
+                    "message": f"Telemetry data for {session_id} is downloading in the background.",
+                    "job": job,
+                    "progress_pct": job.get("progress_pct", 10),
+                    "stage": job.get("stage", "Downloading telemetry from FastF1...")
+                }
+
         if not lap_info_a and not telemetry_a:
             return {
                 "status": "missing_data",
@@ -570,16 +707,16 @@ class TelemetryTool(BaseF1Tool):
                 "reason": "no persisted telemetry for this driver/lap",
                 "message": (
                     f"Lap data exists for {driver_id} lap {lap_number} in session {session_id}, "
-                    f"but no telemetry JSON file is on disk. "
-                    f"Re-ingest this session with FastF1Collector.collect() (telemetry=True) to populate real telemetry."
+                    f"but no telemetry JSON file is on disk."
                 )
             }
 
-
         # Query multi-lap timing data from PostgreSQL for Lap Time Graph & Tyre Degradation
         all_laps = execute_query(
-            "SELECT lap_number, lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound FROM laps WHERE session_id = %s AND driver_id = %s AND is_valid = true ORDER BY lap_number",
-            (session_id, driver_id), fetch=True
+            """SELECT lap_number, lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound FROM laps 
+               WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = (SELECT code FROM drivers WHERE id = %s LIMIT 1))) 
+               AND is_valid = true ORDER BY lap_number""",
+            (session_id, driver_id, driver_id), fetch=True
         ) or []
 
         lap_times_data = []
@@ -655,21 +792,7 @@ class TelemetryTool(BaseF1Tool):
             "tyres": [{"compound": compound_a, "laps_run": lap_number}]
         }
 
-
         if comp_driver_id:
-            comp_lap_number = inputs.get("comparative_lap_number")
-            if comp_lap_number is None:
-                fastest_b_row = execute_query(
-                    "SELECT lap_number FROM laps WHERE session_id = %s AND driver_id = %s ORDER BY lap_time_ms ASC LIMIT 1",
-                    (session_id, comp_driver_id), fetch=True
-                )
-                if fastest_b_row and fastest_b_row[0].get("lap_number"):
-                    comp_lap_number = int(fastest_b_row[0]["lap_number"])
-                else:
-                    comp_lap_number = lap_number
-
-            telemetry_b, lap_info_b = self._load_telemetry_from_db(session_id, comp_driver_id, comp_lap_number)
-            
             lap_time_b_ms = lap_info_b.get("lap_time_ms") if lap_info_b else None
             lap_time_b_sec = round(lap_time_b_ms / 1000.0, 3) if lap_time_b_ms else None
 
@@ -698,7 +821,6 @@ class TelemetryTool(BaseF1Tool):
                         "gear": int(p.get("gear", 0))
                     })
 
-
             result["sector_times"] = sector_comparison
             result["comparative_driver_id"] = comp_driver_id
             result["comparative_lap_number"] = comp_lap_number
@@ -714,24 +836,73 @@ class TelemetryTool(BaseF1Tool):
             
         return result
 
+    def _resolve_driver_candidates(self, driver_id: str) -> List[str]:
+        """Resolves all candidate database driver IDs and codes for matching."""
+        d_str = str(driver_id).lower().strip()
+        candidates = [d_str]
+        cleaned = d_str.replace(" ", "_")
+        if cleaned not in candidates:
+            candidates.append(cleaned)
+        last_word = cleaned.split("_")[-1]
+        if last_word not in candidates:
+            candidates.append(last_word)
+
+        try:
+            drv_rows = execute_query(
+                """SELECT id, code, last_name FROM drivers 
+                   WHERE id = %s OR code ILIKE %s OR last_name ILIKE %s OR id ILIKE %s""",
+                (d_str, d_str, f"%{last_word}%", f"%{last_word}%"), fetch=True
+            ) or []
+            for r in drv_rows:
+                for val in (r.get("id"), r.get("code"), r.get("last_name")):
+                    if val:
+                        v_clean = str(val).lower().strip()
+                        if v_clean not in candidates:
+                            candidates.append(v_clean)
+        except Exception:
+            pass
+        return candidates
 
     def _load_telemetry_from_db(self, session_id: str, driver_id: str, lap_number: int):
         telemetry_points = []
         lap_info = {}
         try:
+            candidates = self._resolve_driver_candidates(driver_id)
             meta = execute_query(
-                "SELECT storage_path FROM telemetry_metadata WHERE session_id = %s AND driver_id = %s AND lap_number = %s",
-                (session_id, driver_id, lap_number), fetch=True
+                """SELECT storage_path, lap_number, driver_id FROM telemetry_metadata 
+                   WHERE session_id = %s AND driver_id = ANY(%s) AND lap_number = %s""",
+                (session_id, candidates, lap_number), fetch=True
             )
+            if not meta or not meta[0]["storage_path"] or not os.path.exists(meta[0]["storage_path"]):
+                # Fallback to closest available lap for this driver in telemetry_metadata
+                meta = execute_query(
+                    """SELECT storage_path, lap_number, driver_id FROM telemetry_metadata 
+                       WHERE session_id = %s AND driver_id = ANY(%s)
+                       ORDER BY ABS(lap_number - %s) ASC LIMIT 1""",
+                    (session_id, candidates, lap_number), fetch=True
+                )
+
             if meta and meta[0]["storage_path"] and os.path.exists(meta[0]["storage_path"]):
                 with open(meta[0]["storage_path"], "r") as f:
                     telemetry_points = json.load(f)
-            # No synthetic fallback: if no real file exists, return empty so callers get missing_data.
+                matched_lap = int(meta[0]["lap_number"])
+                matched_drv = str(meta[0]["driver_id"])
+            else:
+                matched_lap = lap_number
+                matched_drv = candidates[0]
 
             laps_res = execute_query(
-                "SELECT lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound, is_pit_out_lap FROM laps WHERE session_id = %s AND driver_id = %s AND lap_number = %s",
-                (session_id, driver_id, lap_number), fetch=True
+                """SELECT lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound, is_pit_out_lap FROM laps 
+                   WHERE session_id = %s AND (driver_id = ANY(%s)) AND lap_number = %s""",
+                (session_id, candidates, matched_lap), fetch=True
             )
+            if not laps_res:
+                laps_res = execute_query(
+                    """SELECT lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound, is_pit_out_lap FROM laps 
+                       WHERE session_id = %s AND (driver_id = ANY(%s)) 
+                       ORDER BY ABS(lap_number - %s) ASC LIMIT 1""",
+                    (session_id, candidates, matched_lap), fetch=True
+                )
             if laps_res and len(laps_res) > 0:
                 lap_info = laps_res[0]
 

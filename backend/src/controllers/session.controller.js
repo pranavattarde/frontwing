@@ -28,6 +28,34 @@ class SessionController {
       return res.status(500).json({ error: error.message || 'Failed to load session data' });
     }
   }
+
+  static async backfillStatus(req, res) {
+    try {
+      const { sessionId } = req.params;
+      if (!sessionId) {
+        return res.status(400).json({ error: 'Missing sessionId parameter' });
+      }
+
+      const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+      const response = await fetch(`${aiServiceUrl}/sessions/backfill-status/${encodeURIComponent(sessionId)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        return res.status(response.status).send(errText);
+      }
+
+      const data = await response.json();
+      return res.json(data);
+    } catch (error) {
+      console.error('[SessionController] Error in backfillStatus handler:', error.message);
+      return res.status(500).json({ error: error.message || 'Failed to fetch backfill status' });
+    }
+  }
 }
 
 module.exports = {

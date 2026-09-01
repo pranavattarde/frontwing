@@ -128,6 +128,10 @@ class QueryRequest(BaseModel):
     session_id: Optional[str] = None
     driver_id: Optional[str] = None
     conversation_id: Optional[str] = None
+    grand_prix: Optional[str] = None
+    season: Optional[int] = None
+    drivers: Optional[List[str]] = None
+    context: Optional[Dict[str, Any]] = None
 
 @app.post("/engineer/query")
 def engineer_query(req: QueryRequest):
@@ -138,7 +142,7 @@ def engineer_query(req: QueryRequest):
         f"\n======================================================\n"
         f"[REQUEST_RECEIVED] UTC: {req_start_utc}\n"
         f"Question: \"{req.question}\"\n"
-        f"Caller Session ID: {req.session_id} | Caller Driver ID: {req.driver_id} | Conversation ID: {req.conversation_id}\n"
+        f"Caller Session ID: {req.session_id} | Caller Driver ID: {req.driver_id} | Grand Prix: {req.grand_prix} | Drivers: {req.drivers} | Conversation ID: {req.conversation_id}\n"
         f"======================================================"
     )
     try:
@@ -155,12 +159,26 @@ def engineer_query(req: QueryRequest):
                 driver_id = resolved.get("driver_id")
             history = conversation_memory.get_history(req.conversation_id)
             
+        # Build composite context object
+        req_context = req.context or {}
+        if req.grand_prix and "grand_prix" not in req_context:
+            req_context["grand_prix"] = req.grand_prix
+        if req.season and "season" not in req_context:
+            req_context["season"] = req.season
+        if req.drivers and "drivers" not in req_context:
+            req_context["drivers"] = req.drivers
+        if driver_id and "driver_id" not in req_context:
+            req_context["driver_id"] = driver_id
+        if session_id and "session_id" not in req_context:
+            req_context["session_id"] = session_id
+            
         # Execute agent graph
         response = run_ai_race_engineer(
             question=req.question,
             session_id=session_id,
             driver_id=driver_id,
-            history=history
+            history=history,
+            context=req_context
         )
         
         # Save output exchange back to memory if conversation_id is supplied
@@ -173,7 +191,7 @@ def engineer_query(req: QueryRequest):
                 req.conversation_id,
                 req.question,
                 response.get("final_answer", ""),
-                context
+                context=context
             )
             
         total_duration_ms = int((time.time() - req_start_time) * 1000)
@@ -196,5 +214,34 @@ def engineer_query(req: QueryRequest):
             exc_info=True
         )
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/sessions/backfill-status/{session_id}")
+async def get_session_backfill_status(session_id: str):
+    """Returns the real-time progress and stage of an asynchronous telemetry backfill job."""
+    from app.ingestion.fastf1_collector import get_backfill_job
+    job = get_backfill_job(session_id)
+    if not job:
+        from app.core.db import execute_query
+        try:
+            cnt = execute_query("SELECT COUNT(*) as cnt FROM telemetry_metadata WHERE session_id = %s", (session_id,), fetch=True)
+            if cnt and cnt[0]["cnt"] > 0:
+                return {
+                    "session_id": session_id,
+                    "status": "completed",
+                    "progress_pct": 100,
+                    "stage": "Telemetry rows ready in database.",
+                    "error": None
+                }
+        except Exception:
+            pass
+        return {
+            "session_id": session_id,
+            "status": "not_found",
+            "progress_pct": 0,
+            "stage": "No backfill job active for this session.",
+            "error": None
+        }
+    return job
 
 

@@ -1,9 +1,13 @@
 import os
 import json
+import threading
+import time
+import re
 import numpy as np
 import fastf1
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+from pandas import isna as pandas_is_null
 from .base import BaseCollector
 from ..core.logger import logger
 from ..core.db import execute_query
@@ -11,7 +15,6 @@ from ..core.db import execute_query
 def safe_execute_query(query: str, params: tuple = (), fetch: bool = False) -> Any:
     """Executes database queries safely, falling back gracefully if PostgreSQL is offline."""
     from ..core.db import _db_last_fail, _DB_FAIL_COOLDOWN
-    import time
     if time.time() - _db_last_fail < _DB_FAIL_COOLDOWN:
         return [] if fetch else None
     try:
@@ -19,6 +22,64 @@ def safe_execute_query(query: str, params: tuple = (), fetch: bool = False) -> A
     except Exception as e:
         logger.error(f"[FastF1Collector] DB query execution failed: {e}", exc_info=True)
         return [] if fetch else None
+
+# Global async backfill registry
+_backfill_lock = threading.Lock()
+_backfill_jobs: Dict[str, Dict[str, Any]] = {}
+
+def get_backfill_job(session_id: str) -> Optional[Dict[str, Any]]:
+    with _backfill_lock:
+        return _backfill_jobs.get(session_id)
+
+def start_async_backfill(session_id: str) -> Dict[str, Any]:
+    with _backfill_lock:
+        job = _backfill_jobs.get(session_id)
+        if job and job.get("status") == "in_progress":
+            return job
+        
+        job = {
+            "session_id": session_id,
+            "status": "in_progress",
+            "progress_pct": 5,
+            "stage": "Initializing FastF1 backfill...",
+            "started_at": time.time(),
+            "updated_at": time.time(),
+            "error": None
+        }
+        _backfill_jobs[session_id] = job
+        
+    def _worker():
+        collector = FastF1Collector()
+        try:
+            def _update_progress(pct: int, stage_desc: str):
+                with _backfill_lock:
+                    if session_id in _backfill_jobs:
+                        _backfill_jobs[session_id]["progress_pct"] = pct
+                        _backfill_jobs[session_id]["stage"] = stage_desc
+                        _backfill_jobs[session_id]["updated_at"] = time.time()
+
+            success = collector.backfill_telemetry(session_id, progress_callback=_update_progress)
+            with _backfill_lock:
+                if success:
+                    _backfill_jobs[session_id]["status"] = "completed"
+                    _backfill_jobs[session_id]["progress_pct"] = 100
+                    _backfill_jobs[session_id]["stage"] = "Telemetry backfill complete."
+                else:
+                    _backfill_jobs[session_id]["status"] = "failed"
+                    _backfill_jobs[session_id]["stage"] = "Backfill could not verify telemetry rows."
+                    _backfill_jobs[session_id]["error"] = "No telemetry rows in database after backfill."
+                _backfill_jobs[session_id]["updated_at"] = time.time()
+        except Exception as ex:
+            logger.error(f"[FastF1Collector] Background backfill failed for {session_id}: {ex}", exc_info=True)
+            with _backfill_lock:
+                _backfill_jobs[session_id]["status"] = "failed"
+                _backfill_jobs[session_id]["stage"] = f"Backfill failed: {ex}"
+                _backfill_jobs[session_id]["error"] = str(ex)
+                _backfill_jobs[session_id]["updated_at"] = time.time()
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    return job
 
 class FastF1Collector(BaseCollector):
     _ingested_sessions_cache = set()
@@ -77,31 +138,62 @@ class FastF1Collector(BaseCollector):
             
         return None
 
-    def load_session(self, year: int, gp_name: str, session_type: str = "R") -> Dict[str, Any]:
-        """Loads an F1 session on demand, checking cache first to avoid downloading twice."""
+    def load_session(
+        self,
+        year: int,
+        gp_name: str,
+        session_type: str = "R",
+        load_telemetry: bool = False,
+        force_telemetry: bool = False,
+        progress_callback = None
+    ) -> Dict[str, Any]:
+        """Loads an F1 session on demand, checking cache first to avoid downloading twice.
+        If load_telemetry=False, ingests laps/stints/results/weather fast without heavy telemetry traces.
+        If force_telemetry=True and session exists without telemetry, downloads and backfills telemetry.
+        """
         existing_id = self.find_existing_session_id(year, gp_name, session_type)
         if existing_id:
-            logger.info(f"[{self.name}] Session {year} {gp_name} ({session_type}) already exists in DB: {existing_id}")
-            return {
-                "status": "cached",
-                "session_id": existing_id,
-                "message": "Session data already exists in PostgreSQL database."
-            }
+            if force_telemetry:
+                telem_cnt = safe_execute_query(
+                    "SELECT COUNT(*) as cnt FROM telemetry_metadata WHERE session_id = %s",
+                    (existing_id,),
+                    fetch=True
+                )
+                if telem_cnt and telem_cnt[0]["cnt"] > 0:
+                    logger.info(f"[{self.name}] Session {existing_id} already has {telem_cnt[0]['cnt']} telemetry metadata rows.")
+                    return {
+                        "status": "cached",
+                        "session_id": existing_id,
+                        "message": "Session and telemetry already exist in PostgreSQL database."
+                    }
+                logger.info(f"[{self.name}] Session {existing_id} exists in DB but lacks telemetry. Upgrading/backfilling telemetry (telemetry=True)...")
+            else:
+                logger.info(f"[{self.name}] Session {year} {gp_name} ({session_type}) already exists in DB: {existing_id}")
+                return {
+                    "status": "cached",
+                    "session_id": existing_id,
+                    "message": "Session data already exists in PostgreSQL database."
+                }
 
+        should_fetch_telem = bool(load_telemetry or force_telemetry)
         try:
-            session = self.collect(year, gp_name, session_type)
+            if progress_callback:
+                progress_callback(30, f"Downloading {year} {gp_name} data package from FastF1...")
+            session = self.collect(year, gp_name, session_type, load_telemetry=should_fetch_telem)
             if not self.validate(session):
                 return {
                     "status": "error",
                     "session_id": None,
                     "message": f"FastF1 session validation failed for {year} {gp_name} ({session_type}): session has no laps."
                 }
-            session_id = self.process_and_save(session)
+            if progress_callback:
+                progress_callback(45, "Session package downloaded. Ingesting timing matrices into database...")
+            session_id = self.process_and_save(session, load_telemetry=should_fetch_telem, progress_callback=progress_callback)
             FastF1Collector._ingested_sessions_cache.add(session_id)
             return {
                 "status": "loaded",
                 "session_id": session_id,
-                "message": "Session data successfully fetched from FastF1 and ingested into PostgreSQL."
+                "message": f"Session data successfully fetched from FastF1 and ingested into PostgreSQL (telemetry={should_fetch_telem})."
             }
         except Exception as e:
             logger.error(
@@ -115,11 +207,57 @@ class FastF1Collector(BaseCollector):
                 "message": f"FastF1 ingestion failed for {year} {gp_name} ({session_type}): {e}"
             }
 
-    def collect(self, year: int, gp_name: str, session_type: str = "R") -> fastf1.core.Session:
-        """Downloads and loads an F1 session data package, always including telemetry and weather."""
-        logger.info(f"[{self.name}] Fetching session {year} {gp_name} - {session_type} from FastF1 (telemetry=True, weather=True)")
+    def backfill_telemetry(self, session_id: str, progress_callback=None) -> bool:
+        """Backfills telemetry metadata and JSON cache for an existing session that lacks telemetry."""
+        logger.info(f"[{self.name}] Backfilling telemetry for session: {session_id}")
+        if progress_callback:
+            progress_callback(10, "Querying session metadata from database...")
+            
+        sess_meta = safe_execute_query(
+            """
+            SELECT r.year, r.name as gp_name, s.type as session_type, c.name as circuit_name
+            FROM sessions s
+            JOIN races r ON s.race_id = r.id
+            LEFT JOIN circuits c ON r.circuit_id = c.id
+            WHERE s.id = %s
+            """,
+            (session_id,),
+            fetch=True
+        )
+        if sess_meta and len(sess_meta) > 0:
+            year = int(sess_meta[0]["year"])
+            gp_name = str(sess_meta[0]["gp_name"])
+            stype = str(sess_meta[0].get("session_type") or "Race")
+        else:
+            # Fallback parse from session_id
+            m = re.match(r"^(\d{4})_([a-z0-9_]+?)_gp_(race|qualifying|fp\d|sprint)$", session_id.lower())
+            if m:
+                year = int(m.group(1))
+                gp_name = m.group(2).replace("_", " ")
+                stype_map = {"race": "Race", "qualifying": "Qualifying", "sprint": "Sprint"}
+                stype = stype_map.get(m.group(3), "Race")
+            else:
+                logger.error(f"[{self.name}] Cannot determine session metadata to backfill telemetry for {session_id}")
+                return False
+
+        if progress_callback:
+            progress_callback(20, f"Connecting to FastF1 timing servers for {year} {gp_name}...")
+
+        res = self.load_session(year, gp_name, session_type=stype, load_telemetry=True, force_telemetry=True, progress_callback=progress_callback)
+        if res.get("status") in ("loaded", "cached"):
+            cnt_chk = safe_execute_query(
+                "SELECT COUNT(*) as cnt FROM telemetry_metadata WHERE session_id = %s",
+                (session_id,),
+                fetch=True
+            )
+            return bool(cnt_chk and cnt_chk[0]["cnt"] > 0)
+        return False
+
+    def collect(self, year: int, gp_name: str, session_type: str = "R", load_telemetry: bool = False) -> fastf1.core.Session:
+        """Downloads and loads an F1 session data package. Telemetry is only loaded if load_telemetry=True."""
+        logger.info(f"[{self.name}] Fetching session {year} {gp_name} - {session_type} from FastF1 (telemetry={load_telemetry}, weather=True)")
         session = fastf1.get_session(year, gp_name, session_type)
-        session.load(telemetry=True, laps=True, weather=True)
+        session.load(telemetry=load_telemetry, laps=True, weather=True)
         return session
 
     def validate(self, session: fastf1.core.Session) -> bool:
@@ -128,8 +266,8 @@ class FastF1Collector(BaseCollector):
             return False
         return True
 
-    def process_and_save(self, session: fastf1.core.Session) -> str:
-        """Extracts sessions, drivers, laps, stints, weather, race_results, and telemetry_metadata into PostgreSQL."""
+    def process_and_save(self, session: fastf1.core.Session, load_telemetry: bool = False, progress_callback=None) -> str:
+        """Extracts sessions, drivers, laps, stints, weather, race_results, and optionally telemetry_metadata into PostgreSQL."""
         year = int(session.event.get('Season', getattr(session.event, 'year', 2024))) if hasattr(session.event, 'get') else int(getattr(session.event, 'year', 2024))
         round_num = int(session.event.get('RoundNumber', getattr(session.event, 'round', 1))) if hasattr(session.event, 'get') else int(getattr(session.event, 'round', 1))
         
@@ -165,17 +303,18 @@ class FastF1Collector(BaseCollector):
         # Confirm race is registered in DB
         safe_execute_query(
             """
-            INSERT INTO races (id, circuit_id, year, round, name, date)
+            INSERT INTO races (id, year, round, name, circuit_id, date)
             VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT (year, round) DO UPDATE SET
-                circuit_id = EXCLUDED.circuit_id,
-                name = EXCLUDED.name
+            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, date = EXCLUDED.date
             """,
-            (race_id, circuit_id, year, round_num, session.event['EventName'], session.date.strftime('%Y-%m-%d'))
+            (race_id, year, round_num, event_name, circuit_id, session.date.strftime('%Y-%m-%d'))
         )
 
-        # Check existing session in DB by race_id & type to reuse canonical session_id
-        existing_sess = safe_execute_query("SELECT id FROM sessions WHERE race_id = %s AND type ILIKE %s", (race_id, f"%{type_str}%"), fetch=True)
+        existing_sess = safe_execute_query(
+            "SELECT id FROM sessions WHERE race_id = %s AND type = %s",
+            (race_id, type_str),
+            fetch=True
+        )
         if existing_sess and isinstance(existing_sess, list) and len(existing_sess) > 0:
             session_id = existing_sess[0]["id"]
         else:
@@ -275,7 +414,11 @@ class FastF1Collector(BaseCollector):
         failed_telemetry_laps = []  # Track laps where telemetry persistence failed
 
         logger.info(f"[{self.name}] Processing laps for drivers: {drivers_list}")
-        for drv_code in drivers_list:
+        for idx_drv, drv_code in enumerate(drivers_list):
+            if progress_callback and load_telemetry:
+                drv_pct = 50 + int(45 * (idx_drv + 1) / max(1, len(drivers_list)))
+                progress_callback(drv_pct, f"Extracting telemetry traces for driver {drv_code} ({idx_drv+1}/{len(drivers_list)})...")
+
             drv_rows = safe_execute_query("SELECT id FROM drivers WHERE code = %s", (drv_code,), fetch=True)
             drv_id = drv_rows[0]['id'] if (drv_rows and isinstance(drv_rows, list)) else drv_code.lower()
             
@@ -307,7 +450,25 @@ class FastF1Collector(BaseCollector):
                     (session_id, drv_id, stint_num, compound, start_lap, end_lap, stint_len, True)
                 )
 
-            for _, lap_row in drv_laps.iloc[::3].iterrows():
+            # Determine fastest lap number for this driver to guarantee its telemetry is stored
+            fastest_lap_num = None
+            try:
+                fl = drv_laps.pick_fastest()
+                if fl is not None and 'LapNumber' in fl and not pandas_is_null(fl['LapNumber']):
+                    fastest_lap_num = int(fl['LapNumber'])
+            except Exception:
+                fastest_lap_num = None
+
+            # Collect laps to process (downsampled + guaranteed fastest lap)
+            laps_to_process = list(drv_laps.iloc[::3].iterrows())
+            if fastest_lap_num is not None:
+                already_in = any(int(r['LapNumber']) == fastest_lap_num for _, r in laps_to_process)
+                if not already_in:
+                    fl_rows = drv_laps[drv_laps['LapNumber'] == fastest_lap_num]
+                    if len(fl_rows) > 0:
+                        laps_to_process.append((fl_rows.index[0], fl_rows.iloc[0]))
+
+            for _, lap_row in laps_to_process:
                 lap_num = int(lap_row['LapNumber'])
                 lap_time_ms = int(lap_row['LapTime'].total_seconds() * 1000) if not pandas_is_null(lap_row['LapTime']) else None
                 s1_ms = int(lap_row['Sector1Time'].total_seconds() * 1000) if not pandas_is_null(lap_row['Sector1Time']) else None
@@ -327,25 +488,29 @@ class FastF1Collector(BaseCollector):
                     (session_id, drv_id, lap_num, lap_time_ms, s1_ms, s2_ms, s3_ms, compound, is_pit_out, is_valid)
                 )
 
-                # Persist telemetry profiles into PostgreSQL telemetry_metadata and JSON cache
-                try:
-                    telemetry_df = lap_row.get_telemetry()
-                    if telemetry_df is not None and len(telemetry_df) > 0:
-                        self._downsample_and_save_telemetry(session_id, drv_id, lap_num, telemetry_df)
-                except Exception as ex:
-                    logger.error(
-                        f"[{self.name}] ERROR persisting telemetry for driver {drv_code} lap {lap_num} "
-                        f"in session {session_id}: {ex}",
-                        exc_info=True
-                    )
-                    failed_telemetry_laps.append((drv_code, lap_num))
+                # Persist telemetry profiles into PostgreSQL telemetry_metadata and JSON cache only if load_telemetry is True
+                if load_telemetry:
+                    try:
+                        telemetry_df = lap_row.get_telemetry()
+                        if telemetry_df is not None and len(telemetry_df) > 0:
+                            self._downsample_and_save_telemetry(session_id, drv_id, lap_num, telemetry_df)
+                    except Exception as ex:
+                        logger.error(
+                            f"[{self.name}] ERROR persisting telemetry for driver {drv_code} lap {lap_num} "
+                            f"in session {session_id}: {ex}",
+                            exc_info=True
+                        )
+                        failed_telemetry_laps.append((drv_code, lap_num))
 
-        if failed_telemetry_laps:
-            logger.error(
-                f"[{self.name}] Telemetry persist FAILED for {len(failed_telemetry_laps)} lap(s) in session {session_id}: {failed_telemetry_laps}"
-            )
+        if load_telemetry:
+            if failed_telemetry_laps:
+                logger.error(
+                    f"[{self.name}] Telemetry persist FAILED for {len(failed_telemetry_laps)} lap(s) in session {session_id}: {failed_telemetry_laps}"
+                )
+            else:
+                logger.info(f"[{self.name}] All telemetry persisted successfully for session {session_id}")
         else:
-            logger.info(f"[{self.name}] All telemetry persisted successfully for session {session_id}")
+            logger.info(f"[{self.name}] Fast session ingestion completed without telemetry for session {session_id}")
 
         return session_id
 

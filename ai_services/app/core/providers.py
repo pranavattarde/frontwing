@@ -81,7 +81,7 @@ def log_provider_failure(provider: str, model: str, e: Exception):
 
 
 def is_fatal_error(e: Exception) -> bool:
-    """Returns True if the exception represents a non-retryable configuration, auth, rate limit or quota error."""
+    """Returns True if the exception represents a non-retryable configuration, auth, rate limit or server/timeout error that should trigger immediate provider failover."""
     err_str = str(e).lower()
     # Check for invalid API key or authentication errors (e.g., HTTP 401)
     if "api key not valid" in err_str or "invalid api key" in err_str or "api_key_invalid" in err_str or "401" in err_str:
@@ -93,6 +93,9 @@ def is_fatal_error(e: Exception) -> bool:
         return True
     # Check for rate limits / quota exceeded
     if "429" in err_str or "resource_exhausted" in err_str or "rate_limit_exceeded" in err_str or "quota_limit" in err_str or "quota limit" in err_str:
+        return True
+    # Check for gateway timeout, deadline exceeded, 504, 503, connection errors to failover immediately
+    if "504" in err_str or "503" in err_str or "502" in err_str or "deadline_exceeded" in err_str or "deadline expired" in err_str or "timeout" in err_str:
         return True
     return False
 
@@ -223,6 +226,7 @@ class GroqProvider(BaseLLMProvider):
         if not key or not key.strip():
             raise LLMProviderError("GROQ_API_KEY environment variable is empty.")
             
+        groq_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
         start_time = time.time()
         try:
             client = Groq(api_key=key)
@@ -232,7 +236,7 @@ class GroqProvider(BaseLLMProvider):
                         {"role": "system", "content": system_instruction},
                         {"role": "user", "content": contents}
                     ],
-                    model="qwen/qwen3.6-27b",
+                    model=groq_model,
                     response_format={"type": "json_object"},
                     temperature=0.0,
                     max_tokens=1024,
@@ -246,7 +250,7 @@ class GroqProvider(BaseLLMProvider):
                             {"role": "system", "content": system_instruction + "\nYou MUST return a valid JSON object only."},
                             {"role": "user", "content": contents}
                         ],
-                        model="qwen/qwen3.6-27b",
+                        model=groq_model,
                         temperature=0.0,
                         max_tokens=1024,
                         timeout=timeout_seconds
@@ -269,12 +273,12 @@ class GroqProvider(BaseLLMProvider):
             prompt_toks = chat_completion.usage.prompt_tokens if chat_completion.usage else 250
             completion_toks = chat_completion.usage.completion_tokens if chat_completion.usage else 100
             
-            # Estimates for Llama 3.3 70b / Qwen 27b pricing
+            # Estimates for Groq pricing
             cost = (prompt_toks * 0.59 / 1_000_000) + (completion_toks * 0.79 / 1_000_000)
             
             metrics = {
                 "llm_provider": "groq",
-                "llm_model": "llama-3.3-70b-versatile",
+                "llm_model": groq_model,
                 "llm_latency": latency_ms,
                 "prompt_tokens": prompt_toks,
                 "completion_tokens": completion_toks,
@@ -283,7 +287,7 @@ class GroqProvider(BaseLLMProvider):
             }
             return parsed, metrics
         except Exception as e:
-            log_provider_failure("Groq", "llama-3.3-70b-versatile", e)
+            log_provider_failure("Groq", groq_model, e)
             if "timeout" in str(e).lower() or (time.time() - start_time) >= timeout_seconds:
                 raise LLMTimeoutError(f"Groq provider timed out: {e}")
             raise LLMProviderError(f"Groq execution failed: {e}")
@@ -295,6 +299,7 @@ class GroqProvider(BaseLLMProvider):
         if not key or not key.strip():
             raise LLMProviderError("GROQ_API_KEY environment variable is empty.")
             
+        groq_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
         start_time = time.time()
         try:
             client = Groq(api_key=key)
@@ -303,7 +308,7 @@ class GroqProvider(BaseLLMProvider):
                     {"role": "system", "content": system_instruction},
                     {"role": "user", "content": contents}
                 ],
-                "model": "qwen/qwen3.6-27b",
+                "model": groq_model,
                 "temperature": 0.0,
                 "max_tokens": 1024,
                 "timeout": timeout_seconds
@@ -324,7 +329,7 @@ class GroqProvider(BaseLLMProvider):
                     raise e_json
 
             raw_text = chat_completion.choices[0].message.content.strip()
-            # If Qwen returned <think> tags, strip them out cleanly
+            # If reasoning model returned <think> tags, strip them out cleanly
             if "<think>" in raw_text and "</think>" in raw_text:
                 raw_text = re.sub(r"<think>.*?</think>", "", raw_text, flags=re.DOTALL).strip()
             elif raw_text.startswith("```"):
@@ -338,7 +343,7 @@ class GroqProvider(BaseLLMProvider):
             
             metrics = {
                 "llm_provider": "groq",
-                "llm_model": "llama-3.3-70b-versatile",
+                "llm_model": groq_model,
                 "llm_latency": latency_ms,
                 "prompt_tokens": prompt_toks,
                 "completion_tokens": completion_toks,
@@ -347,7 +352,7 @@ class GroqProvider(BaseLLMProvider):
             }
             return raw_text, metrics
         except Exception as e:
-            log_provider_failure("Groq", "llama-3.3-70b-versatile", e)
+            log_provider_failure("Groq", groq_model, e)
             if "timeout" in str(e).lower() or (time.time() - start_time) >= timeout_seconds:
                 raise LLMTimeoutError(f"Groq provider timed out: {e}")
             raise LLMProviderError(f"Groq execution failed: {e}")
@@ -428,17 +433,18 @@ class ReliableLLMProvider(BaseLLMProvider):
                 
         # 2. Attempt Groq Failover (up to 2 retries)
         backoff = 0.5
+        groq_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
         logger.info("[ReliableLLMProvider] Initiating Groq failover planning call.")
         for attempt in range(3):
             start_time = time.time()
             try:
-                logger.info(f"[ReliableLLMProvider] Selected provider: Groq, Model: llama-3.3-70b-versatile, Attempt: {attempt + 1}/3, Start: {start_time}")
+                logger.info(f"[ReliableLLMProvider] Selected provider: Groq, Model: {groq_model}, Attempt: {attempt + 1}/3, Start: {start_time}")
                 plan, metrics = self.groq.generate_plan(system_instruction, contents, timeout_seconds)
                 end_time = time.time()
                 latency_ms = int((end_time - start_time) * 1000)
                 call_end_utc = datetime.now(timezone.utc).isoformat()
                 logger.info(
-                    f"[PLANNER_LLM_CALL_END] UTC: {call_end_utc} | Provider: Groq | Model: llama-3.3-70b-versatile | "
+                    f"[PLANNER_LLM_CALL_END] UTC: {call_end_utc} | Provider: Groq | Model: {groq_model} | "
                     f"Latency: {latency_ms}ms | Status: SUCCESS | Plan: {plan}"
                 )
                 metrics["retries"] = retries
@@ -496,7 +502,7 @@ class ReliableLLMProvider(BaseLLMProvider):
             met_res["llm_latency"] = 1
             return text_res, met_res
         
-        gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        gemini_model = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
         for attempt in range(3):
             start_time = time.time()
             attempt_utc = datetime.now(timezone.utc).isoformat()
@@ -530,17 +536,18 @@ class ReliableLLMProvider(BaseLLMProvider):
                 backoff *= 2.0
                 
         backoff = 0.5
+        groq_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
         for attempt in range(3):
             start_time = time.time()
             attempt_utc = datetime.now(timezone.utc).isoformat()
             try:
-                logger.info(f"[SYNTHESIS_LLM_ATTEMPT] UTC: {attempt_utc} | Provider: Groq | Model: llama-3.3-70b-versatile | Attempt: {attempt + 1}/3")
+                logger.info(f"[SYNTHESIS_LLM_ATTEMPT] UTC: {attempt_utc} | Provider: Groq | Model: {groq_model} | Attempt: {attempt + 1}/3")
                 text, metrics = self.groq.generate_response(system_instruction, contents, response_mime_type, timeout_seconds)
                 end_time = time.time()
                 latency_ms = int((end_time - start_time) * 1000)
                 call_end_utc = datetime.now(timezone.utc).isoformat()
                 logger.info(
-                    f"[SYNTHESIS_LLM_CALL_END] UTC: {call_end_utc} | Provider: Groq | Model: llama-3.3-70b-versatile | "
+                    f"[SYNTHESIS_LLM_CALL_END] UTC: {call_end_utc} | Provider: Groq | Model: {groq_model} | "
                     f"Latency: {latency_ms}ms | Status: SUCCESS | Output Preview: {text[:120]}..."
                 )
                 metrics["retries"] = retries

@@ -49,17 +49,28 @@ class EntityResolver:
         Pipeline: Planner -> entities -> resolver -> resolved ids -> SessionResolver -> session_id
         Does not parse the question string again if entities are provided by Planner.
         """
-        planner_entities = state.get("entities") or (state.get("structured_plan") or {}).get("entities") or state.get("planner_entities") or {}
+        ctx = state.get("context") or {}
+        planner_entities = dict(state.get("entities") or (state.get("structured_plan") or {}).get("entities") or state.get("planner_entities") or {})
         
         # Fallback to simple extraction from question only if planner_entities is completely empty
         if not planner_entities and question:
             from app.agents.planner import extract_entities
             planner_entities = extract_entities(question)
 
+        # Merge caller context BEFORE session and entity resolution runs (FIX 3)
+        if not planner_entities.get("grand_prix") and ctx.get("grand_prix"):
+            planner_entities["grand_prix"] = ctx["grand_prix"]
+        if not planner_entities.get("season") and ctx.get("season"):
+            planner_entities["season"] = ctx["season"]
+        if not planner_entities.get("drivers") and ctx.get("drivers"):
+            planner_entities["drivers"] = list(ctx["drivers"])
+        if not planner_entities.get("driver") and ctx.get("driver_id"):
+            planner_entities["driver"] = ctx["driver_id"]
+
         # 1. Season/Year from Planner (preserve None if unspecified by user)
         year_val = planner_entities.get("season") if "season" in planner_entities else planner_entities.get("year")
         if year_val is None and "season" not in planner_entities:
-            year_val = state.get("season")
+            year_val = state.get("season") or ctx.get("season")
             
         if year_val is not None:
             try:
@@ -73,9 +84,8 @@ class EntityResolver:
         db_matches = []
         resolved_ids = {"season": year}
 
-
         # 2. Driver Resolution
-        driver_input = planner_entities.get("driver") or planner_entities.get("drivers") or state.get("driver") or state.get("drivers")
+        driver_input = planner_entities.get("driver") or planner_entities.get("drivers") or state.get("driver") or state.get("drivers") or ctx.get("drivers") or ctx.get("driver_id")
         matched_drivers = []
         if isinstance(driver_input, list):
             matched_drivers = [str(d).lower() for d in driver_input if d]
@@ -147,8 +157,12 @@ class EntityResolver:
                     resolved_ids["driver_ids"] = [d["id"] for d in drv_rows]
 
         # 4. Grand Prix & Session Resolution via SessionResolver
-        gp_input = planner_entities.get("grand_prix") or planner_entities.get("gp") or state.get("grand_prix")
+        gp_input = planner_entities.get("grand_prix") or planner_entities.get("gp") or state.get("grand_prix") or ctx.get("grand_prix")
         session_type = planner_entities.get("session_type") or state.get("session_type") or "Race"
+
+        # Check if telemetry_tool is in execution plan (FIX 1)
+        planned_tools = state.get("tools") or (state.get("structured_plan") or {}).get("required_tools") or (state.get("structured_plan") or {}).get("tools") or state.get("plan") or []
+        needs_telemetry = any("telemetry_tool" in str(t) for t in planned_tools)
 
         if gp_input:
             entities_found["grand_prix"] = gp_input
@@ -158,7 +172,8 @@ class EntityResolver:
             sess_res = SessionResolver.resolve_session(
                 grand_prix=gp_input,
                 season=year,
-                session_type=session_type
+                session_type=session_type,
+                load_telemetry=needs_telemetry
             )
 
             if sess_res.get("status") == "success" and sess_res.get("session_id"):
@@ -172,6 +187,10 @@ class EntityResolver:
             elif sess_res.get("status") == "DATA_UNAVAILABLE":
                 logger.warning(f"[EntityResolver] SessionResolver returned DATA_UNAVAILABLE for gp={gp_input}")
                 resolved_ids["status"] = "entity_not_found"
+
+        caller_session_id = ctx.get("session_id") or state.get("session_id")
+        if caller_session_id and not resolved_ids.get("session_id"):
+            resolved_ids["session_id"] = caller_session_id
 
         from datetime import datetime, timezone
         import time

@@ -21,18 +21,27 @@ def load_session_data_from_db(session_id: str, target_driver_id: str) -> Optiona
         total_laps = int(total_laps_query[0]["max_lap"])
 
         # 2. Driver code resolution
-        drv_res = execute_query("SELECT code FROM drivers WHERE id = %s", (target_driver_id,), fetch=True)
-        drv_code = drv_res[0]["code"] if drv_res else target_driver_id.upper()[:3]
+        d_str = str(target_driver_id).lower().strip()
+        last_word = d_str.replace("_", " ").split()[-1]
+        drv_res = execute_query(
+            """SELECT id, code FROM drivers 
+               WHERE id = %s OR code ILIKE %s OR last_name ILIKE %s OR id ILIKE %s OR (first_name || ' ' || last_name) ILIKE %s LIMIT 1""",
+            (d_str, d_str, f"%{last_word}%", f"%{last_word}%", f"%{d_str}%"),
+            fetch=True
+        )
+        canonical_driver_id = drv_res[0]["id"] if drv_res else d_str
+        drv_code = drv_res[0]["code"] if drv_res else last_word.upper()[:3]
+        cand_ids = [d_str, canonical_driver_id, drv_code.lower(), drv_code.upper()]
         
         # 3. Target driver actual stints
         actual_stints = execute_query(
             """
             SELECT compound, start_lap, end_lap, stint_number 
             FROM stints 
-            WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = %s))
+            WHERE session_id = %s AND (driver_id = ANY(%s) OR driver_id IN (SELECT id FROM drivers WHERE code = %s))
             ORDER BY stint_number
             """,
-            (session_id, target_driver_id, drv_code),
+            (session_id, cand_ids, drv_code),
             fetch=True
         )
         if not actual_stints:
@@ -42,9 +51,9 @@ def load_session_data_from_db(session_id: str, target_driver_id: str) -> Optiona
         actual_result = execute_query(
             """
             SELECT position FROM race_results 
-            WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = %s))
+            WHERE session_id = %s AND (driver_id = ANY(%s) OR driver_id IN (SELECT id FROM drivers WHERE code = %s))
             """,
-            (session_id, target_driver_id, drv_code),
+            (session_id, cand_ids, drv_code),
             fetch=True
         )
         actual_pos = actual_result[0]["position"] if (actual_result and actual_result[0]["position"]) else 1
@@ -71,7 +80,7 @@ def load_session_data_from_db(session_id: str, target_driver_id: str) -> Optiona
             lap_num = lap["lap_number"]
             time_sec = (lap["lap_time_ms"] / 1000.0) if lap["lap_time_ms"] else None
             
-            is_target = (d_id == target_driver_id or d_id == drv_code.lower())
+            is_target = (d_id in cand_ids or str(d_id).lower() in [c.lower() for c in cand_ids])
             if is_target:
                 driver_laps_map[lap_num] = {
                     "lap_number": lap_num,
