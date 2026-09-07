@@ -17,6 +17,7 @@ import { SectorComparisonGraph } from "@/components/SectorComparisonGraph";
 import { PitWindowVisualizer } from "@/components/PitWindowVisualizer";
 import { ScoreCard } from "@/components/ScoreCard";
 import { SimulationCard } from "@/components/SimulationCard";
+import { TelemetryComparisonCard } from "@/components/TelemetryComparisonCard";
 import { cn, generateId } from "@/lib/utils";
 import { submitEngineerQuery, fetchInvestigationById, toggleSaveInvestigation, fetchBackfillStatus } from "@/lib/api";
 export function normalizeStints(stintsList, isActual) {
@@ -154,6 +155,28 @@ ${rep["Reasoning Graph Text"]}`);
       content: "What-If Strategy Simulation",
       evidenceData: simData,
       timestamp: timestamp + 800
+    });
+  }
+
+  // 2.5 Head-to-Head Comparative Telemetry & Ghost Fight Card
+  if (telemData && telemData.comparative_driver_id && (telemData.comparative_telemetry || telemData.comparative_analysis || telemData.sector_times)) {
+    const driverCodeA = String(telemData.driver_id || "DRIVER_A").toUpperCase();
+    const driverCodeB = String(telemData.comparative_driver_id || "DRIVER_B").toUpperCase();
+    messages.push({
+      id: `comparison-${id}-${timestamp}`,
+      type: "telemetry-comparison",
+      content: "Head-to-Head Telemetry Comparison",
+      evidenceData: {
+        comparativeAnalysis: telemData.comparative_analysis,
+        telemetryDataA: telemData.telemetry || [],
+        telemetryDataB: telemData.comparative_telemetry || [],
+        driverA: { code: driverCodeA, name: telemData.driver || driverCodeA },
+        driverB: { code: driverCodeB, name: telemData.comparative_driver || driverCodeB },
+        trackName: telemData.grand_prix || "Grand Prix",
+        lapNumberA: telemData.lap_number || 1,
+        lapNumberB: telemData.comparative_lap_number || 1
+      },
+      timestamp: timestamp + 850
     });
   }
 
@@ -591,6 +614,20 @@ export function InvestigationThread() {
       return <SimulationCard
         key={msg.id}
         data={msg.evidenceData}
+        className="animate-slide-up"
+      />;
+    }
+    if (msg.type === "telemetry-comparison" && msg.evidenceData) {
+      return <TelemetryComparisonCard
+        key={msg.id}
+        comparativeAnalysis={msg.evidenceData.comparativeAnalysis}
+        telemetryDataA={msg.evidenceData.telemetryDataA}
+        telemetryDataB={msg.evidenceData.telemetryDataB}
+        driverA={msg.evidenceData.driverA}
+        driverB={msg.evidenceData.driverB}
+        trackName={msg.evidenceData.trackName}
+        lapNumberA={msg.evidenceData.lapNumberA}
+        lapNumberB={msg.evidenceData.lapNumberB}
         className="animate-slide-up"
       />;
     }

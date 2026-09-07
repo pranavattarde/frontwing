@@ -1083,7 +1083,12 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
                 args["session_id"] = res_sid
             elif session_id is not None:
                 args["session_id"] = session_id
-
+        # STAGE 1: Comparison Drivers Binding from Semantic Contract
+        comp_contract_drvs = semantic_contract.get("comparison_drivers") or []
+        if len(comp_contract_drvs) >= 2:
+            args["driver_id"] = comp_contract_drvs[0]
+            args["comparative_driver_id"] = comp_contract_drvs[1]
+            args["comparison_drivers"] = comp_contract_drvs
 
         if "driver_id" not in args or not args["driver_id"]:
             if "driver1" in args and args["driver1"]:
@@ -1131,6 +1136,14 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
                 args["driver_id"] = resolved["driver_ids"][0]
             if "comparative_driver_id" not in args or not args["comparative_driver_id"] or args["comparative_driver_id"] == args["driver_id"]:
                 args["comparative_driver_id"] = resolved["driver_ids"][1]
+
+        # Prevent driver_id and comparative_driver_id from being identical
+        if args.get("driver_id") and args.get("comparative_driver_id") and str(args["driver_id"]).lower().strip() == str(args["comparative_driver_id"]).lower().strip():
+            if len(comp_contract_drvs) >= 2:
+                args["driver_id"] = comp_contract_drvs[0]
+                args["comparative_driver_id"] = comp_contract_drvs[1]
+            else:
+                args["comparative_driver_id"] = None
 
         if "driver" not in args or not args["driver"]:
             if args.get("driver_id"):
@@ -1545,10 +1558,10 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
     # =====================================================================
     def _humanize_errors(evidence: dict, errors: list) -> str:
         """Converts internal error states into human-readable analyst language."""
-        if intent_name in ("simulation", "strategy") or requested_metric in ("simulation", "strategy") or "simulation_tool" in evidence:
+        if (intent_name in ("simulation", "strategy") or requested_metric in ("simulation", "strategy")) and ("simulation_tool" in evidence or not evidence):
             drv_name = target_driver or entities.get("driver") or "that driver"
             return f"I wasn't able to run that simulation for {drv_name}."
-        if intent_name == "scoring" or requested_metric == "scoring" or "scoring_tool" in evidence:
+        if (intent_name == "scoring" or requested_metric == "scoring") and ("scoring_tool" in evidence or not evidence):
             drv_name = target_driver or entities.get("driver") or "that driver"
             return f"No verified scoring data is available for {drv_name}."
         for tool_name, result in evidence.items():
@@ -1670,7 +1683,7 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
         if not isinstance(val, dict):
             return True
         if val.get("status") in ("missing_data", "DATA_UNAVAILABLE", "entity_not_found"):
-            return any(k in val for k in ["root_causes", "incidents", "cause", "classification", "winner", "drivers", "constructors", "historical_results"])
+            return any(k in val for k in ["root_causes", "incidents", "cause", "classification", "winner", "drivers", "constructors", "historical_results", "lap_time_s", "telemetry"])
         return True
 
     has_any_evidence = any(_has_usable_evidence(v) for v in evidence.values())
@@ -1764,8 +1777,8 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
                 exec_summary = explanations.get("intermediate") or f"F1 Knowledge breakdown for '{question}'."
 
         if not exec_summary:
-            # 1. Strategy Simulation / What-If Query (Evaluated FIRST for simulation queries)
-            if "simulation_tool" in evidence or intent_name in ("simulation", "strategy") or requested_metric in ("simulation", "strategy"):
+            # 1. Strategy Simulation / What-If Query (Evaluated ONLY when simulation/strategy is the requested intent)
+            if (intent_name in ("simulation", "strategy") or requested_metric in ("simulation", "strategy")) and ("simulation_tool" in evidence or not evidence):
                 sim_data = evidence.get("simulation_tool") or {}
                 drv_disp = target_driver or entities.get("driver") or sim_data.get("driver_id") or "The driver"
                 if isinstance(drv_disp, str):
@@ -1947,21 +1960,24 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
                     s1_b, s2_b, s3_b = telem_data.get("comparative_sector1_s"), telem_data.get("comparative_sector2_s"), telem_data.get("comparative_sector3_s")
                     
                     if drv_b and lap_time_b:
-                        delta_lap = telem_data.get("delta_lap_time_s")
-                        delta_str = f"{abs(delta_lap):.3f}s {'faster' if delta_lap < 0 else 'slower'}" if delta_lap is not None else ""
-                        sector_parts = []
-                        if s1_a is not None and s1_b is not None:
-                            d1 = round(s1_a - s1_b, 3)
-                            sector_parts.append(f"S1: {s1_a}s vs {s1_b}s ({'+' if d1 > 0 else ''}{d1}s)")
-                        if s2_a is not None and s2_b is not None:
-                            d2 = round(s2_a - s2_b, 3)
-                            sector_parts.append(f"S2: {s2_a}s vs {s2_b}s ({'+' if d2 > 0 else ''}{d2}s)")
-                        if s3_a is not None and s3_b is not None:
-                            d3 = round(s3_a - s3_b, 3)
-                            sector_parts.append(f"S3: {s3_a}s vs {s3_b}s ({'+' if d3 > 0 else ''}{d3}s)")
-                        sector_summary = ", ".join(sector_parts) if sector_parts else ""
-                        
-                        exec_summary = f"{loc_prefix}{drv_a}'s lap {lap_a} time was {lap_time_a}s compared to {drv_b}'s lap {lap_b} time of {lap_time_b}s (delta: {delta_str}). {sector_summary}."
+                        if telem_data.get("textual_analysis"):
+                            exec_summary = telem_data["textual_analysis"]
+                        else:
+                            delta_lap = telem_data.get("delta_lap_time_s")
+                            delta_str = f"{abs(delta_lap):.3f}s {'faster' if delta_lap < 0 else 'slower'}" if delta_lap is not None else ""
+                            sector_parts = []
+                            if s1_a is not None and s1_b is not None:
+                                d1 = round(s1_a - s1_b, 3)
+                                sector_parts.append(f"S1: {s1_a}s vs {s1_b}s ({'+' if d1 > 0 else ''}{d1}s)")
+                            if s2_a is not None and s2_b is not None:
+                                d2 = round(s2_a - s2_b, 3)
+                                sector_parts.append(f"S2: {s2_a}s vs {s2_b}s ({'+' if d2 > 0 else ''}{d2}s)")
+                            if s3_a is not None and s3_b is not None:
+                                d3 = round(s3_a - s3_b, 3)
+                                sector_parts.append(f"S3: {s3_a}s vs {s3_b}s ({'+' if d3 > 0 else ''}{d3}s)")
+                            sector_summary = ", ".join(sector_parts) if sector_parts else ""
+                            
+                            exec_summary = f"{loc_prefix}{drv_a}'s lap {lap_a} time was {lap_time_a}s compared to {drv_b}'s lap {lap_b} time of {lap_time_b}s (delta: {delta_str}). {sector_summary}."
                     elif lap_time_a:
                         exec_summary = f"{loc_prefix}{drv_a}'s lap {lap_a} time was {lap_time_a}s (S1: {s1_a}s, S2: {s2_a}s, S3: {s3_a}s)."
                     else:

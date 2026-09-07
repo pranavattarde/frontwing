@@ -71,6 +71,10 @@ export function TelemetryCard({
   const dataA = useMemo(() => (Array.isArray(driverA?.data) ? driverA.data : []), [driverA?.data]);
   const dataB = useMemo(() => (Array.isArray(driverB?.data) ? driverB.data : []), [driverB?.data]);
   const hasData = dataA.length > 0 || dataB.length > 0;
+  const hasGearData = useMemo(() => {
+    const checkPts = (pts) => pts && pts.length > 0 && pts.some((p) => Number(p.gear) > 0);
+    return checkPts(dataA) || checkPts(dataB);
+  }, [dataA, dataB]);
 
   // Calculate total track distance from real telemetry data points
   const totalDistance = useMemo(() => {
@@ -84,13 +88,13 @@ export function TelemetryCard({
   const getMetricConfig = useCallback((met) => {
     switch (met) {
       case "speed":
-        return { max: 350, min: 0, unit: "km/h", ticks: [100, 200, 300], label: "SPEED" };
+        return { max: 350, min: 0, unit: "km/h", ticks: [100, 200, 300], label: "SPEED (km/h)" };
       case "throttle":
-        return { max: 100, min: 0, unit: "%", ticks: [50, 100], label: "THROTTLE" };
+        return { max: 100, min: 0, unit: "%", ticks: [50, 100], label: "THROTTLE (%)" };
       case "brake":
-        return { max: 100, min: 0, unit: "%", ticks: [50, 100], label: "BRAKE" };
+        return { max: 100, min: 0, unit: "%", ticks: [50, 100], label: "BRAKE (%)" };
       case "gear":
-        return { max: 8, min: 0, unit: "GEAR", ticks: [2, 4, 6, 8], label: "GEAR" };
+        return { max: 8, min: 1, unit: "GEAR", ticks: [1, 2, 3, 4, 5, 6, 7, 8], label: "GEAR (1-8)" };
       case "rpm":
         return { max: 14000, min: 4000, unit: "RPM", ticks: [6000, 9000, 12000], label: "RPM" };
       default:
@@ -114,23 +118,29 @@ export function TelemetryCard({
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, w, h);
 
-    const padLeft = isCollapsed ? 10 : 38;
-    const padRight = 10;
-    const padTop = 12;
-    const padBottom = isCollapsed ? 16 : 24;
+    const padLeft = isCollapsed ? 10 : 42;
+    const padRight = 12;
+    const padTop = 14;
+    const padBottom = isCollapsed ? 16 : 26;
     const plotW = Math.max(10, w - padLeft - padRight);
     const plotH = Math.max(10, h - padTop - padBottom);
 
     const getX = (distM) => padLeft + (distM / totalDistance) * plotW;
 
     // Helper to draw single channel grid & traces
-    const drawChannel = (met, yOffset, channelHeight) => {
+    const drawChannel = (met, yOffset, channelHeight, isMultiSubplot = false) => {
       const cfg = getMetricConfig(met);
       const getY = (val) => {
         const normalized = (val - cfg.min) / (cfg.max - cfg.min);
         const clamped = Math.max(0, Math.min(1, normalized));
         return yOffset + channelHeight - clamped * channelHeight;
       };
+
+      // Background channel panel for multi-view clarity
+      if (isMultiSubplot) {
+        ctx.fillStyle = "rgba(22, 25, 30, 0.4)";
+        ctx.fillRect(padLeft, yOffset, plotW, channelHeight);
+      }
 
       // 1. Distance Grid Lines (250m intervals per design spec)
       ctx.strokeStyle = "#1C2025";
@@ -166,9 +176,18 @@ export function TelemetryCard({
         ctx.stroke();
 
         if (!isCollapsed) {
-          ctx.fillText(`${tickVal}`, 4, y + 3);
+          ctx.fillStyle = "#8E9AA8";
+          ctx.font = "9px 'JetBrains Mono', monospace";
+          ctx.fillText(`${tickVal}`, 6, y + 3);
         }
       });
+
+      // Channel title banner for multi-mode
+      if (isMultiSubplot) {
+        ctx.fillStyle = "#00E5FF";
+        ctx.font = "bold 9px 'JetBrains Mono', monospace";
+        ctx.fillText(cfg.label, padLeft + 6, yOffset + 12);
+      }
 
       // 3. Highlight Zone (if specified, e.g. apex/braking zone lock)
       if (highlightZone && highlightZone.startM !== undefined && highlightZone.endM !== undefined) {
@@ -195,9 +214,8 @@ export function TelemetryCard({
         if (met === "brake") {
           ctx.beginPath();
           let inBrakeZone = false;
-          let zoneStartX = 0;
 
-          pts.forEach((pt, i) => {
+          pts.forEach((pt) => {
             const x = getX(pt.distanceM || 0);
             const rawB = pt.brake;
             const bVal = typeof rawB === "boolean" ? (rawB ? 100 : 0) : Number(rawB) || 0;
@@ -206,7 +224,6 @@ export function TelemetryCard({
             if (bVal > 10) {
               if (!inBrakeZone) {
                 inBrakeZone = true;
-                zoneStartX = x;
                 ctx.moveTo(x, getY(0));
               }
               ctx.lineTo(x, y);
@@ -215,7 +232,7 @@ export function TelemetryCard({
                 inBrakeZone = false;
                 ctx.lineTo(x, getY(0));
                 ctx.closePath();
-                ctx.fillStyle = isDriverA ? "rgba(255, 24, 1, 0.08)" : "rgba(255, 214, 0, 0.06)";
+                ctx.fillStyle = isDriverA ? "rgba(255, 24, 1, 0.12)" : "rgba(255, 214, 0, 0.08)";
                 ctx.fill();
                 ctx.beginPath();
               }
@@ -225,7 +242,7 @@ export function TelemetryCard({
           if (inBrakeZone) {
             ctx.lineTo(getX(pts[pts.length - 1].distanceM || 0), getY(0));
             ctx.closePath();
-            ctx.fillStyle = isDriverA ? "rgba(255, 24, 1, 0.08)" : "rgba(255, 214, 0, 0.06)";
+            ctx.fillStyle = isDriverA ? "rgba(255, 24, 1, 0.12)" : "rgba(255, 214, 0, 0.08)";
             ctx.fill();
           }
         }
@@ -233,7 +250,7 @@ export function TelemetryCard({
         // Stroke line path
         ctx.beginPath();
         ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.8;
         ctx.lineJoin = "miter";
         ctx.lineCap = "butt";
 
@@ -241,8 +258,18 @@ export function TelemetryCard({
           const x = getX(pt.distanceM || 0);
           let val = pt[met];
           if (met === "brake" && typeof val === "boolean") val = val ? 100 : 0;
+          if (met === "gear") {
+            val = Number(val) || 0;
+            if (val <= 0) return; // Strict data integrity: do not fabricate gear numbers when zero
+          }
           if (typeof val !== "number") val = Number(val) || 0;
           const y = getY(val);
+
+          // Step trace for gear
+          if (met === "gear" && idx > 0) {
+            const prevX = getX(pts[idx - 1].distanceM || 0);
+            ctx.lineTo(x, getY(Number(pts[idx - 1].gear) || val));
+          }
 
           if (idx === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
@@ -261,13 +288,13 @@ export function TelemetryCard({
 
     // Multi-track mode: Render stacked Speed, Throttle, Brake
     if (activeMetric === "multi" && !isCollapsed) {
-      const channelGap = 8;
+      const channelGap = 10;
       const subH = (plotH - channelGap * 2) / 3;
-      drawChannel("speed", padTop, subH);
-      drawChannel("throttle", padTop + subH + channelGap, subH);
-      drawChannel("brake", padTop + (subH + channelGap) * 2, subH);
+      drawChannel("speed", padTop, subH, true);
+      drawChannel("throttle", padTop + subH + channelGap, subH, true);
+      drawChannel("brake", padTop + (subH + channelGap) * 2, subH, true);
     } else {
-      drawChannel(activeMetric === "multi" ? "speed" : activeMetric, padTop, plotH);
+      drawChannel(activeMetric === "multi" ? "speed" : activeMetric, padTop, plotH, false);
     }
   }, [
     dimensions,
@@ -429,6 +456,19 @@ export function TelemetryCard({
           onMouseLeave={handleMouseLeave}
         >
           <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />
+
+          {/* Honest Gear Fallback Overlay */}
+          {activeMetric === "gear" && !hasGearData && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-panel/95 backdrop-blur-sm z-10 text-center font-mono p-4 border border-fw-border">
+              <span className="text-amber-400 font-bold text-xs uppercase tracking-wider mb-1">
+                ⚠️ GEAR DATA UNAVAILABLE
+              </span>
+              <span className="text-[11px] text-text-muted max-w-sm">
+                FastF1 telemetry for this session does not contain recorded physical nGear channels.
+                FrontWing enforces strict data integrity and does not synthesize fake gear traces.
+              </span>
+            </div>
+          )}
 
           {/* Hover Crosshair & HUD Overlay */}
           {activeHoverDist !== null && !isCollapsed && (

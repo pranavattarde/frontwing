@@ -3,7 +3,7 @@ import time
 from datetime import datetime, timezone
 import json
 import numpy as np
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Tuple, Union
 from app.tools.registry import BaseF1Tool, tool_registry
 from app.core.db import execute_query
 from app.core.logger import logger
@@ -608,233 +608,6 @@ class TelemetryTool(BaseF1Tool):
             },
             "required": ["session_id", "driver_id"]
         }
-        
-    def execute(self, inputs: Dict[str, Any]) -> Any:
-        session_id = inputs.get("session_id")
-        driver_id = inputs.get("driver_id") or inputs.get("driver") or inputs.get("driver_a") or inputs.get("driver1")
-        lap_number = inputs.get("lap_number")
-        comp_driver_id = inputs.get("comparative_driver_id") or inputs.get("compare_driver") or inputs.get("driver_b") or inputs.get("driver2")
-        
-        if not session_id or not driver_id:
-            return {"status": "missing_data", "message": "session_id and driver_id are required for telemetry queries"}
-        
-        # Clean driver tokens
-        driver_id = str(driver_id).lower().strip()
-        if comp_driver_id:
-            comp_driver_id = str(comp_driver_id).lower().strip()
-        
-        # Auto-query fastest lap for driver A if lap_number not explicitly provided
-        if lap_number is None:
-            fastest_lap_row = execute_query(
-                """SELECT lap_number FROM laps 
-                   WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = (SELECT code FROM drivers WHERE id = %s LIMIT 1)))
-                   ORDER BY lap_time_ms ASC LIMIT 1""",
-                (session_id, driver_id, driver_id), fetch=True
-            )
-            if fastest_lap_row and fastest_lap_row[0].get("lap_number"):
-                lap_number = int(fastest_lap_row[0]["lap_number"])
-            else:
-                lap_number = 1
-        
-        try:
-            chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
-            if not chk:
-                from app.ingestion.loader import ensure_session_in_db
-                ensure_session_in_db(session_id)
-                chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
-                if not chk:
-                    return {"status": "missing_data", "required_session": session_id}
-        except Exception:
-            return {"status": "missing_data", "required_session": session_id}
-            
-        sess_meta = execute_query(
-            "SELECT r.name as grand_prix, c.name as circuit_name, r.year as season FROM sessions s JOIN races r ON s.race_id = r.id LEFT JOIN circuits c ON r.circuit_id = c.id WHERE s.id = %s",
-            (session_id,), fetch=True
-        )
-        gp_name = sess_meta[0].get("grand_prix") if (sess_meta and sess_meta[0].get("grand_prix")) else "Grand Prix"
-        circuit_name = sess_meta[0].get("circuit_name") if (sess_meta and sess_meta[0].get("circuit_name")) else "Circuit"
-        season_val = int(sess_meta[0].get("season")) if (sess_meta and sess_meta[0].get("season")) else 2024
-
-        comp_lap_number = inputs.get("comparative_lap_number")
-        if comp_driver_id and comp_lap_number is None:
-            fastest_b_row = execute_query(
-                """SELECT lap_number FROM laps 
-                   WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = (SELECT code FROM drivers WHERE id = %s LIMIT 1)))
-                   ORDER BY lap_time_ms ASC LIMIT 1""",
-                (session_id, comp_driver_id, comp_driver_id), fetch=True
-            )
-            if fastest_b_row and fastest_b_row[0].get("lap_number"):
-                comp_lap_number = int(fastest_b_row[0]["lap_number"])
-            else:
-                comp_lap_number = lap_number
-
-        telemetry_a, lap_info_a = self._load_telemetry_from_db(session_id, driver_id, lap_number)
-        telemetry_b, lap_info_b = (None, None)
-        if comp_driver_id:
-            telemetry_b, lap_info_b = self._load_telemetry_from_db(session_id, comp_driver_id, comp_lap_number)
-
-        if not telemetry_a or (comp_driver_id and not telemetry_b):
-            # Check if session exists in DB but lacks telemetry_metadata
-            telem_cnt = execute_query(
-                "SELECT COUNT(*) as cnt FROM telemetry_metadata WHERE session_id = %s",
-                (session_id,), fetch=True
-            )
-            if not telem_cnt or telem_cnt[0]["cnt"] == 0:
-                # FIX A: Launch async background backfill task and return immediate status
-                from app.ingestion.fastf1_collector import start_async_backfill, get_backfill_job
-                job = get_backfill_job(session_id)
-                if not job or job.get("status") != "in_progress":
-                    job = start_async_backfill(session_id)
-                logger.info(f"[TelemetryTool] Async telemetry backfill started for {session_id}. Returning immediate processing status.")
-                return {
-                    "status": "backfilling",
-                    "session_id": session_id,
-                    "message": f"Telemetry data for {session_id} is downloading in the background.",
-                    "job": job,
-                    "progress_pct": job.get("progress_pct", 10),
-                    "stage": job.get("stage", "Downloading telemetry from FastF1...")
-                }
-
-        if not lap_info_a and not telemetry_a:
-            return {
-                "status": "missing_data",
-                "required_session": session_id,
-                "message": f"No lap data in database for {driver_id} in session {session_id}."
-            }
-        if not telemetry_a:
-            return {
-                "status": "missing_data",
-                "reason": "no persisted telemetry for this driver/lap",
-                "message": (
-                    f"Lap data exists for {driver_id} lap {lap_number} in session {session_id}, "
-                    f"but no telemetry JSON file is on disk."
-                )
-            }
-
-        # Query multi-lap timing data from PostgreSQL for Lap Time Graph & Tyre Degradation
-        all_laps = execute_query(
-            """SELECT lap_number, lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound FROM laps 
-               WHERE session_id = %s AND (driver_id = %s OR driver_id IN (SELECT id FROM drivers WHERE code = (SELECT code FROM drivers WHERE id = %s LIMIT 1))) 
-               AND is_valid = true ORDER BY lap_number""",
-            (session_id, driver_id, driver_id), fetch=True
-        ) or []
-
-        lap_times_data = []
-        tyre_deg_data = []
-        for idx, l_row in enumerate(all_laps[:40]):
-            l_num = l_row["lap_number"]
-            l_ms = l_row["lap_time_ms"]
-            if not l_ms:
-                continue
-            l_sec = round(l_ms / 1000.0, 3)
-            cmpd = str(l_row.get("compound") or "UNKNOWN").upper()
-            lap_times_data.append({"lap": l_num, "lap_time": l_sec, "compound": cmpd})
-            wear = max(15.0, round(100.0 - (idx * 2.8), 1))
-            pace_loss = round(idx * 0.04, 3)
-            tyre_deg_data.append({"lap": l_num, "wear_pct": wear, "pace_loss_s": pace_loss, "compound": cmpd})
-
-        lap_time_a_ms = lap_info_a.get("lap_time_ms") if lap_info_a else None
-        lap_time_a_sec = round(lap_time_a_ms / 1000.0, 3) if lap_time_a_ms else None
-
-        s1_a = round(lap_info_a.get("sector_1_ms") / 1000.0, 3) if (lap_info_a and lap_info_a.get("sector_1_ms")) else None
-        s2_a = round(lap_info_a.get("sector_2_ms") / 1000.0, 3) if (lap_info_a and lap_info_a.get("sector_2_ms")) else None
-        s3_a = round(lap_info_a.get("sector_3_ms") / 1000.0, 3) if (lap_info_a and lap_info_a.get("sector_3_ms")) else None
-        compound_a = str(lap_info_a.get("compound") or "UNKNOWN").upper() if lap_info_a else "UNKNOWN"
-
-        speed_trace_pts_a = []
-        if telemetry_a:
-            for p in telemetry_a:
-                b_val = p.get("brake")
-                b_num = 100.0 if b_val is True else (0.0 if b_val is False or b_val is None else float(b_val))
-                speed_trace_pts_a.append({
-                    "distanceM": float(p.get("distanceM", 0.0)),
-                    "speed": float(p.get("speed", 0)),
-                    "throttle": float(p.get("throttle", 0)),
-                    "brake": b_num,
-                    "gear": int(p.get("gear", 0))
-                })
-
-        pit_windows = [
-            {"stint": 1, "window_start_lap": max(1, lap_number - 3), "window_end_lap": lap_number + 2, "target_compound": "HARD"}
-        ]
-
-        top_speed_val = float(max([p["speed"] for p in speed_trace_pts_a])) if speed_trace_pts_a else 320.0
-        avg_speed_val = float(round(sum([p["speed"] for p in speed_trace_pts_a]) / max(1, len(speed_trace_pts_a)), 1)) if speed_trace_pts_a else 225.0
-        brakes_list = [p for p in speed_trace_pts_a if p.get("brake", 0) > 0]
-
-        result = {
-            "status": "success",
-            "session_id": session_id,
-            "grand_prix": gp_name,
-            "circuit_name": circuit_name,
-            "circuit": circuit_name,
-            "season": season_val,
-            "driver": str(driver_id),
-            "driver_id": driver_id,
-            "lap_number": lap_number,
-            "sector1_delta": s1_a or 29.0,
-            "sector2_delta": s2_a or 35.0,
-            "sector3_delta": s3_a or 24.0,
-            "top_speed": top_speed_val,
-            "average_speed": avg_speed_val,
-            "brake_events": brakes_list,
-            "lap_time_s": lap_time_a_sec,
-            "sector1_s": s1_a,
-            "sector2_s": s2_a,
-            "sector3_s": s3_a,
-            "telemetry_points_count": len(speed_trace_pts_a),
-            "telemetry": speed_trace_pts_a,
-            "speed_trace": speed_trace_pts_a,
-            "lap_times": lap_times_data,
-            "sector_times": [],
-            "tyre_degradation": tyre_deg_data,
-            "pit_windows": pit_windows,
-            "tyres": [{"compound": compound_a, "laps_run": lap_number}]
-        }
-
-        if comp_driver_id:
-            lap_time_b_ms = lap_info_b.get("lap_time_ms") if lap_info_b else None
-            lap_time_b_sec = round(lap_time_b_ms / 1000.0, 3) if lap_time_b_ms else None
-
-            s1_b = round(lap_info_b.get("sector_1_ms") / 1000.0, 3) if (lap_info_b and lap_info_b.get("sector_1_ms")) else None
-            s2_b = round(lap_info_b.get("sector_2_ms") / 1000.0, 3) if (lap_info_b and lap_info_b.get("sector_2_ms")) else None
-            s3_b = round(lap_info_b.get("sector_3_ms") / 1000.0, 3) if (lap_info_b and lap_info_b.get("sector_3_ms")) else None
-
-            sector_comparison = []
-            if s1_a and s1_b:
-                sector_comparison.append({"sector": "S1", "driver_time": s1_a, "benchmark_time": s1_b, "delta": round(s1_a - s1_b, 3)})
-            if s2_a and s2_b:
-                sector_comparison.append({"sector": "S2", "driver_time": s2_a, "benchmark_time": s2_b, "delta": round(s2_a - s2_b, 3)})
-            if s3_a and s3_b:
-                sector_comparison.append({"sector": "S3", "driver_time": s3_a, "benchmark_time": s3_b, "delta": round(s3_a - s3_b, 3)})
-
-            speed_trace_pts_b = []
-            if telemetry_b:
-                for p in telemetry_b:
-                    b_val_b = p.get("brake")
-                    b_num_b = 100.0 if b_val_b is True else (0.0 if b_val_b is False or b_val_b is None else float(b_val_b))
-                    speed_trace_pts_b.append({
-                        "distanceM": float(p.get("distanceM", 0.0)),
-                        "speed": float(p.get("speed", 0)),
-                        "throttle": float(p.get("throttle", 0)),
-                        "brake": b_num_b,
-                        "gear": int(p.get("gear", 0))
-                    })
-
-            result["sector_times"] = sector_comparison
-            result["comparative_driver_id"] = comp_driver_id
-            result["comparative_lap_number"] = comp_lap_number
-            result["comparative_lap_time_s"] = lap_time_b_sec
-            result["comparative_sector1_s"] = s1_b
-            result["comparative_sector2_s"] = s2_b
-            result["comparative_sector3_s"] = s3_b
-            result["comparative_telemetry"] = speed_trace_pts_b
-            result["comparative_speed_trace"] = speed_trace_pts_b
-
-            if lap_time_a_sec and lap_time_b_sec:
-                result["delta_lap_time_s"] = round(lap_time_a_sec - lap_time_b_sec, 3)
-            
-        return result
 
     def _resolve_driver_candidates(self, driver_id: str) -> List[str]:
         """Resolves all candidate database driver IDs and codes for matching."""
@@ -863,6 +636,762 @@ class TelemetryTool(BaseF1Tool):
             pass
         return candidates
 
+    def _resolve_driver_display_name(self, driver_id: str) -> str:
+        """Resolves full canonical display name for a driver."""
+        candidates = self._resolve_driver_candidates(driver_id)
+        try:
+            rows = execute_query(
+                "SELECT first_name, last_name FROM drivers WHERE id = ANY(%s) OR code = ANY(%s) LIMIT 1",
+                (candidates, candidates), fetch=True
+            )
+            if rows and rows[0].get("last_name"):
+                fn = rows[0].get("first_name", "")
+                ln = rows[0].get("last_name", "")
+                return f"{fn} {ln}".strip()
+        except Exception:
+            pass
+        return str(driver_id).replace("_", " ").title()
+
+    def _resolve_storage_file(self, path_str: str) -> Optional[str]:
+        """Resolves actual file path for telemetry cache JSON files across working directories."""
+        if not path_str:
+            return None
+        candidates = [
+            path_str,
+            os.path.abspath(path_str),
+            os.path.join(os.getcwd(), path_str),
+            path_str.replace("ai_services/", "").replace("ai_services\\", ""),
+            os.path.join(os.getcwd(), path_str.replace("ai_services/", "").replace("ai_services\\", "")),
+            os.path.join(os.getcwd(), "cache", "telemetry", os.path.basename(path_str)),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "cache", "telemetry", os.path.basename(path_str)),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "ai_services", "cache", "telemetry", os.path.basename(path_str))
+        ]
+        for c in candidates:
+            if os.path.exists(c) and os.path.isfile(c):
+                return c
+        return None
+
+    def _compute_sector_telemetry_metrics(self, pts: List[Dict[str, Any]]) -> Dict[str, Dict[str, float]]:
+        """Computes sector-by-sector speed, throttle, and braking metrics from telemetry points."""
+        if not pts:
+            return {
+                "S1": {"top_speed": 0.0, "avg_speed": 0.0, "min_apex_speed": 0.0, "full_throttle_pct": 0.0, "brake_count": 0},
+                "S2": {"top_speed": 0.0, "avg_speed": 0.0, "min_apex_speed": 0.0, "full_throttle_pct": 0.0, "brake_count": 0},
+                "S3": {"top_speed": 0.0, "avg_speed": 0.0, "min_apex_speed": 0.0, "full_throttle_pct": 0.0, "brake_count": 0},
+            }
+        max_d = max([p.get("distanceM", 0.0) for p in pts]) if pts else 5000.0
+        n = len(pts)
+        if max_d > 100:
+            d1 = max_d / 3.0
+            d2 = 2.0 * max_d / 3.0
+            s_map = {
+                "S1": [p for p in pts if p.get("distanceM", 0.0) < d1],
+                "S2": [p for p in pts if d1 <= p.get("distanceM", 0.0) < d2],
+                "S3": [p for p in pts if p.get("distanceM", 0.0) >= d2]
+            }
+        else:
+            i1 = n // 3
+            i2 = (2 * n) // 3
+            s_map = {"S1": pts[:i1], "S2": pts[i1:i2], "S3": pts[i2:]}
+
+        out = {}
+        for s_key, p_list in s_map.items():
+            if not p_list:
+                p_list = pts
+            speeds = [float(p["speed"]) for p in p_list if p.get("speed") is not None]
+            throttles = [float(p["throttle"]) for p in p_list if p.get("throttle") is not None]
+            brakes = [p for p in p_list if (p.get("brake") is True or (isinstance(p.get("brake"), (int, float)) and p.get("brake") > 10))]
+            top_s = float(max(speeds)) if speeds else 0.0
+            avg_s = float(round(sum(speeds) / max(1, len(speeds)), 1)) if speeds else 0.0
+            c_speeds = [s for s in speeds if s > 40.0]
+            min_s = float(min(c_speeds)) if c_speeds else (float(min(speeds)) if speeds else 0.0)
+            full_thr = float(round(100.0 * sum(1 for t in throttles if t >= 90.0) / max(1, len(throttles)), 1)) if throttles else 0.0
+            out[s_key] = {
+                "top_speed": top_s,
+                "avg_speed": avg_s,
+                "min_apex_speed": min_s,
+                "full_throttle_pct": full_thr,
+                "brake_count": len(brakes)
+            }
+        return out
+
+    def _generate_comparative_telemetry_analysis(
+        self,
+        gp_name: str,
+        season_val: int,
+        drv_a: str,
+        lap_a: int,
+        time_a: float,
+        s1_a: float,
+        s2_a: float,
+        s3_a: float,
+        pts_a: list,
+        drv_b: str,
+        lap_b: int,
+        time_b: float,
+        s1_b: float,
+        s2_b: float,
+        s3_b: float,
+        pts_b: list
+    ) -> Dict[str, Any]:
+        """Generates evidence-grounded tabular and narrative comparative sector analysis."""
+        m_a = self._compute_sector_telemetry_metrics(pts_a)
+        m_b = self._compute_sector_telemetry_metrics(pts_b)
+
+        delta_lap = round(time_a - time_b, 3)
+        if delta_lap < -0.001:
+            fast_drv, fast_lap, fast_t = drv_a, lap_a, time_a
+            slow_drv, slow_lap, slow_t = drv_b, lap_b, time_b
+            margin = abs(delta_lap)
+            overall_winner = drv_a
+            overall_delta_str = f"-{margin:.3f}s"
+        elif delta_lap > 0.001:
+            fast_drv, fast_lap, fast_t = drv_b, lap_b, time_b
+            slow_drv, slow_lap, slow_t = drv_a, lap_a, time_a
+            margin = abs(delta_lap)
+            overall_winner = drv_b
+            overall_delta_str = f"+{margin:.3f}s"
+        else:
+            fast_drv, fast_lap, fast_t = drv_a, lap_a, time_a
+            slow_drv, slow_lap, slow_t = drv_b, lap_b, time_b
+            margin = 0.0
+            overall_winner = "Equal Pace"
+            overall_delta_str = "0.000s"
+
+        sec_data = [
+            ("Sector 1", "S1", s1_a, s1_b),
+            ("Sector 2", "S2", s2_a, s2_b),
+            ("Sector 3", "S3", s3_a, s3_b)
+        ]
+
+        sec_lines = []
+        a_wins = []
+        b_wins = []
+        sector_breakdown = {}
+        table_rows = []
+
+        for sec_label, sec_k, ta, tb in sec_data:
+            delta_s = round(ta - tb, 3)
+            sa_meta = m_a[sec_k]
+            sb_meta = m_b[sec_k]
+            sector_breakdown[sec_k] = {
+                "driver_a_time": ta,
+                "driver_b_time": tb,
+                "delta": delta_s,
+                "driver_a_top_speed": sa_meta["top_speed"],
+                "driver_b_top_speed": sb_meta["top_speed"],
+                "driver_a_throttle_pct": sa_meta["full_throttle_pct"],
+                "driver_b_throttle_pct": sb_meta["full_throttle_pct"]
+            }
+
+            if delta_s < -0.003:
+                diff = abs(delta_s)
+                a_wins.append(sec_label)
+                sec_winner = drv_a
+                sec_delta_disp = f"-{diff:.3f}s"
+                if sa_meta["top_speed"] > sb_meta["top_speed"] + 1.5:
+                    why = f"{drv_a} attained higher top speed ({sa_meta['top_speed']:.1f} km/h vs {sb_meta['top_speed']:.1f} km/h) with {sa_meta['full_throttle_pct']:.1f}% full throttle duration (vs {sb_meta['full_throttle_pct']:.1f}% for {drv_b}), delivering superior straight-line acceleration"
+                    short_why = f"Top Speed +{sa_meta['top_speed'] - sb_meta['top_speed']:.1f} km/h ({sa_meta['top_speed']:.0f} vs {sb_meta['top_speed']:.0f} km/h) & {sa_meta['full_throttle_pct']:.0f}% full throttle"
+                elif sa_meta["min_apex_speed"] > sb_meta["min_apex_speed"] + 1.5:
+                    why = f"{drv_a} carried greater apex minimum speed ({sa_meta['min_apex_speed']:.1f} km/h vs {sb_meta['min_apex_speed']:.1f} km/h) through corner apexes and committed earlier to full power ({sa_meta['full_throttle_pct']:.1f}% full throttle)"
+                    short_why = f"Apex Speed +{sa_meta['min_apex_speed'] - sb_meta['min_apex_speed']:.1f} km/h ({sa_meta['min_apex_speed']:.0f} vs {sb_meta['min_apex_speed']:.0f} km/h)"
+                else:
+                    why = f"{drv_a} maintained higher average sector speed ({sa_meta['avg_speed']:.1f} km/h vs {sb_meta['avg_speed']:.1f} km/h) with cleaner throttle progression"
+                    short_why = f"Average Speed +{sa_meta['avg_speed'] - sb_meta['avg_speed']:.1f} km/h ({sa_meta['avg_speed']:.0f} vs {sb_meta['avg_speed']:.0f} km/h)"
+                sec_lines.append(f"- {sec_label}: {drv_a} was quicker by {diff:.3f}s ({ta:.3f}s vs {tb:.3f}s). {why}.")
+            elif delta_s > 0.003:
+                diff = abs(delta_s)
+                b_wins.append(sec_label)
+                sec_winner = drv_b
+                sec_delta_disp = f"+{diff:.3f}s"
+                if sb_meta["top_speed"] > sa_meta["top_speed"] + 1.5:
+                    why = f"{drv_b} reached higher top speed ({sb_meta['top_speed']:.1f} km/h vs {sa_meta['top_speed']:.1f} km/h) with {sb_meta['full_throttle_pct']:.1f}% full throttle duration (vs {sa_meta['full_throttle_pct']:.1f}% for {drv_a}), maximizing top-end power"
+                    short_why = f"Top Speed +{sb_meta['top_speed'] - sa_meta['top_speed']:.1f} km/h ({sb_meta['top_speed']:.0f} vs {sb_meta['top_speed']:.0f} km/h) & {sb_meta['full_throttle_pct']:.0f}% full throttle"
+                elif sb_meta["min_apex_speed"] > sa_meta["min_apex_speed"] + 1.5:
+                    why = f"{drv_b} carried greater apex minimum speed ({sb_meta['min_apex_speed']:.1f} km/h vs {sa_meta['min_apex_speed']:.1f} km/h) through corner apexes and committed earlier to full power ({sb_meta['full_throttle_pct']:.1f}% full throttle)"
+                    short_why = f"Apex Speed +{sb_meta['min_apex_speed'] - sb_meta['min_apex_speed']:.1f} km/h ({sb_meta['min_apex_speed']:.0f} vs {sb_meta['min_apex_speed']:.0f} km/h)"
+                else:
+                    why = f"{drv_b} maintained higher average sector speed ({sb_meta['avg_speed']:.1f} km/h vs {sa_meta['avg_speed']:.1f} km/h) with cleaner throttle progression"
+                    short_why = f"Average Speed +{sb_meta['avg_speed'] - sb_meta['avg_speed']:.1f} km/h ({sb_meta['avg_speed']:.0f} vs {sb_meta['avg_speed']:.0f} km/h)"
+                sec_lines.append(f"- {sec_label}: {drv_b} was quicker by {diff:.3f}s ({tb:.3f}s vs {ta:.3f}s). {why}.")
+            else:
+                sec_winner = "Equal"
+                sec_delta_disp = "0.000s"
+                short_why = "Identical sector timing and throttle application"
+                sec_lines.append(f"- {sec_label}: Both drivers posted virtually identical pace ({ta:.3f}s vs {tb:.3f}s).")
+
+            sector_breakdown[sec_k]["faster_driver"] = sec_winner
+            sector_breakdown[sec_k]["winner_badge"] = f"🏆 {sec_winner.upper()} FASTER" if sec_winner != "Equal" else "EQUAL"
+            winner_disp = f"🏆 {sec_winner.upper()} FASTER" if sec_winner != "Equal" else "Equal"
+            table_rows.append(f"| **{sec_label}** | {ta:.3f}s | {tb:.3f}s | {sec_delta_disp} | **{winner_disp}** | {short_why} |")
+
+        # Top speed & throttle summary rows
+        top_a = max(m_a[k]["top_speed"] for k in ["S1", "S2", "S3"])
+        top_b = max(m_b[k]["top_speed"] for k in ["S1", "S2", "S3"])
+        top_winner = drv_a if top_a > top_b + 1.0 else (drv_b if top_b > top_a + 1.0 else "Equal")
+        top_delta = f"{'+' if top_a > top_b else ''}{top_a - top_b:.0f} km/h"
+        table_rows.append(f"| **Top Speed ($V_{{max}}$)** | {top_a:.0f} km/h | {top_b:.0f} km/h | {top_delta} | **{top_winner}** | Peak straight-line aerodynamic efficiency |")
+
+        thr_a = round(sum(m_a[k]["full_throttle_pct"] for k in ["S1", "S2", "S3"]) / 3.0, 1)
+        thr_b = round(sum(m_b[k]["full_throttle_pct"] for k in ["S1", "S2", "S3"]) / 3.0, 1)
+        thr_winner = drv_a if thr_a > thr_b + 1.0 else (drv_b if thr_b > thr_a + 1.0 else "Equal")
+        thr_delta = f"{'+' if thr_a > thr_b else ''}{thr_a - thr_b:.1f}%"
+        table_rows.append(f"| **Full Throttle %** | {thr_a:.1f}% | {thr_b:.1f}% | {thr_delta} | **{thr_winner}** | Total lap commitment at 100% accelerator pedal |")
+
+        if a_wins and b_wins:
+            perf_summary = f"{drv_a} was the stronger performer in {', '.join(a_wins)}, whereas {drv_b} held the advantage in {', '.join(b_wins)}."
+        elif a_wins:
+            perf_summary = f"{drv_a} was the stronger performer across all three sectors ({', '.join(a_wins)})."
+        else:
+            perf_summary = f"{drv_b} was the stronger performer across all three sectors ({', '.join(b_wins)})."
+
+        executive_summary = f"{fast_drv} was faster overall on personal best laps at the {season_val} {gp_name} (Lap {fast_lap}: {fast_t:.3f}s vs {slow_t:.3f}s for {slow_drv} on Lap {slow_lap}), holding a total lap time advantage of {margin:.3f}s."
+
+        table_markdown = (
+            f"| Metric / Sector | {drv_a} (Lap {lap_a}) | {drv_b} (Lap {lap_b}) | Delta | Advantage | Key Telemetry Factor |\n"
+            f"| :--- | :---: | :---: | :---: | :---: | :--- |\n"
+            f"| **Total Lap Time** | **{time_a:.3f}s** | **{time_b:.3f}s** | **{overall_delta_str}** | **{overall_winner}** | **Fastest valid session lap pace** |\n"
+            + "\n".join(table_rows)
+        )
+
+        sector_narrative = "\n".join(sec_lines)
+        full_text = f"{executive_summary}\n\n{table_markdown}\n\n**Sector-by-Sector Breakdown:**\n{sector_narrative}\n\nPerformance Summary: {perf_summary}"
+
+        return {
+            "textual_analysis": full_text,
+            "analysis_summary": f"{executive_summary} Performance Summary: {perf_summary}",
+            "executive_summary": executive_summary,
+            "table_markdown": table_markdown,
+            "faster_driver": fast_drv,
+            "lap_delta_s": margin,
+            "driver_a_stronger_sectors": a_wins,
+            "driver_b_stronger_sectors": b_wins,
+            "sector_breakdown": sector_breakdown
+        }
+
+    def execute(self, inputs: Dict[str, Any]) -> Any:
+        session_id = inputs.get("session_id")
+        driver_id = inputs.get("driver_id") or inputs.get("driver") or inputs.get("driver_a") or inputs.get("driver1")
+        lap_number = inputs.get("lap_number")
+        comp_driver_id = inputs.get("comparative_driver_id") or inputs.get("compare_driver") or inputs.get("driver_b") or inputs.get("driver2")
+        
+        if not session_id or not driver_id:
+            return {"status": "missing_data", "message": "session_id and driver_id are required for telemetry queries"}
+        
+        # Clean driver tokens
+        driver_id = str(driver_id).lower().strip()
+        if comp_driver_id:
+            comp_driver_id = str(comp_driver_id).lower().strip()
+
+        # Guard against self-comparison (e.g. Hamilton vs Hamilton)
+        if comp_driver_id:
+            c_a = self._resolve_driver_candidates(driver_id)
+            c_b = self._resolve_driver_candidates(comp_driver_id)
+            if any(x in c_b for x in c_a) or driver_id == comp_driver_id:
+                raw_drvs = inputs.get("comparison_drivers") or inputs.get("drivers") or []
+                if isinstance(raw_drvs, list) and len(raw_drvs) >= 2:
+                    d1_cand = str(raw_drvs[0]).lower().strip()
+                    d2_cand = str(raw_drvs[1]).lower().strip()
+                    if d1_cand != d2_cand:
+                        driver_id = d1_cand
+                        comp_driver_id = d2_cand
+                    else:
+                        comp_driver_id = None
+                else:
+                    comp_driver_id = None
+        
+        # Resolve candidates for DB matching
+        candidates_a = self._resolve_driver_candidates(driver_id)
+        
+        # STRICT PERSONAL BEST LAP QUERY FOR DRIVER A
+        fastest_a_row = execute_query(
+            """SELECT lap_number, lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound 
+               FROM laps 
+               WHERE session_id = %s AND driver_id = ANY(%s) AND is_valid = true AND lap_time_ms IS NOT NULL
+               ORDER BY lap_time_ms ASC LIMIT 1""",
+            (session_id, candidates_a), fetch=True
+        )
+        if not fastest_a_row:
+            fastest_a_row = execute_query(
+                """SELECT lap_number, lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound 
+                   FROM laps 
+                   WHERE session_id = %s AND driver_id = ANY(%s) AND lap_time_ms IS NOT NULL
+                   ORDER BY lap_time_ms ASC LIMIT 1""",
+                (session_id, candidates_a), fetch=True
+            )
+            
+        if comp_driver_id or lap_number is None:
+            if fastest_a_row and fastest_a_row[0].get("lap_number") is not None:
+                lap_number = int(fastest_a_row[0]["lap_number"])
+            elif not fastest_a_row:
+                return {
+                    "status": "missing_data",
+                    "required_session": session_id,
+                    "message": f"No lap data in database for {driver_id} in session {session_id}."
+                }
+
+        # STRICT PERSONAL BEST LAP QUERY FOR DRIVER B (IF COMPARATIVE DRIVER PRESENT)
+        comp_lap_number = inputs.get("comparative_lap_number")
+        fastest_b_row = None
+        if comp_driver_id:
+            candidates_b = self._resolve_driver_candidates(comp_driver_id)
+            fastest_b_row = execute_query(
+                """SELECT lap_number, lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound 
+                   FROM laps 
+                   WHERE session_id = %s AND driver_id = ANY(%s) AND is_valid = true AND lap_time_ms IS NOT NULL
+                   ORDER BY lap_time_ms ASC LIMIT 1""",
+                (session_id, candidates_b), fetch=True
+            )
+            if not fastest_b_row:
+                fastest_b_row = execute_query(
+                    """SELECT lap_number, lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound 
+                       FROM laps 
+                       WHERE session_id = %s AND driver_id = ANY(%s) AND lap_time_ms IS NOT NULL
+                       ORDER BY lap_time_ms ASC LIMIT 1""",
+                    (session_id, candidates_b), fetch=True
+                )
+            if fastest_b_row and fastest_b_row[0].get("lap_number") is not None:
+                comp_lap_number = int(fastest_b_row[0]["lap_number"])
+            elif not fastest_b_row:
+                return {
+                    "status": "missing_data",
+                    "required_session": session_id,
+                    "message": f"No lap data in database for {comp_driver_id} in session {session_id}."
+                }
+        
+        try:
+            chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
+            if not chk:
+                from app.ingestion.loader import ensure_session_in_db
+                ensure_session_in_db(session_id)
+                chk = execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True)
+                if not chk:
+                    return {"status": "missing_data", "required_session": session_id}
+        except Exception:
+            return {"status": "missing_data", "required_session": session_id}
+            
+        sess_meta = execute_query(
+            "SELECT r.name as grand_prix, c.name as circuit_name, r.year as season FROM sessions s JOIN races r ON s.race_id = r.id LEFT JOIN circuits c ON r.circuit_id = c.id WHERE s.id = %s",
+            (session_id,), fetch=True
+        )
+        gp_name = sess_meta[0].get("grand_prix") if (sess_meta and sess_meta[0].get("grand_prix")) else "Grand Prix"
+        circuit_name = sess_meta[0].get("circuit_name") if (sess_meta and sess_meta[0].get("circuit_name")) else "Circuit"
+        season_val = int(sess_meta[0].get("season")) if (sess_meta and sess_meta[0].get("season")) else 2024
+
+        telemetry_a, lap_info_a = self._load_telemetry_from_db(session_id, driver_id, lap_number)
+        telemetry_b, lap_info_b = (None, None)
+        if comp_driver_id:
+            telemetry_b, lap_info_b = self._load_telemetry_from_db(session_id, comp_driver_id, comp_lap_number)
+
+        if not telemetry_a or (comp_driver_id and not telemetry_b):
+            # Check if session exists in DB but lacks telemetry for requested driver(s)
+            missing_drivers = []
+            if not telemetry_a:
+                cnt_a = execute_query(
+                    "SELECT COUNT(*) as cnt FROM telemetry_metadata WHERE session_id = %s AND driver_id = ANY(%s)",
+                    (session_id, candidates_a), fetch=True
+                )
+                if not cnt_a or cnt_a[0]["cnt"] == 0:
+                    missing_drivers.append(driver_id)
+            if comp_driver_id and not telemetry_b:
+                cnt_b = execute_query(
+                    "SELECT COUNT(*) as cnt FROM telemetry_metadata WHERE session_id = %s AND driver_id = ANY(%s)",
+                    (session_id, candidates_b), fetch=True
+                )
+                if not cnt_b or cnt_b[0]["cnt"] == 0:
+                    missing_drivers.append(comp_driver_id)
+            
+            # Check total session telemetry coverage
+            telem_cnt = execute_query(
+                "SELECT COUNT(DISTINCT driver_id) as drv_cnt, COUNT(*) as cnt FROM telemetry_metadata WHERE session_id = %s",
+                (session_id,), fetch=True
+            )
+            drv_cov = telem_cnt[0]["drv_cnt"] if telem_cnt else 0
+            tot_cov = telem_cnt[0]["cnt"] if telem_cnt else 0
+            
+            if missing_drivers or drv_cov < 15 or tot_cov == 0:
+                # FIX J: Launch async background backfill task and return immediate status
+                from app.ingestion.fastf1_collector import start_async_backfill, get_backfill_job
+                job = get_backfill_job(session_id)
+                if not job or job.get("status") != "in_progress":
+                    job = start_async_backfill(session_id)
+                logger.info(f"[TelemetryTool] Async telemetry backfill started for {session_id} (missing drivers: {missing_drivers}, driver coverage: {drv_cov}/20). Returning immediate processing status.")
+                return {
+                    "status": "backfilling",
+                    "session_id": session_id,
+                    "message": f"Telemetry data for {session_id} is downloading in the background.",
+                    "job": job,
+                    "progress_pct": job.get("progress_pct", 10),
+                    "stage": job.get("stage", "Downloading telemetry from FastF1...")
+                }
+
+        if not lap_info_a and not telemetry_a:
+            return {
+                "status": "missing_data",
+                "required_session": session_id,
+                "message": f"No lap data in database for {driver_id} in session {session_id}."
+            }
+        if not telemetry_a:
+            return {
+                "status": "missing_data",
+                "reason": "no persisted telemetry for this driver/lap",
+                "message": (
+                    f"Lap data exists for {driver_id} lap {lap_number} in session {session_id}, "
+                    f"but no telemetry JSON file is on disk."
+                )
+            }
+
+        # Query multi-lap timing data from PostgreSQL for Lap Time Graph & Tyre Degradation
+        all_laps = execute_query(
+            """SELECT lap_number, lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound, is_pit_out_lap, is_valid 
+               FROM laps 
+               WHERE session_id = %s AND driver_id = ANY(%s)
+               ORDER BY lap_number""",
+            (session_id, candidates_a), fetch=True
+        ) or []
+
+        lap_times_data = []
+        for l_row in all_laps:
+            l_num = l_row["lap_number"]
+            l_ms = l_row.get("lap_time_ms")
+            if not l_ms or not l_row.get("is_valid", True):
+                continue
+            l_sec = round(l_ms / 1000.0, 3)
+            cmpd = str(l_row.get("compound") or "UNKNOWN").upper()
+            lap_times_data.append({"lap": l_num, "lap_time": l_sec, "compound": cmpd})
+
+        # FIX H: Real Stint-Bounded Tyre Degradation Computation
+        stints_a = execute_query(
+            """SELECT stint_number, compound, start_lap, end_lap, stint_length
+               FROM stints 
+               WHERE session_id = %s AND driver_id = ANY(%s)
+               ORDER BY stint_number""",
+            (session_id, candidates_a), fetch=True
+        ) or []
+
+        # Identify Safety Car laps across the grid
+        sc_query = """
+            WITH grid_laps AS (
+                SELECT lap_number, AVG(lap_time_ms) as avg_ms, COUNT(*) as cnt
+                FROM laps
+                WHERE session_id = %s AND lap_time_ms IS NOT NULL AND is_valid = true
+                GROUP BY lap_number
+            ),
+            med AS (
+                SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY avg_ms) as med_ms
+                FROM grid_laps
+            )
+            SELECT g.lap_number
+            FROM grid_laps g, med m
+            WHERE (g.avg_ms / NULLIF(m.med_ms, 0)) > 1.20 AND g.cnt >= 3
+            ORDER BY g.lap_number;
+        """
+        sc_rows = execute_query(sc_query, (session_id,), fetch=True) or []
+        sc_laps_set = set(r["lap_number"] for r in sc_rows)
+
+        tyre_deg_data = []
+        if stints_a:
+            for s_info in stints_a:
+                s_num = int(s_info.get("stint_number", 1))
+                s_start = s_info["start_lap"]
+                s_end = s_info["end_lap"]
+                s_compound = str(s_info.get("compound") or "UNKNOWN").upper()
+
+                # Get driver laps belonging to this stint
+                stint_laps = [
+                    l for l in all_laps
+                    if s_start <= l["lap_number"] <= s_end and l.get("lap_time_ms")
+                ]
+
+                # Filter clean flying laps in this stint (excluding standing start Lap 1, out-laps, and SC laps)
+                clean_laps = [
+                    l for l in stint_laps
+                    if l["lap_number"] > 1
+                    and not l.get("is_pit_out_lap")
+                    and l["lap_number"] not in sc_laps_set
+                    and l.get("is_valid", True)
+                ]
+
+                if len(clean_laps) >= 3:
+                    med_ms = float(np.median([l["lap_time_ms"] for l in clean_laps]))
+                    clean_laps = [l for l in clean_laps if l["lap_time_ms"] <= med_ms * 1.15]
+
+                # If insufficient clean laps exist in this stint, return degradation as null/insufficient
+                if len(clean_laps) < 3:
+                    for l in stint_laps:
+                        tyre_deg_data.append({
+                            "lap": l["lap_number"],
+                            "stint": s_num,
+                            "wear_pct": None,
+                            "pace_loss_s": None,
+                            "compound": s_compound,
+                            "status": "insufficient_clean_laps",
+                            "note": "INSUFFICIENT_CLEAN_LAPS"
+                        })
+                else:
+                    # Baseline: this stint's own first clean lap pace
+                    first_clean_lap = clean_laps[0]
+                    base_pace_s = first_clean_lap["lap_time_ms"] / 1000.0
+
+                    for l in stint_laps:
+                        l_num = l["lap_number"]
+                        is_start = (l_num == 1)
+                        is_out = l.get("is_pit_out_lap", False)
+                        is_sc = l_num in sc_laps_set
+                        if is_start:
+                            tyre_deg_data.append({
+                                "lap": l_num,
+                                "stint": s_num,
+                                "wear_pct": None,
+                                "pace_loss_s": None,
+                                "compound": s_compound,
+                                "status": "start_lap",
+                                "note": "START-LAP"
+                            })
+                        elif is_out or is_sc:
+                            tyre_deg_data.append({
+                                "lap": l_num,
+                                "stint": s_num,
+                                "wear_pct": None,
+                                "pace_loss_s": None,
+                                "compound": s_compound,
+                                "status": "out_lap" if is_out else "sc_lap",
+                                "note": "OUT-LAP" if is_out else "SC-LAP"
+                            })
+                        else:
+                            l_s = l["lap_time_ms"] / 1000.0
+                            # Pace loss is actual lap time delta from this stint's first clean lap
+                            pace_loss = round(l_s - base_pace_s, 3)
+                            # Wear % resets near zero at start of every new stint, scaling with actual pace loss
+                            wear = max(0.0, min(100.0, round((max(0.0, pace_loss) / 2.0) * 100.0, 1)))
+                            tyre_deg_data.append({
+                                "lap": l_num,
+                                "stint": s_num,
+                                "wear_pct": wear,
+                                "pace_loss_s": pace_loss,
+                                "compound": s_compound
+                            })
+        else:
+            # Fallback if stints table has no rows
+            clean_laps = [
+                l for l in all_laps
+                if l["lap_number"] > 1
+                and l.get("lap_time_ms")
+                and not l.get("is_pit_out_lap")
+                and l["lap_number"] not in sc_laps_set
+                and l.get("is_valid", True)
+            ]
+            if len(clean_laps) >= 3:
+                base_pace_s = clean_laps[0]["lap_time_ms"] / 1000.0
+                for l in all_laps:
+                    l_num = l["lap_number"]
+                    if l_num == 1:
+                        tyre_deg_data.append({
+                            "lap": l_num, "stint": 1, "wear_pct": None, "pace_loss_s": None,
+                            "compound": str(l.get("compound") or "UNKNOWN").upper(),
+                            "status": "start_lap", "note": "START-LAP"
+                        })
+                    elif l.get("is_pit_out_lap") or l_num in sc_laps_set or not l.get("lap_time_ms"):
+                        tyre_deg_data.append({
+                            "lap": l_num, "stint": 1, "wear_pct": None, "pace_loss_s": None,
+                            "compound": str(l.get("compound") or "UNKNOWN").upper(),
+                            "status": "out_lap" if l.get("is_pit_out_lap") else "sc_lap",
+                            "note": "OUT-LAP" if l.get("is_pit_out_lap") else "SC-LAP"
+                        })
+                    else:
+                        l_s = l["lap_time_ms"] / 1000.0
+                        pace_loss = round(l_s - base_pace_s, 3)
+                        wear = max(0.0, min(100.0, round((max(0.0, pace_loss) / 2.0) * 100.0, 1)))
+                        tyre_deg_data.append({
+                            "lap": l_num, "stint": 1, "wear_pct": wear, "pace_loss_s": pace_loss,
+                            "compound": str(l.get("compound") or "UNKNOWN").upper()
+                        })
+
+        # Precision Timing Binding
+        if fastest_a_row:
+            lap_time_a_ms = fastest_a_row[0].get("lap_time_ms")
+            s1_a_ms = fastest_a_row[0].get("sector_1_ms")
+            s2_a_ms = fastest_a_row[0].get("sector_2_ms")
+            s3_a_ms = fastest_a_row[0].get("sector_3_ms")
+            compound_a = str(fastest_a_row[0].get("compound") or "UNKNOWN").upper()
+        else:
+            lap_time_a_ms = lap_info_a.get("lap_time_ms") if lap_info_a else None
+            s1_a_ms = lap_info_a.get("sector_1_ms") if lap_info_a else None
+            s2_a_ms = lap_info_a.get("sector_2_ms") if lap_info_a else None
+            s3_a_ms = lap_info_a.get("sector_3_ms") if lap_info_a else None
+            compound_a = str(lap_info_a.get("compound") or "UNKNOWN").upper() if lap_info_a else "UNKNOWN"
+
+        lap_time_a_sec = round(lap_time_a_ms / 1000.0, 3) if lap_time_a_ms else None
+        s1_a = round(s1_a_ms / 1000.0, 3) if s1_a_ms else None
+        s2_a = round(s2_a_ms / 1000.0, 3) if s2_a_ms else None
+        s3_a = round(s3_a_ms / 1000.0, 3) if s3_a_ms else None
+
+        speed_trace_pts_a = []
+        if telemetry_a:
+            for p in telemetry_a:
+                b_val = p.get("brake")
+                b_num = 100.0 if b_val is True else (0.0 if b_val is False or b_val is None else float(b_val))
+                spd = float(p.get("speed", 0))
+                g_val = int(p.get("gear", 0)) if p.get("gear") is not None else 0
+                speed_trace_pts_a.append({
+                    "distanceM": float(p.get("distanceM", 0.0)),
+                    "speed": spd,
+                    "throttle": float(p.get("throttle", 0)),
+                    "brake": b_num,
+                    "gear": g_val
+                })
+
+        pit_windows = [
+            {"stint": 1, "window_start_lap": max(1, lap_number - 3), "window_end_lap": lap_number + 2, "target_compound": "HARD"}
+        ]
+
+        top_speed_val = float(max([p["speed"] for p in speed_trace_pts_a])) if speed_trace_pts_a else 320.0
+        avg_speed_val = float(round(sum([p["speed"] for p in speed_trace_pts_a]) / max(1, len(speed_trace_pts_a)), 1)) if speed_trace_pts_a else 225.0
+        brakes_list = [p for p in speed_trace_pts_a if p.get("brake", 0) > 0]
+        driver_a_display = self._resolve_driver_display_name(driver_id)
+
+        result = {
+            "status": "success",
+            "session_id": session_id,
+            "grand_prix": gp_name,
+            "circuit_name": circuit_name,
+            "circuit": circuit_name,
+            "season": season_val,
+            "driver": driver_a_display,
+            "driver_id": driver_id,
+            "lap_number": lap_number,
+            "sector1_delta": s1_a or 29.0,
+            "sector2_delta": s2_a or 35.0,
+            "sector3_delta": s3_a or 24.0,
+            "top_speed": top_speed_val,
+            "average_speed": avg_speed_val,
+            "brake_events": brakes_list,
+            "lap_time_s": lap_time_a_sec,
+            "sector1_s": s1_a,
+            "sector2_s": s2_a,
+            "sector3_s": s3_a,
+            "telemetry_points_count": len(speed_trace_pts_a),
+            "telemetry": speed_trace_pts_a,
+            "speed_trace": speed_trace_pts_a,
+            "lap_times": lap_times_data,
+            "sector_times": [],
+            "tyre_degradation": tyre_deg_data,
+            "pit_windows": pit_windows,
+            "tyres": [{"compound": compound_a, "laps_run": lap_number}]
+        }
+
+        if comp_driver_id:
+            driver_b_display = self._resolve_driver_display_name(comp_driver_id)
+            if fastest_b_row:
+                lap_time_b_ms = fastest_b_row[0].get("lap_time_ms")
+                s1_b_ms = fastest_b_row[0].get("sector_1_ms")
+                s2_b_ms = fastest_b_row[0].get("sector_2_ms")
+                s3_b_ms = fastest_b_row[0].get("sector_3_ms")
+            else:
+                lap_time_b_ms = lap_info_b.get("lap_time_ms") if lap_info_b else None
+                s1_b_ms = lap_info_b.get("sector_1_ms") if lap_info_b else None
+                s2_b_ms = lap_info_b.get("sector_2_ms") if lap_info_b else None
+                s3_b_ms = lap_info_b.get("sector_3_ms") if lap_info_b else None
+
+            lap_time_b_sec = round(lap_time_b_ms / 1000.0, 3) if lap_time_b_ms else None
+            s1_b = round(s1_b_ms / 1000.0, 3) if s1_b_ms else None
+            s2_b = round(s2_b_ms / 1000.0, 3) if s2_b_ms else None
+            s3_b = round(s3_b_ms / 1000.0, 3) if s3_b_ms else None
+
+            sector_comparison = []
+            if s1_a and s1_b:
+                s1_delta = round(s1_a - s1_b, 3)
+                s1_winner = driver_a_display if s1_delta <= 0 else driver_b_display
+                sector_comparison.append({
+                    "sector": "S1",
+                    "driver_time": s1_a,
+                    "benchmark_time": s1_b,
+                    "delta": s1_delta,
+                    "faster_driver": s1_winner,
+                    "winner_badge": f"🏆 {s1_winner.upper()} FASTER"
+                })
+            if s2_a and s2_b:
+                s2_delta = round(s2_a - s2_b, 3)
+                s2_winner = driver_a_display if s2_delta <= 0 else driver_b_display
+                sector_comparison.append({
+                    "sector": "S2",
+                    "driver_time": s2_a,
+                    "benchmark_time": s2_b,
+                    "delta": s2_delta,
+                    "faster_driver": s2_winner,
+                    "winner_badge": f"🏆 {s2_winner.upper()} FASTER"
+                })
+            if s3_a and s3_b:
+                s3_delta = round(s3_a - s3_b, 3)
+                s3_winner = driver_a_display if s3_delta <= 0 else driver_b_display
+                sector_comparison.append({
+                    "sector": "S3",
+                    "driver_time": s3_a,
+                    "benchmark_time": s3_b,
+                    "delta": s3_delta,
+                    "faster_driver": s3_winner,
+                    "winner_badge": f"🏆 {s3_winner.upper()} FASTER"
+                })
+
+            speed_trace_pts_b = []
+            if telemetry_b:
+                for p in telemetry_b:
+                    b_val_b = p.get("brake")
+                    b_num_b = 100.0 if b_val_b is True else (0.0 if b_val_b is False or b_val_b is None else float(b_val_b))
+                    spd_b = float(p.get("speed", 0))
+                    g_val_b = int(p.get("gear", 0)) if p.get("gear") is not None else 0
+                    speed_trace_pts_b.append({
+                        "distanceM": float(p.get("distanceM", 0.0)),
+                        "speed": spd_b,
+                        "throttle": float(p.get("throttle", 0)),
+                        "brake": b_num_b,
+                        "gear": g_val_b
+                    })
+
+            has_gear_a = any((p.get("gear") or 0) > 0 for p in speed_trace_pts_a)
+            has_gear_b = any((p.get("gear") or 0) > 0 for p in speed_trace_pts_b)
+            result["has_gear_data"] = bool(has_gear_a and has_gear_b)
+
+            result["sector_times"] = sector_comparison
+            result["comparative_driver_id"] = comp_driver_id
+            result["comparative_driver"] = driver_b_display
+            result["comparative_lap_number"] = comp_lap_number
+            result["comparative_lap_time_s"] = lap_time_b_sec
+            result["comparative_sector1_s"] = s1_b
+            result["comparative_sector2_s"] = s2_b
+            result["comparative_sector3_s"] = s3_b
+            result["comparative_telemetry"] = speed_trace_pts_b
+            result["comparative_speed_trace"] = speed_trace_pts_b
+
+            if lap_time_a_sec and lap_time_b_sec:
+                result["delta_lap_time_s"] = round(lap_time_a_sec - lap_time_b_sec, 3)
+
+            # Synthesize Textual Analysis
+            if lap_time_a_sec and lap_time_b_sec and s1_a and s2_a and s3_a and s1_b and s2_b and s3_b:
+                analysis_res = self._generate_comparative_telemetry_analysis(
+                    gp_name=gp_name,
+                    season_val=season_val,
+                    drv_a=driver_a_display,
+                    lap_a=lap_number,
+                    time_a=lap_time_a_sec,
+                    s1_a=s1_a,
+                    s2_a=s2_a,
+                    s3_a=s3_a,
+                    pts_a=speed_trace_pts_a,
+                    drv_b=driver_b_display,
+                    lap_b=comp_lap_number,
+                    time_b=lap_time_b_sec,
+                    s1_b=s1_b,
+                    s2_b=s2_b,
+                    s3_b=s3_b,
+                    pts_b=speed_trace_pts_b
+                )
+                result["textual_analysis"] = analysis_res["textual_analysis"]
+                result["analysis_summary"] = analysis_res["analysis_summary"]
+                result["comparative_analysis"] = analysis_res
+
+        return result
+
     def _load_telemetry_from_db(self, session_id: str, driver_id: str, lap_number: int):
         telemetry_points = []
         lap_info = {}
@@ -873,7 +1402,11 @@ class TelemetryTool(BaseF1Tool):
                    WHERE session_id = %s AND driver_id = ANY(%s) AND lap_number = %s""",
                 (session_id, candidates, lap_number), fetch=True
             )
-            if not meta or not meta[0]["storage_path"] or not os.path.exists(meta[0]["storage_path"]):
+            found_path = None
+            if meta and meta[0].get("storage_path"):
+                found_path = self._resolve_storage_file(meta[0]["storage_path"])
+
+            if not found_path:
                 # Fallback to closest available lap for this driver in telemetry_metadata
                 meta = execute_query(
                     """SELECT storage_path, lap_number, driver_id FROM telemetry_metadata 
@@ -881,9 +1414,11 @@ class TelemetryTool(BaseF1Tool):
                        ORDER BY ABS(lap_number - %s) ASC LIMIT 1""",
                     (session_id, candidates, lap_number), fetch=True
                 )
+                if meta and meta[0].get("storage_path"):
+                    found_path = self._resolve_storage_file(meta[0]["storage_path"])
 
-            if meta and meta[0]["storage_path"] and os.path.exists(meta[0]["storage_path"]):
-                with open(meta[0]["storage_path"], "r") as f:
+            if found_path and meta:
+                with open(found_path, "r") as f:
                     telemetry_points = json.load(f)
                 matched_lap = int(meta[0]["lap_number"])
                 matched_drv = str(meta[0]["driver_id"])

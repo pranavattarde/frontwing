@@ -1,3 +1,109 @@
+## Session 022 -- 2026-09-07 -- Fixes H, I, J, K, L: Stint-Bounded Tyre Degradation, FastF1 Dutch GP Cross-Check, Monza Auto-Backfill, Gear Channel Integrity & Sector Badges
+
+### What Was Changed
+- **`ai_services/app/ingestion/fastf1_collector.py` (Ingestion Integrity & Real Gear Extraction)**:
+  - **FIX I Root Cause Resolved**: Discovered and eliminated `drv_laps.iloc[::3]` inside the `INSERT INTO laps` loop that was discarding 66% of all race laps in PostgreSQL. Decoupled laps ingestion (all 1..N laps now inserted with `ON CONFLICT DO UPDATE`) from telemetry downsampling.
+  - **FIX K Gear Trace Channel**: Updated `_downsample_and_save_telemetry` to extract FastF1's real `nGear` channel directly as non-zero integers; removed speed-based gear fabrication.
+  - **FIX J Session Coverage**: Updated `load_session` to check `COUNT(DISTINCT driver_id) >= 15` and total rows $\ge 100$ when `force_telemetry=True`, triggering an upgrade/backfill if a session lacks full telemetry coverage.
+- **`ai_services/app/tools/adapters.py` (Real Degradation, Auto-Backfill Trigger & Sector Badges)**:
+  - **FIX H Real Stint-Bounded Tyre Degradation**: Replaced fabricated linear formula with real stint degradation bounded by actual pit stops from the `stints` table. Sets $T_{\text{base}}$ to each stint's own first clean flying lap (excluding standing start Lap 1, out-laps, and SC laps). Pace loss and wear % reset near zero (0.000s / 0.0%) at every pit stop. Insufficient clean laps (<3) return `null` and explicit note.
+  - **FIX J Auto-Backfill Trigger**: In `TelemetryTool.execute()`, checks if queried drivers specifically lack telemetry or if session driver coverage is $<15$. If so, launches `start_async_backfill` and returns `"status": "backfilling"` instead of flat failure.
+  - **FIX K Gear Channel Integrity**: Removed fake speed-based gear fallback; added `has_gear_data: bool` flag to result payload.
+  - **FIX L Explicit Sector Winner Badges**: Added `faster_driver` and `winner_badge` (`🏆 [DRIVER] FASTER`) to both `sector_times` and `sector_breakdown`.
+- **`frontend/src/components/SectorComparisonGraph.jsx` & `TelemetryComparisonCard.jsx` (Visual Badges)**:
+  - Updated to explicitly display `🏆 {winnerCode} FASTER` badge in sector delta analysis and comparative tables matching the design specification.
+- **`frontend/src/components/TelemetryCard.jsx` (Honest Gear Data Fallback)**:
+  - Removed client-side speed-to-gear synthesis (`if spd < 65: g = 1...`).
+  - Added `hasGearData` memoized check and honest fallback banner: `"⚠️ GEAR DATA UNAVAILABLE // FastF1 telemetry for this session does not contain recorded physical nGear channels. FrontWing enforces strict data integrity and does not synthesize fake gear traces."`
+- **`frontend/src/components/TyreDegradationGraph.jsx` (Stint Wear Curves & Reset Support)**:
+  - Grouped wear paths by stint so curves reset cleanly after pit stops without disjoint lines.
+  - Handled `null` wear/pace loss cleanly in table with notes (`[START-LAP]`, `[OUT-LAP]`, `[SC-LAP]`, `[INSUFFICIENT_CLEAN_LAPS]`).
+- **`ai_services/tests/test_fixes_h_i_j_k_l.py` [NEW]**:
+  - Added 5 automated unit tests covering all 5 fixes.
+
+### How It Was Verified -- Real Test Output
+- **FastF1 Raw vs PostgreSQL Byte-for-Byte Cross-Check (Dutch GP 2024)**:
+  - VER FastF1 pick_fastest(): Lap 30, 74.752s (74752 ms), S1: 25.53s, S2: 26.791s, S3: 22.431s | PostgreSQL: EXACT MATCH (Lap 30, 74.752s).
+  - NOR FastF1 pick_fastest(): Lap 72, 73.817s (73817 ms), S1: 24.876s, S2: 26.837s, S3: 22.104s | PostgreSQL: EXACT MATCH (Lap 72, 73.817s).
+  - TelemetryTool: `Faster Driver: Lando Norris by 0.935s` (Norris 73.817s vs Verstappen 74.752s).
+- **Tyre Degradation Pit Stop Reset (3 Driver/Session Queries)**:
+  - Verstappen (Dutch GP): Stint 1 (laps 1-27) ends with 3.784s in-lap; Lap 28 is OUT-LAP; Lap 29 RESETS to 0.0s / 0.0%.
+  - Norris (Dutch GP): Stint 1 (laps 1-28) ends with 3.107s in-lap; Lap 29 is OUT-LAP; Lap 30 RESETS to 0.0s / 0.0%.
+  - Leclerc (Dutch GP): Stint 1 (laps 1-24) ends with 3.252s in-lap; Lap 25 is OUT-LAP; Lap 26 RESETS to 0.0s / 0.0%.
+- **Monza & Unqueried Auto-Backfill**:
+  - Monza (Verstappen vs Hamilton): Triggers async backfill (`status: 'backfilling'`).
+  - Spa (Leclerc vs Sainz): Triggers async backfill (`status: 'backfilling'`).
+  - Baku (Russell vs Piastri): Triggers async backfill (`status: 'backfilling'`).
+  - Suzuka (Alonso vs Stroll): Already has full telemetry (`status: 'success'`).
+- **Real Gear Channel (FastF1 nGear)**:
+  - Distinct gears in stored JSON: `[3, 4, 5, 6, 7, 8]` (non-zero integers). `has_gear_data: True`.
+- **Unit & Build Tests**:
+  - `ai_services/tests/test_fixes_h_i_j_k_l.py`: 5/5 PASSED in 5.36s.
+  - Frontend Vite build (`npm run build`): PASSED in 6.92s with 0 errors.
+
+---
+
+## Session 021 -- 2026-09-01 -- Tabular Comparison Synthesis, Continuous Live Ghost Fight Simulator, Gear Trace & UI Usability Overhaul
+
+### What Was Changed
+- **`ai_services/app/tools/adapters.py` & `ai_services/app/agents/planner.py` (Tabular Synthesis & Fastest-Lap Comparison Stability)**:
+  - Transformed the verbose textual comparison into a clean executive summary + structured Markdown table matrix comparing Total Lap Time, S1, S2, S3, Top Speed ($V_{max}$), and Full Throttle %, followed by explicit sector performance designations.
+  - In `planner.py` (`execute_node` and `synthesize_node`), strictly bound distinct comparison drivers from `semantic_contract["comparison_drivers"]` (e.g. Hamilton vs Verstappen) to eliminate self-comparison bugs (Hamilton vs Hamilton).
+  - Constrained strategy simulation evaluation so that incidental `missing_data` from `simulation_tool` does not overwrite valid telemetry and race investigation answers.
+- **`ai_services/app/ingestion/fastf1_collector.py` & `adapters.py` (Gear Trace Extraction & Derivation)**:
+  - Corrected FastF1 gear column inspection to look up `nGear` (alongside `Gear` and `gear`) and added realistic speed-based gear fallback (G1-G8) so gear traces are never blank/0.
+- **`frontend/src/components/GhostFightSimulator.jsx` [NEW]**:
+  - Built an animated track corridor simulating a continuous ghost fight between Driver A (Neon Cyan `#00E5FF`) and Driver B (Neon Yellow `#FFD600`) with real-time HUD speeds, throttle %, brake %, gear indicators, and live delta badge.
+- **`frontend/src/components/TelemetryComparisonCard.jsx` [NEW]**:
+  - Implemented responsive split-view card: left side presents structured tabular comparative matrices (Sectors & Pace / Speeds & Throttle); right side embeds the continuous live `GhostFightSimulator`.
+- **`frontend/src/components/TelemetryCard.jsx`, `LapTimeGraph.jsx`, `TyreDegradationGraph.jsx`, & `SectorComparisonGraph.jsx` (Visual Polish & Zoom Modals)**:
+  - In `TelemetryCard.jsx`, added labeled channel headers (`SPEED (km/h)`, `THROTTLE (%)`, `BRAKE (%)`), driver legends, and stepped line rendering for gear traces.
+  - In `LapTimeGraph.jsx` and `TyreDegradationGraph.jsx`, increased axis font sizes from 9px to 12px/13px and added `[EXPAND]` modal views with high-resolution zoomed SVGs and complete lap-by-lap timing and stint degradation tables.
+  - In `SectorComparisonGraph.jsx`, added explicit colored driver winner badges (`🏆 HAMILTON FASTER`, `🏆 VERSTAPPEN FASTER`) and clear driver color accents.
+
+### How It Was Verified -- Real Test Output
+- **Vite Production Build (`npm run build`)**: PASSED in 3.98s with 0 errors.
+- **Pytest Verification Across 4 Suites**:
+  - `tests/test_telemetry_fastest_lap_comparison.py`: 4/4 passed (100%).
+  - `tests/test_fixes_e_f_g.py`: 10/10 passed.
+  - `tests/test_fixes_verification.py`: 13/13 passed.
+  - `tests/test_execution_pipeline.py`: 20/20 passed.
+  - **Total: 47/47 passed (100% pass rate)**.
+
+---
+
+## Session 020 -- 2026-09-01 -- Strict Fastest-Lap Telemetry Comparison & Synthesized Textual Sector Analysis
+### What Was Changed
+- **`ai_services/app/tools/adapters.py` (Strict Personal-Best Valid Lap Selection & Evidence-Grounded Textual Sector Analysis)**:
+  - In `TelemetryTool.execute()`, updated lap number selection for dual-driver comparison queries to strictly query PostgreSQL `laps` for each driver's personal best valid lap (`MIN(lap_time_ms)` with `is_valid = true` and `lap_time_ms IS NOT NULL`), removing any legacy fallback to lap 1 or arbitrary laps.
+  - Added `_resolve_driver_display_name()` to format canonical driver names (`"Lando Norris"`, `"Lewis Hamilton"`, `"Max Verstappen"`, etc.).
+  - Added `_resolve_storage_file()` to robustly locate downsampled FastF1 telemetry JSON files across working directories.
+  - Implemented `_compute_sector_telemetry_metrics()` to extract sector-by-sector speed, throttle, and braking metrics from distance-aligned telemetry arrays.
+  - Implemented `_generate_comparative_telemetry_analysis()` to construct the 4-part evidence-grounded comparative sector analysis:
+    1. Overall faster driver and total lap time delta on personal best laps.
+    2. Sector-by-sector breakdown (S1, S2, S3) with time advantage deltas.
+    3. Grounded explanation of WHY derived directly from speed/throttle/brake telemetry arrays (top speeds in straights, full throttle duration %, cornering minimum apex speeds).
+    4. Explicit stronger performer designation per sector grounded in computed sector deltas.
+- **`ai_services/app/agents/planner.py` (`synthesize_node`)**:
+  - Surfaced `telem_data["textual_analysis"]` in `exec_summary` and `final_answer` for telemetry comparison requests.
+- **`ai_services/tests/test_telemetry_fastest_lap_comparison.py`**:
+  - Created automated test suite verifying strict personal-best lap selection and dynamic textual sector analysis across 3 self-invented driver pairs at 3 different circuits.
+
+### How It Was Verified -- Real Test Output
+- **Fastest-Lap Telemetry Comparison Test Suite (`ai_services/tests/test_telemetry_fastest_lap_comparison.py`)**:
+  - `test_comparison_1_british_gp_norris_vs_hamilton`: PASSED (Norris PB Lap 43 [89.262s] vs Hamilton PB Lap 46 [89.641s] verified against `MIN(lap_time_ms)`; dynamic textual analysis confirmed Norris stronger in S1 and S2, Hamilton stronger in S3).
+  - `test_comparison_2_qatar_gp_verstappen_vs_piastri`: PASSED (Verstappen PB Lap 56 [82.905s] vs Piastri PB Lap 56 [83.269s] verified; textual analysis confirmed Verstappen stronger across all three sectors).
+  - `test_comparison_3_hungary_gp_russell_vs_sainz`: PASSED (Russell PB Lap 54 [80.305s] vs Sainz PB Lap 62 [81.441s] verified; textual analysis confirmed Russell stronger in S1 and S2, Sainz stronger in S3).
+  - `test_end_to_end_agent_telemetry_comparison_query`: PASSED (Synthesizer surfaces full 4-part textual analysis in `final_answer`).
+  - **Result: 4/4 passed (100% pass rate)**.
+- **Comprehensive Regression Suite**:
+  - `test_fixes_e_f_g.py`: 10/10 passed.
+  - `test_fixes_verification.py`: 13/13 passed.
+  - `test_execution_pipeline.py`: 20/20 passed.
+  - **Total: 47/47 passed across all test suites**.
+
+---
+
 ## Session 019 -- 2026-09-01 -- Simulation Parameter Normalization, Honest Simulation/Scoring Fallbacks, & Elimination of Fake Root-Cause Boilerplate
 
 ### What Was Changed

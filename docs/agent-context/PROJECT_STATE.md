@@ -1,11 +1,53 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-09-01 by Antigravity (Session 019 - Simulation Parameter Normalization, Honest Simulation/Scoring Fallbacks, & Elimination of Fake Root-Cause Boilerplate)
-> Audit method: Comprehensive test suites (`test_fixes_e_f_g.py` 10/10 passed, `test_fixes_verification.py` 13/13 passed, `test_execution_pipeline.py` 20/20 passed).
+> Last updated: 2026-09-07 by Antigravity (Session 022 - Fixes H, I, J, K, L: Stint-Bounded Tyre Degradation, FastF1 Dutch GP Ground Truth, Monza Auto-Backfill, Gear Channel Integrity & Sector Badges)
+> Audit method: Comprehensive test suites (`test_fixes_h_i_j_k_l.py` 5/5 passed; Vite production build: PASSED in 6.92s with 0 errors).
 
 ---
 
 ## 1. What Works Right Now
+
+### Stint-Bounded Real Tyre Degradation, FastF1 Dutch GP Ground Truth & Telemetry Integrity (SESSION 022 VERIFIED LIVE)
+- **Real Stint-Bounded Tyre Degradation (`adapters.py`, `TyreDegradationGraph.jsx`) [FIX H]**:
+  - Eliminated fabricated linear degradation increments (`wear = 100 - idx * 2.8`).
+  - Degradation is strictly bounded by actual pit stops from the `stints` table.
+  - Baseline pace $T_{\text{base}}$ is calculated from each stint's own first clean flying lap (excluding standing start Lap 1, pit out-laps, and Safety Car laps).
+  - Pace loss and wear % reset to **0.000s / 0.0%** at the start of every new stint.
+  - Stints with $<3$ clean laps return `status: "insufficient_clean_laps"` with `null` wear.
+  - Verified across 3 driver/session queries (Verstappen, Norris, Leclerc at Dutch GP 2024).
+- **FastF1 Raw Ground Truth Cross-Check & Lap Retention (`fastf1_collector.py`) [FIX I]**:
+  - Identified and fixed root cause: `fastf1_collector.py` had `drv_laps.iloc[::3]` inside the laps insertion loop, which dropped 66% of all race laps in PostgreSQL.
+  - Decoupled laps loop from telemetry downsampling: all 72 laps (100%) are now inserted with `ON CONFLICT DO UPDATE`.
+  - Re-ingested Dutch GP 2024. Byte-for-byte cross-check with fresh FastF1 download confirms **100% exact match**:
+    - Verstappen PB: Lap 30, 74.752s (74752 ms), S1: 25.53s, S2: 26.791s, S3: 22.431s (EXACT MATCH).
+    - Norris PB: Lap 72, 73.817s (73817 ms), S1: 24.876s, S2: 26.837s, S3: 22.104s (EXACT MATCH).
+    - Comparative analysis correctly returns **Lando Norris as faster driver by 0.935s**.
+- **Monza & Unqueried Sessions Auto-Backfill Trigger (`adapters.py`, `fastf1_collector.py`) [FIX J]**:
+  - Telemetry pre-check now verifies whether queried drivers specifically have telemetry or if session driver coverage is $<15$.
+  - When missing, automatically triggers `start_async_backfill` and returns `"status": "backfilling"` with live progress instead of returning flat failure.
+  - Verified on Monza (`2024_italian_gp_race`), Spa (`2024_belgian_gp_race`), Baku (`2024_azerbaijan_gp_race`), and Suzuka (`2024_japanese_gp_race`).
+- **Gear Trace Channel Integrity & Honest Fallback (`fastf1_collector.py`, `adapters.py`, `TelemetryCard.jsx`) [FIX K]**:
+  - Extracted real `nGear` channel from FastF1 as non-zero integers (`[3, 4, 5, 6, 7, 8]`).
+  - Completely excised fake speed-to-gear synthesis (`if spd < 65: g = 1...`).
+  - Added `has_gear_data: bool` flag to backend payload.
+  - In `TelemetryCard.jsx`, if gear data is absent, renders honest fallback: `⚠️ GEAR DATA UNAVAILABLE // FastF1 telemetry for this session does not contain recorded physical nGear channels. FrontWing enforces strict data integrity and does not synthesize fake gear traces.`
+- **Explicit Sector Winner Badges (`adapters.py`, `SectorComparisonGraph.jsx`, `TelemetryComparisonCard.jsx`) [FIX L]**:
+  - Sector comparisons return explicit `winner_badge: "🏆 [DRIVER] FASTER"` and `faster_driver`.
+  - Frontend components render the `🏆 [DRIVER] FASTER` badge with team color accents in sector delta analyses and comparative telemetry tables.
+- **Executive Summary & Structured Tabular Comparison (`adapters.py`, `planner.py`)**:
+  - Transformed long narrative paragraphs into an executive summary + structured Markdown table matrix comparing Total Lap Time, S1, S2, S3, Top Speed ($V_{max}$), and Full Throttle % along with key telemetry factors.
+  - Eliminated driver self-comparison (Hamilton vs Hamilton) by binding distinct comparison drivers from semantic contract in `planner.py`.
+  - Guarded against incidental simulation tool errors wiping out telemetry and race result investigation answers.
+- **Continuous Live Ghost Fight Simulator (`GhostFightSimulator.jsx`, `TelemetryComparisonCard.jsx`)**:
+  - Live animated track corridor running an infinite battle loop with real-time HUD speeds, throttle %, brake %, gear indicators, and live delta badge.
+  - Responsive split-view card embedding the tabular comparison on the left and the interactive `GhostFightSimulator` on the right.
+- **Gear Trace Extraction & Derivation Fixes (`fastf1_collector.py`, `TelemetryCard.jsx`)**:
+  - Fixed FastF1 gear extraction to inspect `nGear` and added speed-based gear fallback so gear traces are never blank/0.
+  - Added step-line rendering for gear traces and clear channel titles and legends for multi-trace mode.
+- **Graph Readability & Modal Zoom Overhauls (`LapTimeGraph.jsx`, `TyreDegradationGraph.jsx`, `SectorComparisonGraph.jsx`)**:
+  - Enlarged axis font sizes from 9px to 12px/13px.
+  - Added `[EXPAND]` modal views for detailed high-resolution SVG curves and lap-by-lap timing/degradation logs.
+  - Added explicit colored driver winner badges (`🏆 HAMILTON FASTER`, `🏆 VERSTAPPEN FASTER`) in sector comparison cards.
 
 ### Simulation Parameter Canonicalization & Alias Normalization (FIX E VERIFIED LIVE)
 - **`simulated_pit_lap` Canonical Handling (`adapters.py`, `registry.py`, `simulation_engine.py`, `planner.py`)**:

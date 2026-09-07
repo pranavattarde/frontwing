@@ -84,11 +84,15 @@ def start_async_backfill(session_id: str) -> Dict[str, Any]:
 class FastF1Collector(BaseCollector):
     _ingested_sessions_cache = set()
 
-    def __init__(self, cache_dir: str = "ai_services/cache"):
+    def __init__(self, cache_dir: Optional[str] = None):
         super().__init__("FastF1Collector")
-        self.cache_dir = cache_dir
-        os.makedirs(cache_dir, exist_ok=True)
-        os.makedirs(os.path.join(cache_dir, "telemetry"), exist_ok=True)
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if not cache_dir or cache_dir == "ai_services/cache":
+            self.cache_dir = os.path.join(base_dir, "cache")
+        else:
+            self.cache_dir = cache_dir
+        os.makedirs(self.cache_dir, exist_ok=True)
+        os.makedirs(os.path.join(self.cache_dir, "telemetry"), exist_ok=True)
         
         # Enable FastF1 caching to reduce API hits
         try:
@@ -154,19 +158,21 @@ class FastF1Collector(BaseCollector):
         existing_id = self.find_existing_session_id(year, gp_name, session_type)
         if existing_id:
             if force_telemetry:
-                telem_cnt = safe_execute_query(
-                    "SELECT COUNT(*) as cnt FROM telemetry_metadata WHERE session_id = %s",
+                drv_telem_cnt = safe_execute_query(
+                    "SELECT COUNT(DISTINCT driver_id) as drv_cnt, COUNT(*) as cnt FROM telemetry_metadata WHERE session_id = %s",
                     (existing_id,),
                     fetch=True
                 )
-                if telem_cnt and telem_cnt[0]["cnt"] > 0:
-                    logger.info(f"[{self.name}] Session {existing_id} already has {telem_cnt[0]['cnt']} telemetry metadata rows.")
+                drv_cnt = drv_telem_cnt[0]["drv_cnt"] if drv_telem_cnt else 0
+                tot_cnt = drv_telem_cnt[0]["cnt"] if drv_telem_cnt else 0
+                if drv_cnt >= 15 and tot_cnt >= 100:
+                    logger.info(f"[{self.name}] Session {existing_id} already has complete telemetry ({tot_cnt} rows across {drv_cnt} drivers).")
                     return {
                         "status": "cached",
                         "session_id": existing_id,
                         "message": "Session and telemetry already exist in PostgreSQL database."
                     }
-                logger.info(f"[{self.name}] Session {existing_id} exists in DB but lacks telemetry. Upgrading/backfilling telemetry (telemetry=True)...")
+                logger.info(f"[{self.name}] Session {existing_id} exists in DB but lacks complete telemetry ({tot_cnt} rows across {drv_cnt} drivers). Upgrading/backfilling telemetry (telemetry=True)...")
             else:
                 logger.info(f"[{self.name}] Session {year} {gp_name} ({session_type}) already exists in DB: {existing_id}")
                 return {
@@ -459,16 +465,8 @@ class FastF1Collector(BaseCollector):
             except Exception:
                 fastest_lap_num = None
 
-            # Collect laps to process (downsampled + guaranteed fastest lap)
-            laps_to_process = list(drv_laps.iloc[::3].iterrows())
-            if fastest_lap_num is not None:
-                already_in = any(int(r['LapNumber']) == fastest_lap_num for _, r in laps_to_process)
-                if not already_in:
-                    fl_rows = drv_laps[drv_laps['LapNumber'] == fastest_lap_num]
-                    if len(fl_rows) > 0:
-                        laps_to_process.append((fl_rows.index[0], fl_rows.iloc[0]))
-
-            for _, lap_row in laps_to_process:
+            # 1. Persist ALL laps for this driver into PostgreSQL laps table (NEVER downsample the relational laps table)
+            for _, lap_row in drv_laps.iterrows():
                 lap_num = int(lap_row['LapNumber'])
                 lap_time_ms = int(lap_row['LapTime'].total_seconds() * 1000) if not pandas_is_null(lap_row['LapTime']) else None
                 s1_ms = int(lap_row['Sector1Time'].total_seconds() * 1000) if not pandas_is_null(lap_row['Sector1Time']) else None
@@ -483,13 +481,40 @@ class FastF1Collector(BaseCollector):
                     """
                     INSERT INTO laps (session_id, driver_id, lap_number, lap_time_ms, sector_1_ms, sector_2_ms, sector_3_ms, compound, is_pit_out_lap, is_valid)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (session_id, driver_id, lap_number) DO NOTHING
+                    ON CONFLICT (session_id, driver_id, lap_number) DO UPDATE SET
+                        lap_time_ms = EXCLUDED.lap_time_ms,
+                        sector_1_ms = EXCLUDED.sector_1_ms,
+                        sector_2_ms = EXCLUDED.sector_2_ms,
+                        sector_3_ms = EXCLUDED.sector_3_ms,
+                        compound = EXCLUDED.compound,
+                        is_pit_out_lap = EXCLUDED.is_pit_out_lap,
+                        is_valid = EXCLUDED.is_valid
                     """,
                     (session_id, drv_id, lap_num, lap_time_ms, s1_ms, s2_ms, s3_ms, compound, is_pit_out, is_valid)
                 )
 
-                # Persist telemetry profiles into PostgreSQL telemetry_metadata and JSON cache only if load_telemetry is True
-                if load_telemetry:
+            # 2. Persist telemetry profiles into PostgreSQL telemetry_metadata and JSON cache only if load_telemetry is True
+            if load_telemetry:
+                # Determine fastest lap number for this driver to guarantee its telemetry is stored
+                fastest_lap_num = None
+                try:
+                    fl = drv_laps.pick_fastest()
+                    if fl is not None and 'LapNumber' in fl and not pandas_is_null(fl['LapNumber']):
+                        fastest_lap_num = int(fl['LapNumber'])
+                except Exception:
+                    fastest_lap_num = None
+
+                # Downsampled telemetry selection (every 3rd lap + guaranteed personal fastest lap)
+                laps_to_telem = list(drv_laps.iloc[::3].iterrows())
+                if fastest_lap_num is not None:
+                    already_in = any(int(r['LapNumber']) == fastest_lap_num for _, r in laps_to_telem)
+                    if not already_in:
+                        fl_rows = drv_laps[drv_laps['LapNumber'] == fastest_lap_num]
+                        if len(fl_rows) > 0:
+                            laps_to_telem.append((fl_rows.index[0], fl_rows.iloc[0]))
+
+                for _, lap_row in laps_to_telem:
+                    lap_num = int(lap_row['LapNumber'])
                     try:
                         telemetry_df = lap_row.get_telemetry()
                         if telemetry_df is not None and len(telemetry_df) > 0:
@@ -519,7 +544,13 @@ class FastF1Collector(BaseCollector):
         distances = df['Distance'].values if 'Distance' in df else np.linspace(0, 5800, len(df))
         speeds = df['Speed'].values if 'Speed' in df else np.zeros(len(df))
         rpms = df['RPM'].values if 'RPM' in df else np.zeros(len(df))
-        gears = df['Gear'].values if 'Gear' in df else np.zeros(len(df))
+        
+        gear_col = None
+        for g_cand in ['nGear', 'Gear', 'gear', 'n_gear']:
+            if g_cand in df and not df[g_cand].isna().all():
+                gear_col = g_cand
+                break
+        gears = df[gear_col].values if gear_col else None
         throttles = df['Throttle'].values if 'Throttle' in df else np.zeros(len(df))
         brakes = df['Brake'].values.astype(bool) if 'Brake' in df else np.zeros(len(df), dtype=bool)
         
@@ -531,15 +562,24 @@ class FastF1Collector(BaseCollector):
             chunk_dist = distances[i : i + bucket_size]
             chunk_speed = speeds[i : i + bucket_size]
             chunk_rpm = rpms[i : i + bucket_size]
-            chunk_gear = gears[i : i + bucket_size]
+            chunk_gear = gears[i : i + bucket_size] if gears is not None else None
             chunk_throttle = throttles[i : i + bucket_size]
             chunk_brake = brakes[i : i + bucket_size]
             
+            s_val = int(np.mean(chunk_speed)) if len(chunk_speed) > 0 else 0
+            
+            # Extract real gear - NEVER fabricate from speed
+            if chunk_gear is not None and len(chunk_gear) > 0:
+                valid_gears = [int(round(g)) for g in chunk_gear if not np.isnan(g)]
+                g_calc = int(np.round(np.mean(valid_gears))) if valid_gears else 0
+            else:
+                g_calc = 0
+            
             downsampled.append({
                 "distanceM": round(float(np.mean(chunk_dist)), 1) if len(chunk_dist) > 0 else 0.0,
-                "speed": int(np.mean(chunk_speed)) if len(chunk_speed) > 0 else 0,
+                "speed": s_val,
                 "rpm": int(np.mean(chunk_rpm)) if len(chunk_rpm) > 0 else 0,
-                "gear": int(np.round(np.mean(chunk_gear))) if len(chunk_gear) > 0 else 0,
+                "gear": g_calc,
                 "throttle": int(np.mean(chunk_throttle)) if len(chunk_throttle) > 0 else 0,
                 "brake": bool(np.any(chunk_brake)) if len(chunk_brake) > 0 else False
             })
