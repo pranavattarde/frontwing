@@ -1,0 +1,82 @@
+/* ==========================================================================
+   FrontWing F1 Broadcast Design System — Design Tokens
+   Stage 1 & 2: Official Formula 1 Color Palette, Carbon Surfaces & Typography
+   ========================================================================== */
+
+:root {
+  /* --------------------------------------------------
+     1. Brand & Identity
+     -------------------------------------------------- */
+  --f1-red: #FF1801;             /* Formula 1 Signature Warm Racing Red */
+  --f1-red-hover: #E01500;
+  --f1-red-bg: rgba(255, 24, 1, 0.12);
+  --f1-red-border: rgba(255, 24, 1, 0.35);
+
+  /* --------------------------------------------------
+     2. Broadcast Asphalt & Carbon Surfaces
+     -------------------------------------------------- */
+  --bg-canvas: #0B0D10;          /* Pure Broadcast Asphalt Carbon Black */
+  --bg-panel: #12151B;           /* Matte Charcoal Module Surface */
+  --bg-elevated: #181C24;        /* Elevated Card / Modal / Popover */
+  --bg-overlay: rgba(11, 13, 16, 0.88);
+  --bg-glass: rgba(18, 21, 27, 0.75);
+
+  /* --------------------------------------------------
+     3. High-Contrast Broadcast Dividers & Borders
+     -------------------------------------------------- */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.16);
+  --border-active: #2C3240;
+  --border-accent: rgba(255, 24, 1, 0.5);
+
+  /* --------------------------------------------------
+     4. Official F1 Sector Timing Conventions
+     -------------------------------------------------- */
+  /* Purple: Outright Fastest Sector of the Entire Session */
+  --sector-purple: #B138DD;
+  --sector-purple-bg: rgba(177, 56, 221, 0.16);
+  --sector-purple-border: rgba(177, 56, 221, 0.45);
+
+  /* Green: Personal Best Sector for this Driver */
+  --sector-green: #00D26A;
+  --sector-green-bg: rgba(0, 210, 106, 0.16);
+  --sector-green-border: rgba(0, 210, 106, 0.45);
+
+  /* Yellow: Slower Sector / Normal */
+  --sector-yellow: #FFD600;
+  --sector-yellow-bg: rgba(255, 214, 0, 0.14);
+  --sector-yellow-border: rgba(255, 214, 0, 0.45);
+
+  /* --------------------------------------------------
+     5. Head-to-Head Ghost Driver Contrast
+     -------------------------------------------------- */
+  --driver-chaser: #00E5FF;      /* Chaser / Driver A: Electric Neon Cyan */
+  --driver-chaser-bg: rgba(0, 229, 255, 0.12);
+  --driver-chaser-border: rgba(0, 229, 255, 0.35);
+
+  --driver-defender: #FFD600;    /* Defender / Driver B: Electric Neon Yellow */
+  --driver-defender-bg: rgba(255, 214, 0, 0.12);
+  --driver-defender-border: rgba(255, 214, 0, 0.35);
+
+  /* --------------------------------------------------
+     6. Typography & Font Families
+     -------------------------------------------------- */
+  --font-f1-display: 'Titillium Web', 'Barlow Condensed', 'Outfit', sans-serif;
+  --font-f1-sans: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-f1-mono: 'JetBrains Mono', 'Roboto Mono', monospace;
+
+  /* --------------------------------------------------
+     7. Text Contrast Hierarchy
+     -------------------------------------------------- */
+  --text-primary: #FFFFFF;
+  --text-secondary: #9BA4B5;
+  --text-muted: #5E6676;
+  --text-dim: #3E4553;
+
+  /* --------------------------------------------------
+     8. Motion & Transitions
+     -------------------------------------------------- */
+  --ease-f1: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+}

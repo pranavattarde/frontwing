@@ -85,10 +85,6 @@ function mapResponseToMessages(id, response, timestamp, isLast) {
   if (response.investigation_report) {
     const rep = response.investigation_report;
     const parts = [];
-    if (rep["Reasoning Graph Text"]) {
-      parts.push(`**Root-Cause Reasoning Graph:**
-${rep["Reasoning Graph Text"]}`);
-    }
     if (rep["Telemetry Findings"] && rep["Telemetry Findings"] !== "Unavailable" && !rep["Telemetry Findings"].includes("insufficient")) {
       parts.push(`**Telemetry Findings:** ${rep["Telemetry Findings"]}`);
     }
@@ -557,11 +553,11 @@ export function InvestigationThread() {
       if (index === 1) navigate(`/race/${sessionId}`);
     }}
   />{
-    /* Main Investigation Canvas */
-  }<div className="flex-1 flex w-full max-w-[1440px] mx-auto overflow-hidden"><main
+    /* Main Investigation Canvas — Full Viewport Width */
+  }<div className="flex-1 flex w-full max-w-[1600px] mx-auto overflow-hidden"><main
     className={cn(
-      "flex-1 flex flex-col justify-between py-6 px-4 transition-all duration-300",
-      expandedTelemetry ? "max-w-[720px]" : "max-w-thread mx-auto"
+      "flex-1 flex flex-col justify-between py-6 px-4 lg:px-8 w-full transition-all duration-300",
+      expandedTelemetry ? "lg:w-7/12" : "w-full"
     )}
   >{
     /* Question Header & Title Section */
@@ -596,12 +592,20 @@ export function InvestigationThread() {
       />;
     }
     if (msg.type === "narrative") {
-      return <div key={msg.id} className="flex flex-col gap-4 animate-slide-up"><NarrativeStream content={msg.content} isStreaming={isStreaming} />{
-        /* Reasoning Panel */
-      }{!isStreaming && (lastResponse?.evidence?.simulation_tool || lastResponse?.evidence?.telemetry_tool) && <ExplanationPanel
-        steps={activeReasoningSteps}
-        conclusion={lastResponse?.investigation_report?.["Final Recommendation"] || lastResponse?.final_answer?.slice(0, 120) || "Strategic debrief completed."}
-      />}</div>;
+      return (
+        <div key={msg.id} className="flex flex-col gap-4 animate-slide-up">
+          <NarrativeStream content={msg.content} isStreaming={isStreaming} />
+          {/* Collapsible Technical Reasoning & Diagnostic Telemetry Logs */}
+          {!isStreaming && (lastResponse?.evidence?.simulation_tool || lastResponse?.evidence?.telemetry_tool || lastResponse?.planning_steps) && (
+            <ExplanationPanel
+              steps={activeReasoningSteps}
+              conclusion={lastResponse?.investigation_report?.["Final Recommendation"] || lastResponse?.final_answer?.slice(0, 120) || "Strategic debrief completed."}
+              reasoningGraph={lastResponse?.investigation_report?.["Reasoning Graph Text"]}
+              planningSteps={planningSteps}
+            />
+          )}
+        </div>
+      );
     }
     if (msg.type === "scorecard" && msg.evidenceData) {
       return <ScoreCard

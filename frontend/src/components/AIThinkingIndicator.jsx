@@ -1,45 +1,90 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-const STAGE_LABELS = {
-  parsing: "PARSING_QUERY",
-  loading_data: "LOADING_FASTF1_DATABASE",
-  computing: "RUNNING_STINT_REGRESSION_MODELS",
-  generating: "GENERATING_NARRATIVE_DEBRIEF",
-  done: "COMPILATION_COMPLETE"
-};
-export function AIThinkingIndicator({ stage, detail, className }) {
-  const [dots, setDots] = useState("");
+
+const PROGRESS_STAGES = [
+  { id: "session", label: "RESOLVING SESSION", matches: ["parsing", "session"] },
+  { id: "telemetry", label: "FETCHING TELEMETRY", matches: ["loading_data", "telemetry", "computing"] },
+  { id: "synthesizing", label: "SYNTHESIZING ANSWER", matches: ["generating", "synthesizing", "done"] }
+];
+
+export function AIThinkingIndicator({ stage = "parsing", detail, className }) {
+  const [pulse, setPulse] = useState(0);
+
   useEffect(() => {
-    if (stage === "done") return;
-    const interval = setInterval(() => {
-      setDots((prev) => prev.length >= 3 ? "." : prev + ".");
-    }, 400);
-    return () => clearInterval(interval);
-  }, [stage]);
-  const stagesList = ["parsing", "loading_data", "computing", "generating"];
-  const activeIdx = stagesList.indexOf(stage);
-  return <div
-    role="status"
-    aria-live="polite"
-    className={cn(
-      "border border-fw-border rounded-card bg-panel p-4 flex flex-col gap-3",
-      className
-    )}
-  >{
-    /* Ticker Row */
-  }<div className="flex justify-between items-center text-mono-meta font-mono"><div className="flex items-center gap-2"><span className="text-drs-cyan animate-pulse">●</span><span className="text-text-primary font-semibold">{STAGE_LABELS[stage]}{stage !== "done" && dots}</span></div><span className="text-text-muted">{detail}</span></div>{
-    /* Progress pipeline tracker */
-  }<div className="flex gap-1.5 w-full">{stagesList.map((stg, idx) => {
-    const isCompleted = idx < activeIdx || stage === "done";
-    const isActive = stage === stg;
-    return <div
-      key={stg}
+    const timer = setInterval(() => {
+      setPulse((p) => (p + 1) % 4);
+    }, 350);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getStageStatus = (stageItemIdx) => {
+    // Current active index
+    let currentIdx = 0;
+    if (["loading_data", "telemetry", "computing"].includes(stage)) {
+      currentIdx = 1;
+    } else if (["generating", "synthesizing", "done"].includes(stage)) {
+      currentIdx = 2;
+    }
+
+    if (stageItemIdx < currentIdx) return "completed";
+    if (stageItemIdx === currentIdx) return "active";
+    return "pending";
+  };
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
       className={cn(
-        "h-1 flex-1 rounded-sm border transition-all duration-[200ms]",
-        isCompleted && "bg-drs-cyan border-drs-cyan/30",
-        isActive && "bg-teammate-yellow border-teammate-yellow/30 animate-pulse",
-        !isCompleted && !isActive && "bg-elevated border-fw-border"
+        "border border-fw-border rounded-card bg-panel/90 backdrop-blur-md p-4 flex flex-col gap-3.5 shadow-xl",
+        className
       )}
-    />;
-  })}</div></div>;
+    >
+      {/* 3-Stage Progressive Resolution Bar */}
+      <div className="grid grid-cols-3 gap-2">
+        {PROGRESS_STAGES.map((s, idx) => {
+          const status = getStageStatus(idx);
+          return (
+            <div
+              key={s.id}
+              className={cn(
+                "flex items-center gap-2 p-2 rounded border font-mono text-[11px] transition-all duration-200",
+                status === "completed" && "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 font-semibold",
+                status === "active" && "bg-drs-cyan/10 border-drs-cyan/40 text-drs-cyan font-bold shadow-sm",
+                status === "pending" && "bg-elevated/30 border-fw-border/40 text-text-muted opacity-60"
+              )}
+            >
+              {status === "completed" ? (
+                <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold">
+                  ✓
+                </span>
+              ) : status === "active" ? (
+                <span className="w-4 h-4 rounded-full bg-drs-cyan/20 text-drs-cyan flex items-center justify-center text-[10px] animate-spin">
+                  ⚙
+                </span>
+              ) : (
+                <span className="w-4 h-4 rounded-full bg-elevated text-text-muted flex items-center justify-center text-[9px]">
+                  {idx + 1}
+                </span>
+              )}
+              <span className="truncate tracking-wider">{s.label}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Real-time Telemetry Status Ticker */}
+      <div className="flex items-center justify-between text-mono-meta font-mono border-t border-fw-border/60 pt-2.5 px-1 text-xs">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-drs-cyan animate-pulse" />
+          <span className="text-text-primary font-semibold tracking-wide">
+            AI_RACE_ENGINEER
+          </span>
+        </div>
+        <span className="text-text-secondary font-mono italic">
+          {detail || "Querying telemetry streams and aerodynamic models..."}
+        </span>
+      </div>
+    </div>
+  );
 }

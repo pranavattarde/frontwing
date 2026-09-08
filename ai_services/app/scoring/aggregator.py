@@ -11,8 +11,8 @@ def calculate_race_scores(data: dict, save_to_db: bool = True) -> dict:
 
     and optionally persists the outputs to the PostgreSQL database.
     """
-    session_id = data.get("session_id", "mock_session")
-    driver_id = data.get("driver_id", "mock_driver")
+    session_id = data.get("session_id", "")
+    driver_id = data.get("driver_id", "")
 
     from datetime import datetime, timezone
     agg_start = datetime.now(timezone.utc).isoformat()

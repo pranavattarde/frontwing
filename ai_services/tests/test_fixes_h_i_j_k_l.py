@@ -33,6 +33,11 @@ def test_fix_h_stint_bounded_tyre_degradation_reset(telemetry_tool):
     assert stint1[1]["wear_pct"] == 0.0
     assert stint1[1]["pace_loss_s"] == 0.0
 
+    # Stint 1 in-lap (Lap 27) excluded with None wear and note IN-LAP
+    assert stint1[-1]["lap"] == 27
+    assert stint1[-1]["wear_pct"] is None
+    assert stint1[-1].get("note") == "IN-LAP"
+
     # Stint 2 out-lap (Lap 28) has None wear and note OUT-LAP
     assert stint2[0]["lap"] == 28
     assert stint2[0]["wear_pct"] is None
@@ -42,6 +47,58 @@ def test_fix_h_stint_bounded_tyre_degradation_reset(telemetry_tool):
     assert stint2[1]["lap"] == 29
     assert stint2[1]["wear_pct"] == 0.0
     assert stint2[1]["pace_loss_s"] == 0.0
+
+
+def test_fix_m_tyre_degradation_fuel_corrected_monotonic(telemetry_tool):
+    """FIX M: Verify tyre degradation excludes in-laps/out-laps, has no negative wear/pace loss, and is monotonic."""
+    drivers_expected = [
+        ("verstappen", 27, 28),  # stint 1 in-lap 27, stint 2 out-lap 28
+        ("norris", 28, 29),      # stint 1 in-lap 28, stint 2 out-lap 29
+        ("leclerc", 24, 25),     # stint 1 in-lap 24, stint 2 out-lap 25
+    ]
+
+    for driver, in_lap_num, out_lap_num in drivers_expected:
+        res = telemetry_tool.execute({
+            "session_id": "2024_dutch_gp_race",
+            "driver_id": driver
+        })
+        assert res.get("status") == "success"
+        deg_list = res.get("tyre_degradation", [])
+
+        # In-lap must be excluded with note IN-LAP and None wear
+        in_lap = next((p for p in deg_list if p.get("lap") == in_lap_num), None)
+        assert in_lap is not None
+        assert in_lap.get("note") == "IN-LAP"
+        assert in_lap.get("wear_pct") is None
+        assert in_lap.get("pace_loss_s") is None
+
+        # Out-lap must be excluded with note OUT-LAP and None wear
+        out_lap = next((p for p in deg_list if p.get("lap") == out_lap_num), None)
+        assert out_lap is not None
+        assert out_lap.get("note") == "OUT-LAP"
+        assert out_lap.get("wear_pct") is None
+        assert out_lap.get("pace_loss_s") is None
+
+        # For each stint, check clean laps: no negative values, strictly monotonic non-decreasing wear
+        stints = {p.get("stint") for p in deg_list if p.get("stint")}
+        for s_idx in stints:
+            stint_clean = [p for p in deg_list if p.get("stint") == s_idx and p.get("wear_pct") is not None]
+            assert len(stint_clean) >= 10
+
+            # First clean lap must reset to 0.0%
+            assert stint_clean[0]["wear_pct"] == 0.0
+            assert stint_clean[0]["pace_loss_s"] == 0.0
+
+            # All clean laps must have non-negative wear and pace loss (no fuel-variance negatives)
+            for p in stint_clean:
+                assert p["wear_pct"] >= 0.0
+                assert p["pace_loss_s"] >= 0.0
+
+            # Monotonic non-decreasing wear progression within stint
+            for i in range(len(stint_clean) - 1):
+                assert stint_clean[i]["wear_pct"] <= stint_clean[i + 1]["wear_pct"]
+                assert stint_clean[i]["pace_loss_s"] <= stint_clean[i + 1]["pace_loss_s"]
+
 
 
 def test_fix_i_dutch_gp_fastest_lap_and_winner(telemetry_tool):

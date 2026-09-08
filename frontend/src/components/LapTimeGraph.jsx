@@ -61,20 +61,70 @@ export function LapTimeGraph({
         </div>
 
         {/* Chart SVG */}
-        <div className="relative w-full h-[180px]">
-          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
+        <div className="relative w-full h-[190px]">
+          <svg viewBox={`0 0 ${width} ${height + 20}`} className="w-full h-full overflow-visible">
+            {/* Y-Axis Title */}
+            <text
+              x={padding - 10}
+              y={padding - 18}
+              textAnchor="start"
+              fill="#8E9AA8"
+              fontSize="10"
+              fontWeight="bold"
+              className="font-mono tracking-wider"
+            >
+              LAP TIME (s) ↑
+            </text>
+
+            {/* Horizontal Gridlines & Y-Axis Labels */}
             {[0, 0.25, 0.5, 0.75, 1].map((pct, idx) => {
               const yVal = minTime + (maxTime - minTime) * (1 - pct);
               const yPos = getY(yVal);
               return (
                 <g key={idx}>
                   <line x1={padding} y1={yPos} x2={width - padding} y2={yPos} stroke="#1C2025" strokeDasharray="3 3" />
-                  <text x={padding - 8} y={yPos + 4} textAnchor="end" fill="#8E9AA8" fontSize="12" fontWeight="600" className="font-mono">
+                  <text x={padding - 8} y={yPos + 4} textAnchor="end" fill="#8E9AA8" fontSize="11" fontWeight="600" className="font-mono">
                     {yVal.toFixed(1)}s
                   </text>
                 </g>
               );
             })}
+
+            {/* X-Axis Gridlines & Lap Number Ticks */}
+            {(() => {
+              const lapSpan = Math.max(1, maxLap - minLap);
+              const step = lapSpan <= 10 ? 1 : lapSpan <= 25 ? 2 : lapSpan <= 50 ? 5 : 10;
+              const ticks = [];
+              for (let l = minLap; l <= maxLap; l += step) {
+                ticks.push(l);
+              }
+              if (!ticks.includes(maxLap)) ticks.push(maxLap);
+
+              return ticks.map((l) => {
+                const xPos = getX(l);
+                return (
+                  <g key={`x-tick-${l}`}>
+                    <line x1={xPos} y1={height - padding} x2={xPos} y2={height - padding + 4} stroke="#2D3748" strokeWidth="1" />
+                    <text x={xPos} y={height - padding + 16} textAnchor="middle" fill="#8E9AA8" fontSize="10" fontWeight="600" className="font-mono">
+                      L{l}
+                    </text>
+                  </g>
+                );
+              });
+            })()}
+
+            {/* X-Axis Title */}
+            <text
+              x={width / 2}
+              y={height - padding + 30}
+              textAnchor="middle"
+              fill="#8E9AA8"
+              fontSize="10"
+              fontWeight="bold"
+              className="font-mono tracking-wider"
+            >
+              LAP NUMBER →
+            </text>
 
             <path d={pathA} fill="none" stroke="#00E5FF" strokeWidth="2.5" strokeLinecap="round" />
             {pathB && <path d={pathB} fill="none" stroke="#FF1801" strokeWidth="2" strokeDasharray="4 2" />}
@@ -96,18 +146,32 @@ export function LapTimeGraph({
             <div
               className="absolute z-20 bg-canvas/95 border border-drs-cyan/50 backdrop-blur-md px-3 py-2 rounded-card text-xs font-mono text-text-primary pointer-events-none shadow-xl"
               style={{
-                left: `${(getX(hoveredLap.lap) / width) * 100}%`,
+                left: `${Math.min(85, Math.max(15, (getX(hoveredLap.lap) / width) * 100))}%`,
                 top: "10px",
                 transform: "translateX(-50%)"
               }}
             >
-              <div className="font-bold">
-                LAP {hoveredLap.lap}: <span className="text-drs-cyan font-bold">{hoveredLap.lap_time.toFixed(3)}s</span>
+              <div className="font-bold flex items-center gap-2">
+                <span>LAP {hoveredLap.lap}:</span>
+                <span className="text-drs-cyan font-bold">{hoveredLap.lap_time.toFixed(3)}s</span>
+                {hoveredLap.lap_time === fastestLapTime && (
+                  <span className="bg-emerald-500/20 text-emerald-400 text-[9px] px-1.5 py-0.2 rounded font-bold">
+                    PERSONAL BEST
+                  </span>
+                )}
               </div>
-              <div className="text-[10px] text-text-muted mt-0.5">
-                DELTA TO PB: <span className="text-text-primary">+{(hoveredLap.lap_time - fastestLapTime).toFixed(3)}s</span>
+              <div className="text-[10px] text-text-muted mt-0.5 flex items-center justify-between gap-4">
+                <span>DELTA TO PB:</span>
+                <span className={hoveredLap.lap_time === fastestLapTime ? "text-emerald-400 font-bold" : "text-text-primary"}>
+                  {hoveredLap.lap_time === fastestLapTime ? "0.000s" : `+${(hoveredLap.lap_time - fastestLapTime).toFixed(3)}s`}
+                </span>
               </div>
-              {hoveredLap.compound && <div className="text-[10px] text-amber-400 font-bold">COMPOUND: {hoveredLap.compound}</div>}
+              {hoveredLap.compound && (
+                <div className="text-[10px] text-amber-400 font-bold mt-0.5 flex items-center justify-between gap-4">
+                  <span>COMPOUND:</span>
+                  <span>{hoveredLap.compound}</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -202,7 +266,7 @@ export function LapTimeGraph({
                             {isPB ? "0.000s" : `+${deltaPB.toFixed(3)}s`}
                           </td>
                           <td className="py-2 px-3 text-amber-400 font-bold">
-                            {d.compound || "HARD"}
+                            {d.compound || "-"}
                           </td>
                         </tr>
                       );

@@ -1,68 +1,32 @@
+@import "./styles/design_tokens.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================
-   FrontWing Design System — CSS Custom Properties
-   design_system.md §4, §5
-   ============================================ */
-
-:root {
-  /* Canvas & Surfaces */
-  --color-bg: #090A0C;
-  --color-panel: #0E1013;
-  --color-elevated: #16191E;
-  --color-border: hsla(220, 10%, 60%, 0.15);
-  --color-border-active: hsla(220, 10%, 80%, 0.25);
-
-  /* Typography */
-  --color-text-primary: #F3F5F7;
-  --color-text-secondary: #8B95A5;
-  --color-text-muted: #5C6470;
-
-  /* Accents */
-  --color-f1-red: #FF1801;
-  --color-drs-cyan: #00E5FF;
-  --color-teammate-yellow: #FFD600;
-
-  /* Tire Compounds */
-  --color-tire-soft: #FF2B49;
-  --color-tire-medium: #FFD600;
-  --color-tire-hard: #E5E7EB;
-  --color-tire-inter: #1BC944;
-  --color-tire-wet: #0D6EFD;
-
-  /* Fonts */
-  --font-sans: 'Outfit', 'Inter', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Roboto Mono', monospace;
-
-  /* Motion */
-  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-fast-out: cubic-bezier(0.4, 0, 1, 1);
-  --duration-micro: 80ms;
-  --duration-fast: 150ms;
-  --duration-narrative: 30ms;
-  --duration-sim: 300ms;
-}
-
-/* ============================================
-   Base Layer
-   ============================================ */
+/* ==========================================================================
+   FrontWing Official F1 Broadcast Design System — CSS Core
+   ========================================================================== */
 
 @layer base {
   * {
-    border-color: var(--color-border);
+    border-color: var(--border-subtle);
   }
 
   body {
-    background-color: var(--color-bg);
-    color: var(--color-text-secondary);
-    font-family: var(--font-sans);
+    background-color: var(--bg-canvas);
+    color: var(--text-secondary);
+    font-family: var(--font-f1-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Scrollbar — slim, dark, functional */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-f1-display);
+    color: var(--text-primary);
+  }
+
+  /* Scrollbar — clean, dark broadcast look */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -71,92 +35,138 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: hsla(220, 10%, 60%, 0.2);
+    background: rgba(255, 255, 255, 0.12);
     border-radius: 3px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: hsla(220, 10%, 60%, 0.4);
+    background: rgba(255, 255, 255, 0.24);
   }
 
-  /* Focus visible ring — DRS Cyan at 0.3 opacity */
+  /* Focus ring — Electric Cyan */
   :focus-visible {
-    outline: 2px solid rgba(0, 229, 255, 0.3);
+    outline: 2px solid rgba(0, 229, 255, 0.4);
     outline-offset: 2px;
   }
 
   /* Selection */
   ::selection {
-    background: rgba(0, 229, 255, 0.2);
+    background: rgba(0, 229, 255, 0.25);
     color: #00E5FF;
   }
 }
 
-/* ============================================
-   Component Layer
-   ============================================ */
+/* ==========================================================================
+   Component Layer — F1 Broadcast Badges, Tables & Panels
+   ========================================================================== */
 
 @layer components {
+  /* F1 Official Timing Badges */
+  .badge-sector-purple {
+    background-color: var(--sector-purple-bg);
+    color: var(--sector-purple);
+    border: 1px solid var(--sector-purple-border);
+  }
+
+  .badge-sector-green {
+    background-color: var(--sector-green-bg);
+    color: var(--sector-green);
+    border: 1px solid var(--sector-green-border);
+  }
+
+  .badge-sector-yellow {
+    background-color: var(--sector-yellow-bg);
+    color: var(--sector-yellow);
+    border: 1px solid var(--sector-yellow-border);
+  }
+
+  .badge-f1-red {
+    background-color: var(--f1-red-bg);
+    color: var(--f1-red);
+    border: 1px solid var(--f1-red-border);
+  }
+
+  /* Broadcast Card Base */
+  .broadcast-card {
+    background-color: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Semantic F1 Broadcast HTML Table */
+  .f1-table-container {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background-color: var(--bg-panel);
+  }
+
+  .f1-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+  }
+
+  .f1-table th {
+    background-color: var(--bg-elevated);
+    color: var(--text-muted);
+    font-family: var(--font-f1-mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-medium);
+  }
+
+  .f1-table td {
+    padding: 10px 14px;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-subtle);
+    font-family: var(--font-f1-sans);
+  }
+
+  .f1-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .f1-table tr:hover td {
+    background-color: rgba(255, 255, 255, 0.02);
+  }
+
   /* Skeleton shimmer base */
   .skeleton {
     background: linear-gradient(
       90deg,
-      #16191E 0%,
-      #1C2025 40%,
-      #16191E 80%
+      #12151B 0%,
+      #1C2028 40%,
+      #12151B 80%
     );
     background-size: 200% 100%;
     animation: skeleton-shimmer 1.5s linear infinite;
     border-radius: 4px;
   }
-
-  /* Inline callout pill — design_system.md §6.2.3 */
-  .callout-pill {
-    @apply font-mono text-xs font-medium px-1.5 py-0.5 rounded-sm border;
-  }
-
-  .callout-pill-cyan {
-    @apply callout-pill bg-drs-cyan/10 text-drs-cyan border-drs-cyan/20;
-  }
-
-  .callout-pill-red {
-    @apply callout-pill bg-f1-red/10 text-f1-red border-f1-red/20;
-  }
-
-  .callout-pill-yellow {
-    @apply callout-pill bg-teammate-yellow/10 text-teammate-yellow border-teammate-yellow/20;
-  }
-
-  /* Evidence card base */
-  .evidence-card {
-    @apply border border-fw-border rounded-card bg-panel;
-  }
-
-  /* Error state left border */
-  .error-border {
-    @apply border-l-2 border-l-f1-red;
-  }
 }
 
-/* ============================================
+/* ==========================================================================
    Utility Layer
-   ============================================ */
+   ========================================================================== */
 
 @layer utilities {
-  /* Mono data formatting */
   .font-data {
-    font-family: var(--font-mono);
+    font-family: var(--font-f1-mono);
     font-variant-numeric: tabular-nums;
     font-feature-settings: 'tnum' 1;
   }
 
-  /* Thread max width */
-  .thread-width {
-    @apply max-w-thread mx-auto w-full px-4;
+  .font-display {
+    font-family: var(--font-f1-display);
   }
 
-  /* Hover lift — design_system.md shared behaviors */
   .hover-lift {
-    @apply transition-transform duration-[80ms] ease-fw;
+    transition: transform 120ms var(--ease-f1);
   }
   .hover-lift:hover {
     transform: translateY(-1px);

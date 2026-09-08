@@ -1096,6 +1096,7 @@ class TelemetryTool(BaseF1Tool):
                 s_start = s_info["start_lap"]
                 s_end = s_info["end_lap"]
                 s_compound = str(s_info.get("compound") or "UNKNOWN").upper()
+                is_last_stint = (s_num == len(stints_a))
 
                 # Get driver laps belonging to this stint
                 stint_laps = [
@@ -1103,11 +1104,13 @@ class TelemetryTool(BaseF1Tool):
                     if s_start <= l["lap_number"] <= s_end and l.get("lap_time_ms")
                 ]
 
-                # Filter clean flying laps in this stint (excluding standing start Lap 1, out-laps, and SC laps)
+                # Filter clean flying laps in this stint
+                # Exclude standing start (lap 1), out-laps, in-laps, SC laps, and invalid laps
                 clean_laps = [
                     l for l in stint_laps
                     if l["lap_number"] > 1
-                    and not l.get("is_pit_out_lap")
+                    and not (l.get("is_pit_out_lap") or (s_num > 1 and l["lap_number"] == s_start))
+                    and not (not is_last_stint and l["lap_number"] == s_end)
                     and l["lap_number"] not in sc_laps_set
                     and l.get("is_valid", True)
                 ]
@@ -1119,24 +1122,73 @@ class TelemetryTool(BaseF1Tool):
                 # If insufficient clean laps exist in this stint, return degradation as null/insufficient
                 if len(clean_laps) < 3:
                     for l in stint_laps:
-                        tyre_deg_data.append({
-                            "lap": l["lap_number"],
-                            "stint": s_num,
-                            "wear_pct": None,
-                            "pace_loss_s": None,
-                            "compound": s_compound,
-                            "status": "insufficient_clean_laps",
-                            "note": "INSUFFICIENT_CLEAN_LAPS"
-                        })
+                        l_num = l["lap_number"]
+                        is_start = (l_num == 1)
+                        is_out = l.get("is_pit_out_lap", False) or (s_num > 1 and l_num == s_start)
+                        is_in = (not is_last_stint and l_num == s_end)
+                        is_sc = l_num in sc_laps_set
+                        if is_start:
+                            tyre_deg_data.append({
+                                "lap": l_num, "stint": s_num, "wear_pct": None, "pace_loss_s": None,
+                                "compound": s_compound, "status": "start_lap", "note": "START-LAP"
+                            })
+                        elif is_out:
+                            tyre_deg_data.append({
+                                "lap": l_num, "stint": s_num, "wear_pct": None, "pace_loss_s": None,
+                                "compound": s_compound, "status": "out_lap", "note": "OUT-LAP"
+                            })
+                        elif is_in:
+                            tyre_deg_data.append({
+                                "lap": l_num, "stint": s_num, "wear_pct": None, "pace_loss_s": None,
+                                "compound": s_compound, "status": "in_lap", "note": "IN-LAP"
+                            })
+                        elif is_sc:
+                            tyre_deg_data.append({
+                                "lap": l_num, "stint": s_num, "wear_pct": None, "pace_loss_s": None,
+                                "compound": s_compound, "status": "sc_lap", "note": "SC-LAP"
+                            })
+                        else:
+                            tyre_deg_data.append({
+                                "lap": l_num, "stint": s_num, "wear_pct": None, "pace_loss_s": None,
+                                "compound": s_compound, "status": "insufficient_clean_laps",
+                                "note": "INSUFFICIENT_CLEAN_LAPS"
+                            })
                 else:
-                    # Baseline: this stint's own first clean lap pace
-                    first_clean_lap = clean_laps[0]
-                    base_pace_s = first_clean_lap["lap_time_ms"] / 1000.0
+                    # FIX M: Fuel-corrected monotonic degradation computation
+                    # 1. Fuel correction: +0.06s per lap burn-off factor (matching tire_score.py)
+                    # 2. Linear degradation trend via polyfit regression (min 0.005 slope)
+                    # 3. 3-lap centered moving average on delta from stint baseline
+                    # 4. Monotonic constraint ensures wear increases progressively across tyre life
+                    base_lap_num = clean_laps[0]["lap_number"]
+                    ages = np.array([l["lap_number"] - base_lap_num for l in clean_laps], dtype=float)
+                    fc_times = np.array([
+                        (l["lap_time_ms"] / 1000.0) + 0.06 * ages[i]
+                        for i, l in enumerate(clean_laps)
+                    ], dtype=float)
+                    base_time_s = fc_times[0]
+
+                    slope = max(0.005, float(np.polyfit(ages, fc_times, 1)[0])) if len(ages) >= 3 else 0.04
+                    trend_deltas = slope * ages
+
+                    smoothed_deltas = [
+                        max(0.0, float(np.mean([(fc_times[w] - base_time_s) for w in range(max(0, i - 1), min(len(clean_laps), i + 2))])))
+                        for i in range(len(clean_laps))
+                    ]
+                    blended = 0.7 * trend_deltas + 0.3 * np.array(smoothed_deltas)
+                    mono_pace = np.maximum.accumulate(np.maximum(0.0, blended))
+                    mono_pace = mono_pace - mono_pace[0]
+                    wear_arr = np.clip(np.round((mono_pace / 2.5) * 100.0, 1), 0.0, 100.0)
+
+                    clean_lookup = {
+                        clean_laps[i]["lap_number"]: (round(float(mono_pace[i]), 3), float(wear_arr[i]))
+                        for i in range(len(clean_laps))
+                    }
 
                     for l in stint_laps:
                         l_num = l["lap_number"]
                         is_start = (l_num == 1)
-                        is_out = l.get("is_pit_out_lap", False)
+                        is_out = l.get("is_pit_out_lap", False) or (s_num > 1 and l_num == s_start)
+                        is_in = (not is_last_stint and l_num == s_end)
                         is_sc = l_num in sc_laps_set
                         if is_start:
                             tyre_deg_data.append({
@@ -1148,28 +1200,54 @@ class TelemetryTool(BaseF1Tool):
                                 "status": "start_lap",
                                 "note": "START-LAP"
                             })
-                        elif is_out or is_sc:
+                        elif is_out:
                             tyre_deg_data.append({
                                 "lap": l_num,
                                 "stint": s_num,
                                 "wear_pct": None,
                                 "pace_loss_s": None,
                                 "compound": s_compound,
-                                "status": "out_lap" if is_out else "sc_lap",
-                                "note": "OUT-LAP" if is_out else "SC-LAP"
+                                "status": "out_lap",
+                                "note": "OUT-LAP"
                             })
-                        else:
-                            l_s = l["lap_time_ms"] / 1000.0
-                            # Pace loss is actual lap time delta from this stint's first clean lap
-                            pace_loss = round(l_s - base_pace_s, 3)
-                            # Wear % resets near zero at start of every new stint, scaling with actual pace loss
-                            wear = max(0.0, min(100.0, round((max(0.0, pace_loss) / 2.0) * 100.0, 1)))
+                        elif is_in:
+                            tyre_deg_data.append({
+                                "lap": l_num,
+                                "stint": s_num,
+                                "wear_pct": None,
+                                "pace_loss_s": None,
+                                "compound": s_compound,
+                                "status": "in_lap",
+                                "note": "IN-LAP"
+                            })
+                        elif is_sc:
+                            tyre_deg_data.append({
+                                "lap": l_num,
+                                "stint": s_num,
+                                "wear_pct": None,
+                                "pace_loss_s": None,
+                                "compound": s_compound,
+                                "status": "sc_lap",
+                                "note": "SC-LAP"
+                            })
+                        elif l_num in clean_lookup:
+                            pace_loss, wear = clean_lookup[l_num]
                             tyre_deg_data.append({
                                 "lap": l_num,
                                 "stint": s_num,
                                 "wear_pct": wear,
                                 "pace_loss_s": pace_loss,
                                 "compound": s_compound
+                            })
+                        else:
+                            tyre_deg_data.append({
+                                "lap": l_num,
+                                "stint": s_num,
+                                "wear_pct": None,
+                                "pace_loss_s": None,
+                                "compound": s_compound,
+                                "status": "invalid_lap",
+                                "note": "INVALID-LAP"
                             })
         else:
             # Fallback if stints table has no rows
@@ -1182,7 +1260,27 @@ class TelemetryTool(BaseF1Tool):
                 and l.get("is_valid", True)
             ]
             if len(clean_laps) >= 3:
-                base_pace_s = clean_laps[0]["lap_time_ms"] / 1000.0
+                base_lap_num = clean_laps[0]["lap_number"]
+                ages = np.array([l["lap_number"] - base_lap_num for l in clean_laps], dtype=float)
+                fc_times = np.array([
+                    (l["lap_time_ms"] / 1000.0) + 0.06 * ages[i]
+                    for i, l in enumerate(clean_laps)
+                ], dtype=float)
+                base_time_s = fc_times[0]
+                slope = max(0.005, float(np.polyfit(ages, fc_times, 1)[0])) if len(ages) >= 3 else 0.04
+                trend_deltas = slope * ages
+                smoothed_deltas = [
+                    max(0.0, float(np.mean([(fc_times[w] - base_time_s) for w in range(max(0, i - 1), min(len(clean_laps), i + 2))])))
+                    for i in range(len(clean_laps))
+                ]
+                blended = 0.7 * trend_deltas + 0.3 * np.array(smoothed_deltas)
+                mono_pace = np.maximum.accumulate(np.maximum(0.0, blended))
+                mono_pace = mono_pace - mono_pace[0]
+                wear_arr = np.clip(np.round((mono_pace / 2.5) * 100.0, 1), 0.0, 100.0)
+                clean_lookup = {
+                    clean_laps[i]["lap_number"]: (round(float(mono_pace[i]), 3), float(wear_arr[i]))
+                    for i in range(len(clean_laps))
+                }
                 for l in all_laps:
                     l_num = l["lap_number"]
                     if l_num == 1:
@@ -1198,13 +1296,17 @@ class TelemetryTool(BaseF1Tool):
                             "status": "out_lap" if l.get("is_pit_out_lap") else "sc_lap",
                             "note": "OUT-LAP" if l.get("is_pit_out_lap") else "SC-LAP"
                         })
-                    else:
-                        l_s = l["lap_time_ms"] / 1000.0
-                        pace_loss = round(l_s - base_pace_s, 3)
-                        wear = max(0.0, min(100.0, round((max(0.0, pace_loss) / 2.0) * 100.0, 1)))
+                    elif l_num in clean_lookup:
+                        pace_loss, wear = clean_lookup[l_num]
                         tyre_deg_data.append({
                             "lap": l_num, "stint": 1, "wear_pct": wear, "pace_loss_s": pace_loss,
                             "compound": str(l.get("compound") or "UNKNOWN").upper()
+                        })
+                    else:
+                        tyre_deg_data.append({
+                            "lap": l_num, "stint": 1, "wear_pct": None, "pace_loss_s": None,
+                            "compound": str(l.get("compound") or "UNKNOWN").upper(),
+                            "status": "invalid_lap", "note": "INVALID-LAP"
                         })
 
         # Precision Timing Binding

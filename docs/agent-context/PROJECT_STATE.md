@@ -1,13 +1,35 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-09-07 by Antigravity (Session 022 - Fixes H, I, J, K, L: Stint-Bounded Tyre Degradation, FastF1 Dutch GP Ground Truth, Monza Auto-Backfill, Gear Channel Integrity & Sector Badges)
-> Audit method: Comprehensive test suites (`test_fixes_h_i_j_k_l.py` 5/5 passed; Vite production build: PASSED in 6.92s with 0 errors).
+> Last updated: 2026-09-08 by Antigravity (Session 024 - Full Frontend Redesign: F1 Broadcast Design System, Circuit SVG Tracks, Chart Tooltips, Streaming UX & Multi-Viewport Verification)
+> Audit method: Comprehensive test suites (`test_fixes_h_i_j_k_l.py` 6/6 passed; Vite production build: PASSED in 4.58s with 0 errors; Browser subagent visual verification across 7 stages).
 
 ---
 
 ## 1. What Works Right Now
 
-### Stint-Bounded Real Tyre Degradation, FastF1 Dutch GP Ground Truth & Telemetry Integrity (SESSION 022 VERIFIED LIVE)
+### F1 Broadcast Design System & Redesign (SESSION 024 VERIFIED LIVE)
+- **Official F1 Broadcast Aesthetics & Typography (`design_tokens.css`, `index.html`)**:
+  - Official F1 fonts integrated: `Titillium Web` (display headings & branding) and `Barlow Condensed` (data tables, timing callouts & badges) alongside `JetBrains Mono`.
+  - Authentic F1 broadcast color tokens: `#0B0D10` (Dark Carbon canvas), `#12151B` (Charcoal panel), `#FF1801` (F1 Red), `#00E5FF` (DRS Cyan), `#FFD600` (Teammate Yellow), `#B138DD` (Sector 1/Fastest Lap Purple), and `#00D26A` (Sector 2/Personal Best Green).
+- **Full Responsive Canvas & HTML Table Markdown Rendering (`MarkdownContent.jsx`, `NarrativeStream.jsx`)**:
+  - Expanded debrief canvas to responsive full viewport width (`max-w-[1600px] mx-auto px-4 lg:px-8`).
+  - Structured Markdown tables render as semantic HTML `<table>` elements with styled headers, alternating dark charcoal rows, and color-coded winner badges (`badge-sector-purple`, `badge-sector-green`) instead of raw pipe characters (`| col1 | col2 |`).
+- **Real Circuit SVG Tracks & Synced Ghost Fight Battle (`circuitTracks.js`, `GhostFightSimulator.jsx`)**:
+  - Accurate SVG tracks and sector splits for Monza, Zandvoort, Silverstone, Lusail (Qatar), Red Bull Ring, Monaco, and Spa.
+  - Replaced the flat straight-line bar with real 2D circuit layouts with colored sector segments (S1 Purple `#B138DD`, S2 Green `#00D26A`, S3 Yellow `#FFD600`).
+  - Dynamic SVG path interpolation (`getPointAtLength`) animating Driver A & Driver B dots along track contours in sync with live speed, throttle %, brake %, and gear HUD gauges.
+- **Chart Hover Tooltips, Explicit Axis Labels & Multi-Trace Legends (`LapTimeGraph.jsx`, `TyreDegradationGraph.jsx`, `TelemetryCard.jsx`)**:
+  - **`LapTimeGraph.jsx`**: Explicit X-axis (`"LAP NUMBER →"`), Y-axis (`"LAP TIME (s) ↑"`), X-axis lap ticks, and interactive hover tooltip showing Lap #, Lap Time (to 3 decimals), PB badge, Delta to PB, and Tyre Compound.
+  - **`TyreDegradationGraph.jsx`**: Explicit X-axis (`"LAP NUMBER →"`), Y-axis (`"ESTIMATED WEAR (%) / PACE LOSS (s) ↑"`), X-axis lap ticks, and interactive hover tooltip showing Lap #, Stint #, Compound, Tyre Life %, and Pace Loss (or `[IN-LAP]` / `[OUT-LAP]` note).
+  - **`TelemetryCard.jsx`**: Explicit X-axis (`"DISTANCE (m) →"`), Y-axis metric titles with units (`"SPEED (km/h) ↑"`), and multi-channel color legend with explanatory caption.
+- **Progressive Streaming UX & Diagnostic Toggle (`AIThinkingIndicator.jsx`, `ExplanationPanel.jsx`)**:
+  - 3-stage progressive resolution bar: `RESOLVING SESSION` $\to$ `FETCHING TELEMETRY` $\to$ `SYNTHESIZING ANSWER` with active spinning indicator and checkmarks.
+  - Collapsible technical diagnostic toggle: `"⚙️ SHOW TECHNICAL REASONING & TELEMETRY LOGS"` (collapsed by default).
+  - Findings and recommendations prioritized in primary narrative stream; raw DAG traces and planning parameters tucked neatly inside the technical toggle.
+- **Multi-Viewport Responsiveness**:
+  - Fully verified across Desktop (1440px), Tablet (768px), and Mobile (375px) with zero horizontal page blowout.
+
+### Stint-Bounded Real Tyre Degradation, FastF1 Dutch GP Ground Truth & Telemetry Integrity (SESSION 022/023 VERIFIED LIVE)
 - **Real Stint-Bounded Tyre Degradation (`adapters.py`, `TyreDegradationGraph.jsx`) [FIX H]**:
   - Eliminated fabricated linear degradation increments (`wear = 100 - idx * 2.8`).
   - Degradation is strictly bounded by actual pit stops from the `stints` table.
@@ -133,6 +155,33 @@
 - Production 5-chart matrix (Lap Time Graph, Tyre Degradation Graph, Sector Comparison Graph, Speed Trace Canvas, Pit Window Visualizer), ScoreCard, and SimulationCard rendering verified live in browser.
 - Canvas rendering engine with crisp miter lines, 250m grid lines, neon cyan/yellow driver contrast, red brake active overlays, multi-channel toggles, crosshair, and HUD inspector.
 
+### Tyre Degradation Noise Elimination, In-Lap/Out-Lap Exclusion & Fuel Correction (FIX M VERIFIED)
+- **Stint Boundary In-Lap & Out-Lap Exclusion (`adapters.py`)**:
+  - Pit in-laps (the final lap of a stint before pit entry) and pit out-laps (the first lap of a new stint after pit exit) are now strictly excluded from tyre degradation and wear calculations.
+  - Tagged explicitly as `[IN-LAP]` and `[OUT-LAP]` with `wear_pct: None` and `pace_loss_s: None`, exactly like `[START-LAP]`, eliminating spurious 100% spikes and pit lane transit noise.
+- **Fuel-Correction Burn-Off Modeling (+0.06s/lap)**:
+  - Lap times are adjusted by $+0.06\text{s/lap}$ burn-off factor ($T_{\text{fc}} = T_{\text{actual}} + 0.06 \times \text{age}$), reusing the proven pattern from `ai_services/app/scoring/tire_score.py`.
+  - Eliminates false "negative wear" and negative pace losses caused by burning fuel mask tyre degradation.
+- **Monotonic-Leaning Trend Formulation**:
+  - Blends linear polyfit regression slope (70%) with a 3-lap centered moving average (30%) anchored at 0.000s / 0.0% on the stint's first clean flying lap.
+  - Strictly non-decreasing constraint ($\text{np.maximum.accumulate}$) guarantees degradation never runs backwards on a physical tyre.
+- **Automated Test Coverage**:
+  - `ai_services/tests/test_fixes_h_i_j_k_l.py::test_fix_m_tyre_degradation_fuel_corrected_monotonic` verified passing across Verstappen, Norris, and Leclerc at Dutch GP 2024.
+
+### Monza 0.2s Response Cache Audit & Zero-Hardcode Ground Truth Cross-Check (FIX N VERIFIED)
+- **Redis Cache Hit Provenance**:
+  - Direct Redis audit located key `cache:investigation:144da4cbc25ec056e1f80c10b4675b55bcc56a0b44fa2a7056e094ca64edb27c` matching SHA256 of `"global:compare verstappen with hamilton at monza"`.
+  - Stored investigation stream timestamps (`1788843874007` to `1788843889673`) prove the original query took **15.67s** via live Gemini planning + synthesis after full FastF1 backfill.
+  - The subsequent 0.2s response was a 100% legitimate Redis cache hit served by `CacheService.getCachedResponse()`.
+- **Codebase Hardcoding Audit**:
+  - Comprehensive ripgrep search for `monza`, `italian_gp`, `verstappen`, and `hamilton` revealed 0 canned responses across both `backend` and `ai_services`.
+- **Cold Request & FastF1 Independent Cross-Check**:
+  - Cold test executed after cache key deletion: cold request executed end-to-end in **3.61s** (unqueried pair Leclerc vs Norris at Monza executed in **6.21s**).
+  - Telemetry output cross-checked against raw FastF1 downloads:
+    - Hamilton PB: Lap 53, 81.512s (FastF1 = Lap 53, 81.512s — 100% match).
+    - Verstappen PB: Lap 43, 81.745s (FastF1 = Lap 43, 81.745s — 100% match).
+    - Delta: 0.233s (FastF1 = 0.233s — 100% match).
+
 ---
 
 ## 2. What Is Broken Right Now
@@ -141,7 +190,7 @@
 - **Ergast API is dead**: `ergast_collector.py` still calls `https://ergast.com/api/f1`.
 
 ### MEDIUM -- Data Quality
-- **Tyre wear model in TelemetryTool still hardcoded** (`adapters.py` lines ~384-386).
+- None currently blocking. (Tyre degradation formula noise and hardcoded wear resolved via Fixes H and M).
 
 ### LOW -- Code Debt
 - `aggregator.py` line 69: scoring persist failures swallowed at WARNING.
@@ -165,6 +214,7 @@
 
 | Season | Grand Prix | Session ID | Real Data? | Telemetry JSON? | Notes |
 |--------|-----------|------------|------------|-----------------|-------|
+| 2024 | Italian GP | 2024_italian_gp_race | YES | YES | Ingested & auto-backfilled with distanceM (338 files) |
 | 2024 | Qatar GP | 2024_qatar_gp_race | YES | YES | Ingested & verified end-to-end (317 telemetry rows) |
 | 2024 | British GP | 2024_silverstone_gp_race | YES | YES | Ingested & verified with distanceM (329 files) |
 | 2024 | Sao Paulo | 2024_são_paulo_gp_race | YES | YES | Ingested & verified with distanceM (378 files) |

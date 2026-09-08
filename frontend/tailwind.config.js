@@ -11,38 +11,55 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Canvas & Surfaces (design_system.md §4)
-        canvas: '#090A0C',
-        panel: '#0E1013',
-        elevated: '#16191E',
-        'fw-border': 'hsla(220, 10%, 60%, 0.15)',
-        'fw-border-active': 'hsla(220, 10%, 80%, 0.25)',
+        // Canvas & Surfaces — Official F1 Broadcast Carbon Theme
+        canvas: 'var(--bg-canvas)',
+        panel: 'var(--bg-panel)',
+        elevated: 'var(--bg-elevated)',
+        'fw-border': 'var(--border-subtle)',
+        'fw-border-medium': 'var(--border-medium)',
+        'fw-border-active': 'var(--border-active)',
+        
+        // Official F1 Sector Timing Palette
+        'sector-purple': 'var(--sector-purple)',
+        'sector-purple-bg': 'var(--sector-purple-bg)',
+        'sector-purple-border': 'var(--sector-purple-border)',
+        'sector-green': 'var(--sector-green)',
+        'sector-green-bg': 'var(--sector-green-bg)',
+        'sector-green-border': 'var(--sector-green-border)',
+        'sector-yellow': 'var(--sector-yellow)',
+        'sector-yellow-bg': 'var(--sector-yellow-bg)',
+        'sector-yellow-border': 'var(--sector-yellow-border)',
+
         // Typography Colors
-        'text-primary': '#F3F5F7',
-        'text-secondary': '#8B95A5',
-        'text-muted': '#5C6470',
+        'text-primary': 'var(--text-primary)',
+        'text-secondary': 'var(--text-secondary)',
+        'text-muted': 'var(--text-muted)',
+        'text-dim': 'var(--text-dim)',
+
         // Accent & Telemetry
-        'f1-red': '#FF1801',
-        'drs-cyan': '#00E5FF',
-        'teammate-yellow': '#FFD600',
+        'f1-red': 'var(--f1-red)',
+        'drs-cyan': 'var(--driver-chaser)',
+        'teammate-yellow': 'var(--driver-defender)',
+
         // Tire Compounds
         'tire-soft': '#FF2B49',
         'tire-medium': '#FFD600',
-        'tire-hard': '#E5E7EB',
-        'tire-inter': '#1BC944',
+        'tire-hard': '#FFFFFF',
+        'tire-inter': '#00D26A',
         'tire-wet': '#0D6EFD',
       },
       fontFamily: {
+        f1: ['Titillium Web', 'Barlow Condensed', 'Outfit', 'sans-serif'],
         sans: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'Roboto Mono', 'monospace'],
       },
       fontSize: {
-        'display': ['32px', { lineHeight: '1.2', letterSpacing: '-0.03em', fontWeight: '600' }],
-        'h1': ['20px', { lineHeight: '1.3', letterSpacing: '-0.02em', fontWeight: '600' }],
-        'h2': ['14px', { lineHeight: '1.4', letterSpacing: '-0.01em', fontWeight: '500' }],
-        'body': ['14px', { lineHeight: '1.55', letterSpacing: '0.01em', fontWeight: '400' }],
-        'mono-data': ['13px', { lineHeight: '1.4', letterSpacing: '0em', fontWeight: '500' }],
-        'mono-meta': ['11px', { lineHeight: '1.3', letterSpacing: '0.02em', fontWeight: '400' }],
+        'display': ['32px', { lineHeight: '1.2', letterSpacing: '-0.02em', fontWeight: '700' }],
+        'h1': ['22px', { lineHeight: '1.3', letterSpacing: '-0.01em', fontWeight: '700' }],
+        'h2': ['16px', { lineHeight: '1.4', letterSpacing: '0em', fontWeight: '600' }],
+        'body': ['14px', { lineHeight: '1.6', letterSpacing: '0.01em', fontWeight: '400' }],
+        'mono-data': ['13px', { lineHeight: '1.4', letterSpacing: '0em', fontWeight: '600' }],
+        'mono-meta': ['11px', { lineHeight: '1.3', letterSpacing: '0.03em', fontWeight: '500' }],
       },
       spacing: {
         'xxs': '4px',
@@ -54,11 +71,12 @@ export default {
         'xxl': '48px',
       },
       borderRadius: {
-        'card': '4px',
-        'button': '2px',
+        'card': '6px',
+        'button': '4px',
       },
       maxWidth: {
-        'thread': '768px',
+        'thread': '100%',
+        'canvas': '1600px',
       },
       transitionTimingFunction: {
         'fw': 'cubic-bezier(0.16, 1, 0.3, 1)',

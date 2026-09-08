@@ -6,6 +6,7 @@ export function TyreDegradationGraph({
   driverCode = "DRIVER",
   className
 }) {
+  const [hoveredPoint, setHoveredPoint] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (!data || data.length === 0) {
@@ -49,7 +50,7 @@ export function TyreDegradationGraph({
           <div className="flex items-center gap-3 text-xs">
             <span className="text-text-muted">
               {String(driverCode || "DRIVER").toUpperCase()} COMPOUND:{" "}
-              <span className="text-amber-400 font-bold">{latest?.compound || "HARD"}</span>
+              <span className="text-amber-400 font-bold">{latest?.compound || "N/A"}</span>
             </span>
             <span className="text-text-muted">
               LIFE: <span className="text-drs-cyan font-bold">{latest?.wear_pct !== null && latest?.wear_pct !== undefined ? `${latest.wear_pct}%` : "100%"}</span>
@@ -64,19 +65,69 @@ export function TyreDegradationGraph({
         </div>
 
         {/* Chart SVG */}
-        <div className="relative w-full h-[160px]">
-          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
+        <div className="relative w-full h-[180px]">
+          <svg viewBox={`0 0 ${width} ${height + 20}`} className="w-full h-full overflow-visible">
+            {/* Y-Axis Title */}
+            <text
+              x={padding - 10}
+              y={padding - 18}
+              textAnchor="start"
+              fill="#8E9AA8"
+              fontSize="9"
+              fontWeight="bold"
+              className="font-mono tracking-wider"
+            >
+              ESTIMATED WEAR (%) / PACE LOSS (s) ↑
+            </text>
+
+            {/* Horizontal Gridlines & Y-Axis Labels */}
             {[0, 25, 50, 75, 100].map((pct, idx) => {
               const yPos = getYWear(pct);
               return (
                 <g key={idx}>
                   <line x1={padding} y1={yPos} x2={width - padding} y2={yPos} stroke="#1C2025" strokeDasharray="3 3" />
-                  <text x={padding - 8} y={yPos + 4} textAnchor="end" fill="#8E9AA8" fontSize="12" fontWeight="600" className="font-mono">
+                  <text x={padding - 8} y={yPos + 4} textAnchor="end" fill="#8E9AA8" fontSize="11" fontWeight="600" className="font-mono">
                     {pct}%
                   </text>
                 </g>
               );
             })}
+
+            {/* X-Axis Lap Ticks */}
+            {(() => {
+              const lapSpan = Math.max(1, maxLap - minLap);
+              const step = lapSpan <= 10 ? 1 : lapSpan <= 25 ? 2 : lapSpan <= 50 ? 5 : 10;
+              const ticks = [];
+              for (let l = minLap; l <= maxLap; l += step) {
+                ticks.push(l);
+              }
+              if (!ticks.includes(maxLap)) ticks.push(maxLap);
+
+              return ticks.map((l) => {
+                const xPos = getX(l);
+                return (
+                  <g key={`x-tick-${l}`}>
+                    <line x1={xPos} y1={height - padding} x2={xPos} y2={height - padding + 4} stroke="#2D3748" strokeWidth="1" />
+                    <text x={xPos} y={height - padding + 16} textAnchor="middle" fill="#8E9AA8" fontSize="10" fontWeight="600" className="font-mono">
+                      L{l}
+                    </text>
+                  </g>
+                );
+              });
+            })()}
+
+            {/* X-Axis Title */}
+            <text
+              x={width / 2}
+              y={height - padding + 30}
+              textAnchor="middle"
+              fill="#8E9AA8"
+              fontSize="10"
+              fontWeight="bold"
+              className="font-mono tracking-wider"
+            >
+              LAP NUMBER →
+            </text>
 
             {/* Render per-stint wear curves */}
             {Object.entries(stintGroups).map(([stintId, stintPts]) => {
@@ -97,17 +148,66 @@ export function TyreDegradationGraph({
 
             {data.map((d, i) => {
               if (d.wear_pct === null || d.wear_pct === undefined) return null;
+              const isHovered = hoveredPoint?.lap === d.lap;
               return (
                 <circle
                   key={i}
                   cx={getX(d.lap)}
                   cy={getYWear(d.wear_pct)}
-                  r="4"
+                  r={isHovered ? 6 : 4}
                   fill={d.wear_pct < 40 ? "#EF4444" : d.wear_pct < 70 ? "#F59E0B" : "#10B981"}
+                  className="cursor-pointer transition-all hover:scale-125"
+                  onMouseEnter={() => setHoveredPoint(d)}
                 />
               );
             })}
           </svg>
+
+          {/* Hover Tooltip */}
+          {hoveredPoint && (
+            <div
+              className="absolute z-20 bg-canvas/95 border border-amber-400/50 backdrop-blur-md px-3 py-2 rounded-card text-xs font-mono text-text-primary pointer-events-none shadow-xl"
+              style={{
+                left: `${Math.min(85, Math.max(15, (getX(hoveredPoint.lap) / width) * 100))}%`,
+                top: "10px",
+                transform: "translateX(-50%)"
+              }}
+            >
+              <div className="font-bold flex items-center justify-between gap-4 border-b border-fw-border pb-1">
+                <span>LAP {hoveredPoint.lap}</span>
+                <span className="text-amber-400 font-bold">STINT {hoveredPoint.stint || 1}</span>
+              </div>
+              <div className="text-[10px] mt-1 flex items-center justify-between gap-4">
+                <span className="text-text-muted">TYRE LIFE:</span>
+                <span
+                  className={cn(
+                    "font-bold",
+                    hoveredPoint.wear_pct < 40 ? "text-red-400" : hoveredPoint.wear_pct < 70 ? "text-amber-400" : "text-emerald-400"
+                  )}
+                >
+                  {hoveredPoint.wear_pct}%
+                </span>
+              </div>
+              {hoveredPoint.compound && (
+                <div className="text-[10px] mt-0.5 flex items-center justify-between gap-4">
+                  <span className="text-text-muted">COMPOUND:</span>
+                  <span className="text-amber-300 font-semibold">{hoveredPoint.compound}</span>
+                </div>
+              )}
+              <div className="text-[10px] mt-0.5 flex items-center justify-between gap-4">
+                <span className="text-text-muted">PACE LOSS:</span>
+                <span className="text-text-primary font-mono font-semibold">
+                  {hoveredPoint.note ? (
+                    <span className="italic text-text-muted">[{hoveredPoint.note}]</span>
+                  ) : hoveredPoint.pace_loss_s !== null && hoveredPoint.pace_loss_s !== undefined ? (
+                    `+${Number(hoveredPoint.pace_loss_s).toFixed(3)}s/lap`
+                  ) : (
+                    "N/A"
+                  )}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -121,7 +221,7 @@ export function TyreDegradationGraph({
                   TYRE_DEGRADATION // DETAILED_STINT_WEAR_ANALYSIS
                 </h3>
                 <span className="font-mono text-xs text-text-muted">
-                  DRIVER: {driverCode} | COMPOUND: {latest?.compound || "HARD"} | INITIAL LIFE: 100% → CURRENT: {latest?.wear_pct || 100}%
+                  DRIVER: {driverCode} | COMPOUND: {latest?.compound || "N/A"} | INITIAL LIFE: 100% → CURRENT: {latest?.wear_pct || 100}%
                 </span>
               </div>
               <button
@@ -226,7 +326,7 @@ export function TyreDegradationGraph({
                           )}
                         </td>
                         <td className="py-2 px-3 text-amber-400 font-bold">
-                          {d.compound || "HARD"}
+                          {d.compound || "-"}
                         </td>
                       </tr>
                     ))}

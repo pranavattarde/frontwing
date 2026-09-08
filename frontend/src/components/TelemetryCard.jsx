@@ -118,10 +118,10 @@ export function TelemetryCard({
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, w, h);
 
-    const padLeft = isCollapsed ? 10 : 42;
+    const padLeft = isCollapsed ? 10 : 48;
     const padRight = 12;
-    const padTop = 14;
-    const padBottom = isCollapsed ? 16 : 26;
+    const padTop = isCollapsed ? 12 : 20;
+    const padBottom = isCollapsed ? 16 : 32;
     const plotW = Math.max(10, w - padLeft - padRight);
     const plotH = Math.max(10, h - padTop - padBottom);
 
@@ -140,6 +140,11 @@ export function TelemetryCard({
       if (isMultiSubplot) {
         ctx.fillStyle = "rgba(22, 25, 30, 0.4)";
         ctx.fillRect(padLeft, yOffset, plotW, channelHeight);
+      } else if (!isCollapsed) {
+        // Explicit Y-Axis Metric Title with Unit
+        ctx.fillStyle = "#8E9AA8";
+        ctx.font = "bold 9px 'JetBrains Mono', monospace";
+        ctx.fillText(cfg.label + " ↑", padLeft, yOffset - 6);
       }
 
       // 1. Distance Grid Lines (250m intervals per design spec)
@@ -160,9 +165,18 @@ export function TelemetryCard({
         // Distance text labels on bottom-most channel
         if (yOffset + channelHeight >= plotH - 5) {
           if (!isCollapsed && m % (distStep * 2) === 0) {
-            ctx.fillText(`${m}m`, x + 3, h - 6);
+            ctx.fillText(`${m}m`, x - 10, h - 16);
           }
         }
+      }
+
+      // X-Axis Title Centered at Bottom of Chart
+      if (!isCollapsed && (yOffset + channelHeight >= plotH - 5)) {
+        ctx.fillStyle = "#8E9AA8";
+        ctx.font = "bold 9px 'JetBrains Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText("DISTANCE (m) →", padLeft + plotW / 2, h - 4);
+        ctx.textAlign = "left";
       }
 
       // 2. Metric Horizontal Reference Lines
@@ -541,6 +555,41 @@ export function TelemetryCard({
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Multi-Trace Legend & Explanatory Caption */}
+      {activeMetric === "multi" && !isCollapsed && hasData && (
+        <div className="mt-3 p-3 bg-canvas/60 border border-fw-border rounded-card flex flex-col gap-2 font-mono text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-[11px]">
+            <div className="flex items-center gap-3">
+              <span className="text-text-muted font-bold tracking-wider">DRIVERS:</span>
+              <span className="flex items-center gap-1.5 text-drs-cyan font-bold">
+                <span className="w-2.5 h-0.5 bg-drs-cyan rounded-full inline-block" />
+                {driverA?.code || "DRIVER A"}
+              </span>
+              {driverB?.code && (
+                <span className="flex items-center gap-1.5 text-amber-400 font-bold">
+                  <span className="w-2.5 h-0.5 bg-amber-400 rounded-full inline-block" />
+                  {driverB.code}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 text-text-muted">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-drs-cyan" /> SPEED (km/h)
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" /> THROTTLE (0-100%)
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-f1-red" /> BRAKE (THRESHOLD)
+              </span>
+            </div>
+          </div>
+          <p className="text-[11px] text-text-muted border-t border-fw-border/60 pt-2 italic">
+            Synchronized multi-channel telemetry trace comparing vehicle speed, full throttle application, and threshold braking points against track distance from the start/finish line.
+          </p>
         </div>
       )}
 

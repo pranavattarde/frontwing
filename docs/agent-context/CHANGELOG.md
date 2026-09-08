@@ -1,3 +1,97 @@
+## Session 024 -- 2026-09-08 -- Full Frontend Redesign: F1 Broadcast Design System, Circuit SVG Tracks, Chart Tooltips, Streaming UX & Multi-Viewport Verification
+
+### What Was Changed
+- **Zero-Hardcoding Audit & Dead Code Removal**:
+  - Removed obsolete 47KB temporary file `frontend/src/test_output.css`.
+  - Removed remaining speed-based gear synthesis in `GhostFightSimulator.jsx`.
+  - Removed mock session/driver fallbacks in `ai_services/app/scoring/aggregator.py`.
+  - Removed hardcoded fallback strings (`"HARD"`) in `LapTimeGraph.jsx` and `TyreDegradationGraph.jsx`.
+  - Verified 0 canned responses or driver mocks across `frontend/src` and `ai_services/app`.
+- **Stage 1 & 2: Official F1 Typography & Theme Tokens (`frontend/index.html`, `design_tokens.css`, `tailwind.config.js`, `index.css`)**:
+  - Imported official F1 typography: Google Fonts `Titillium Web` (display headings & branding) and `Barlow Condensed` (data tables, timing callouts & badges) alongside `JetBrains Mono`.
+  - Defined comprehensive F1 broadcast design system tokens in `design_tokens.css`:
+    - Canvas `#0B0D10` (Dark Carbon) & Panel `#12151B` (Charcoal).
+    - F1 Racing Red `#FF1801` (primary branding, threshold braking, lap loss).
+    - DRS / Timing Cyan `#00E5FF` (Chaser / Driver A, delta gains).
+    - Teammate / Sector Yellow `#FFD600` (Defender / Driver B, slower sector 3).
+    - Sector 1 / Fastest Lap Purple `#B138DD` (authentic F1 purple timing badge).
+    - Sector 2 / Personal Best Green `#00D26A` (personal best timing badge).
+- **Stage 3: Full-Viewport Canvas & HTML Table Markdown Rendering (`MarkdownContent.jsx`, `NarrativeStream.jsx`, `InvestigationThread.jsx`)**:
+  - Removed narrow `max-w-thread` (`768px`) container constraint in `InvestigationThread.jsx`; expanded canvas to responsive `max-w-[1600px] w-full mx-auto px-4 lg:px-8`.
+  - Created `frontend/src/components/MarkdownContent.jsx`: parses markdown tables into styled semantic HTML `<table>` elements with F1 header rows, alternating dark charcoal rows, and color-coded winner badges (`badge-sector-purple`, `badge-sector-green`) instead of raw pipe characters (`| col1 | col2 |`).
+- **Stage 4: Real Circuit SVG Outlines & Synchronized Ghost Battle (`circuitTracks.js`, `GhostFightSimulator.jsx`)**:
+  - Created `frontend/src/lib/circuitTracks.js` containing accurate SVG paths, viewports, and sector boundary ratios for Monza, Zandvoort, Silverstone, Lusail (Qatar), Red Bull Ring, Monaco, and Spa.
+  - Replaced the flat horizontal corridor in `GhostFightSimulator.jsx` with real 2D circuit outlines featuring colored sector segments (S1 Purple `#B138DD`, S2 Green `#00D26A`, S3 Yellow `#FFD600`).
+  - Implemented continuous SVG path interpolation (`path.getPointAtLength`) to animate Driver A & Driver B dots moving accurately along the real track contours in sync with telemetry.
+- **Stage 5: Chart Hover Tooltips, Explicit Axis Labels with Units & Multi-Trace Legend (`LapTimeGraph.jsx`, `TyreDegradationGraph.jsx`, `TelemetryCard.jsx`)**:
+  - **`LapTimeGraph.jsx`**: Added explicit X-axis label (`"LAP NUMBER →"`), Y-axis label (`"LAP TIME (s) ↑"`), X-axis lap ticks (`L1`, `L5`, `L10`...), and interactive hover tooltip showing Lap #, Lap Time (to 3 decimals), Personal Best badge, Delta to PB, and Tyre Compound.
+  - **`TyreDegradationGraph.jsx`**: Added explicit X-axis label (`"LAP NUMBER →"`), Y-axis label (`"ESTIMATED WEAR (%) / PACE LOSS (s) ↑"`), X-axis lap ticks, and interactive hover tooltip showing Lap #, Stint #, Compound, Tyre Life %, and Pace Loss (or `[IN-LAP]` / `[OUT-LAP]` note).
+  - **`TelemetryCard.jsx`**: Added explicit X-axis title (`"DISTANCE (m) →"`), Y-axis metric titles with units (`"SPEED (km/h) ↑"`, etc.), and when `activeMetric === "multi"`, rendered a dedicated multi-channel legend and descriptive caption.
+- **Stage 6: Progressive Streaming UX & Diagnostic Toggle (`AIThinkingIndicator.jsx`, `ExplanationPanel.jsx`, `InvestigationThread.jsx`)**:
+  - Replaced generic ticker in `AIThinkingIndicator.jsx` with a 3-stage progressive resolution bar: `RESOLVING SESSION` $\to$ `FETCHING TELEMETRY` $\to$ `SYNTHESIZING ANSWER`, equipped with an animated gear spinner on the active step and checkmarks on completed steps.
+  - Overhauled `ExplanationPanel.jsx` to serve as the technical diagnostic toggle: `"⚙️ SHOW TECHNICAL REASONING & TELEMETRY LOGS"` (collapsed by default).
+  - Streamlined primary narrative stream to present analytical findings and recommendations first, keeping raw DAG graph traces and tool parameter logs neatly tucked inside the collapsible diagnostic panel.
+- **Stage 7: Multi-Viewport Responsive Validation**:
+  - Verified across Desktop (1440px), Tablet (768px), and Mobile (375px) with zero horizontal overflow, responsive SVG track scaling, and clean text wrapping.
+
+### How It Was Verified -- Real Test Output & Artifacts
+- **Stage 1 & 2 Visual Verification**:
+  - Browser recording: `f1_theme_stage2_retry_1788848448012.webp`.
+  - Screenshots: `homepage_f1_theme_1788848516375.png`, `f1_theme_verification_1788848205073.png`.
+- **Stage 3 Visual Verification**:
+  - Browser recording: `stage3_layout_tables_1788848611010.webp`.
+  - Screenshots: `debrief_thread_viewport_1788848740203.png`, `debrief_thread_full_1788848729879.png`.
+- **Stage 4 Visual Verification**:
+  - Browser recording: `stage4_ghost_track_1788848840839.webp`.
+  - Screenshots: `ghost_battle_card_1788849012033.png`, `ghost_battle_card_animated_1788849031463.png`.
+- **Stage 5 Visual Verification**:
+  - Browser recording: `stage5_chart_hover_1788849652882.webp`.
+  - Screenshots: `laptime_tooltip_hover_1788849833117.png`, `tyre_degr_hover_1788849971479.png`, `stacked_channels_view_1788850291048.png`, `telemetry_table_view_1788850382944.png`.
+- **Stage 6 Visual Verification**:
+  - Browser recording: `stage6_streaming_diagnostics_1788850489627.webp`.
+  - Screenshots: `technical_diagnostic_expanded_1788850610169.png`, `progressive_thinking_indicator_1788850882690.png`.
+- **Stage 7 Visual Verification**:
+  - Browser recording: `stage7_responsive_viewports_1788850920958.webp`.
+  - Screenshots: `viewport_desktop_1440_1788850996195.png`, `viewport_tablet_768_1788851065167.png`, `viewport_mobile_375_1788851132110.png`.
+- **Build & Backend Tests**:
+  - `npm run build`: PASSED in 4.58s with 0 errors.
+  - `pytest tests/test_fixes_h_i_j_k_l.py -v`: 6/6 PASSED (100%) in 4.59s.
+
+---
+
+## Session 023 -- 2026-09-08 -- Fixes M & N: Fuel-Corrected Monotonic Tyre Degradation & Monza Cache Hit Verification
+
+### What Was Changed
+- **`ai_services/app/tools/adapters.py` (FIX M: Fuel-Corrected Monotonic Degradation & Non-Representative Lap Exclusion)**:
+  - **In-Lap & Out-Lap Exclusion**: Strictly excluded the pit in-lap (stint $s < \text{total\_stints}$, $l_{\text{num}} == s_{\text{end}}$) and pit out-lap ($s > 1$, $l_{\text{num}} == s_{\text{start}}$ or `is_pit_out_lap`) from degradation calculations, tagging them `[IN-LAP]` and `[OUT-LAP]` with `wear_pct: None` and `pace_loss_s: None` (matching `[START-LAP]`). This eliminates spurious 100% wear spikes and pit lane transit noise.
+  - **Fuel-Correction Burn-Off Modeling**: Applied $+0.06\text{s/lap}$ fuel decay adjustment ($T_{\text{fc}} = T_{\text{actual}} + 0.06 \times \text{age}$), reusing the established pattern from `ai_services/app/scoring/tire_score.py` to isolate true tyre wear from vehicle weight reduction.
+  - **Monotonic-Leaning Trend Formulation**: Computed degradation by blending linear polyfit regression slope (70%) with a 3-lap centered moving average (30%) anchored at 0.000s / 0.0% on the stint's first clean flying lap, constrained monotonically via `np.maximum.accumulate` to prevent negative wear or pace loss.
+- **`ai_services/tests/test_fixes_h_i_j_k_l.py` (Automated Tests for Fixes M & N)**:
+  - Updated `test_fix_h_stint_bounded_tyre_degradation_reset` to assert that Lap 27 is `[IN-LAP]` with `wear_pct: None`.
+  - Added `test_fix_m_tyre_degradation_fuel_corrected_monotonic` testing Verstappen, Norris, and Leclerc at Dutch GP 2024 (validating in-lap/out-lap exclusions, zero negative wear, and monotonic non-decreasing wear curves).
+- **FIX N Comprehensive Cache & Hardcode Verification**:
+  - Redis investigation key `cache:investigation:144da4cbc25ec056e1f80c10b4675b55bcc56a0b44fa2a7056e094ca64edb27c` verified with stored timestamps proving initial calculation took 15.67s via Gemini planning + synthesis. The 0.2s response was a legitimate Redis cache hit.
+  - Ripgrep search confirmed 0 hardcoded or canned answers for Monza, Italian GP, Verstappen, or Hamilton.
+  - Cold test executed after cache invalidation (3.61s latency) and verified against fresh FastF1 download (Hamilton PB Lap 53 81.512s, Verstappen PB Lap 43 81.745s — 100% exact match).
+
+### How It Was Verified -- Real Test Output
+- **FIX M Per-Lap Tyre Degradation Verification (Verstappen, Norris, Leclerc Dutch GP 2024)**:
+  - Verstappen: Lap 1 `[START-LAP]`; Laps 2–26 smooth monotonic progression from 0.0% to 71.4% wear (pace loss +0.000s to +1.786s); Lap 27 `[IN-LAP]` (`wear_pct: None, pace_loss_s: None`); Lap 28 `[OUT-LAP]` (`wear_pct: None, pace_loss_s: None`); Lap 29 RESETS cleanly to 0.0% wear (+0.000s pace loss); Laps 30–72 progress monotonically to 100.0% wear (+2.945s pace loss). Zero negative wear%, zero in-lap spikes.
+  - Norris: Stint 1 Laps 2–27 (0.0% to 33.5% wear); Lap 28 `[IN-LAP]`; Lap 29 `[OUT-LAP]`; Stint 2 Laps 30–72 (0.0% to 100.0% wear).
+  - Leclerc: Stint 1 Laps 2–23 (0.0% to 48.7% wear); Lap 24 `[IN-LAP]`; Lap 25 `[OUT-LAP]`; Stint 2 Laps 26–72 (0.0% to 82.9% wear).
+- **FIX N Redis Cache & Cold Test Metrics**:
+  - Redis cache key: `cache:investigation:144da4cbc25ec056e1f80c10b4675b55bcc56a0b44fa2a7056e094ca64edb27c`.
+  - Cache creation stream timestamp: `1788843874007` to `1788843889673` (15.67s computation).
+  - Warm query response latency: 0.21s (served directly by Redis cache).
+  - Cold test latency after cache purge: 3.61s.
+  - Brand-new unqueried pair (Leclerc vs Norris at Monza): 6.21s cold latency.
+  - Ground truth comparison: FastF1 Hamilton PB (Lap 53, 81.512s) vs Verstappen PB (Lap 43, 81.745s) delta 0.233s matches system output byte-for-byte.
+- **Unit & System Tests**:
+  - `ai_services/tests/test_fixes_h_i_j_k_l.py`: 6/6 PASSED (100%) in 6.49s.
+  - Frontend production build (`npm run build`): PASSED in 9.50s with 0 errors.
+
+---
+
 ## Session 022 -- 2026-09-07 -- Fixes H, I, J, K, L: Stint-Bounded Tyre Degradation, FastF1 Dutch GP Cross-Check, Monza Auto-Backfill, Gear Channel Integrity & Sector Badges
 
 ### What Was Changed
