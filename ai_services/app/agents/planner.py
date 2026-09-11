@@ -1049,7 +1049,7 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
                 target_season = args.get("year") or args.get("season") or resolved.get("season")
                 if res_sid:
                     # Enforce year consistency between session_id and target_season
-                    if target_season and str(target_season) not in res_sid and res_sid.startswith("2026_"):
+                    if target_season and str(target_season) not in res_sid:
                         from app.core.session_resolver import SessionResolver
                         gp_target = entities.get("grand_prix") or (semantic_contract.get("entities") or {}).get("grand_prix")
                         re_res = SessionResolver.resolve_session(grand_prix=gp_target, season=target_season)
@@ -1059,8 +1059,8 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
                             args[k] = res_sid
                     else:
                         args[k] = res_sid
-                elif isinstance(args[k], str) and args[k].startswith("2026_"):
-                    args[k] = args[k].replace("2026_", "2024_")
+                elif isinstance(args[k], str) and args[k]:
+                    pass
             elif "race" in k_lower:
                 if resolved.get("race_id"):
                     args[k] = resolved["race_id"]
@@ -1759,7 +1759,8 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
         race_data = evidence.get("race_results_tool") or {}
         winner_name = race_data.get("winner")
         gp_name = race_data.get("grand_prix") or "Grand Prix"
-        season_val = race_data.get("season") or 2024
+        from app.core.session_resolver import get_current_f1_season
+        season_val = race_data.get("season") or get_current_f1_season()
         classification = race_data.get("classification", [])
         
         exec_summary = None
@@ -1794,12 +1795,18 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
                         gain_s = (sim_data.get("simulated_net_time_gain_ms", 0) / 1000.0)
                     pos_change = sim_data.get("position_change") or (f"P{act_pos} -> P{proj_pos}" if act_pos and proj_pos else "neutral")
                     if gain_s > 0:
-                        gain_str = f"gaining {gain_s:.2f}s (projected {pos_change})"
+                        gain_str = f"+{gain_s:.2f}s net time gain"
                     elif gain_s < 0:
-                        gain_str = f"losing {abs(gain_s):.2f}s (projected {pos_change})"
+                        gain_str = f"-{abs(gain_s):.2f}s net time loss"
                     else:
-                        gain_str = f"with net time delta 0.0s (projected {pos_change})"
-                    exec_summary = f"Strategy simulation for {drv_disp} pitting on Lap {sim_pit} at the {season_val} {gp_name} projects {gain_str}."
+                        gain_str = "0.00s net time delta"
+
+                    bullets = [
+                        f"• Projected Outcome: {drv_disp} projected to finish P{proj_pos} ({pos_change}).",
+                        f"• Net Race Time Delta: {gain_str} by pitting on Lap {sim_pit}.",
+                        f"• Strategy Tradeoff: Simulated stop on Lap {sim_pit} vs actual stop on Lap {sim_data.get('actual_pit_lap', 'N/A')}."
+                    ]
+                    exec_summary = "\n".join(bullets)
 
             # 1.5. Root-Cause / "What Went Wrong" Investigation Query
             elif intent_name in ("investigation", "strategy_investigation", "pace_investigation", "race_investigation") or requested_metric in ("root_cause_investigation", "strategy_investigation", "pace_investigation", "race_investigation", "investigation") or any(k in q_lower for k in ["what went wrong", "went wrong", "why did", "loss of pace", "lost position", "struggled", "what happened to"]):
@@ -1938,7 +1945,8 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
                     elif "spain" in q_lower or "spanish" in q_lower or "catalunya" in q_lower:
                         gp_name = "Spanish GP"
 
-                season_val = telem_data.get("season") or race_data.get("season") or contract_ents.get("season") or (semantic_contract.get("season") if semantic_contract else None) or entities.get("season") or 2024
+                from app.core.session_resolver import get_current_f1_season
+                season_val = telem_data.get("season") or race_data.get("season") or contract_ents.get("season") or (semantic_contract.get("season") if semantic_contract else None) or entities.get("season") or get_current_f1_season()
                 
                 loc_prefix = ""
                 if gp_name and season_val:
@@ -1960,8 +1968,13 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
                     s1_b, s2_b, s3_b = telem_data.get("comparative_sector1_s"), telem_data.get("comparative_sector2_s"), telem_data.get("comparative_sector3_s")
                     
                     if drv_b and lap_time_b:
-                        if telem_data.get("textual_analysis"):
-                            exec_summary = telem_data["textual_analysis"]
+                        if telem_data.get("executive_summary"):
+                            exec_summary = telem_data["executive_summary"]
+                        elif telem_data.get("analysis_summary"):
+                            exec_summary = telem_data["analysis_summary"]
+                        elif telem_data.get("textual_analysis"):
+                            raw_lines = [l.strip() for l in telem_data["textual_analysis"].split("\n") if l.strip() and not l.strip().startswith("|") and not l.strip().startswith("---") and not l.strip().startswith("Sector") and not l.strip().startswith("Performance")]
+                            exec_summary = "\n".join(raw_lines[:3])
                         else:
                             delta_lap = telem_data.get("delta_lap_time_s")
                             delta_str = f"{abs(delta_lap):.3f}s {'faster' if delta_lap < 0 else 'slower'}" if delta_lap is not None else ""
@@ -1990,9 +2003,18 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
                 top_entries = classification[:limit_val] if classification else []
                 if top_entries:
                     formatted_entries = ", ".join([f"P{e.get('position')}: {e.get('driver')}" for e in top_entries])
-                    exec_summary = f"Top {len(top_entries)} finishers at the {season_val} {gp_name}: {formatted_entries}."
+                    p1_name = top_entries[0].get('driver', 'P1')
+                    bullets = [
+                        f"• Race Winner: {p1_name} won the {season_val} {gp_name}.",
+                        f"• Top Finishers: {formatted_entries}."
+                    ]
+                    exec_summary = "\n".join(bullets)
                 elif winner_name:
-                    exec_summary = f"{winner_name} won the {season_val} {gp_name}."
+                    p2_driver = classification[1].get('driver') if len(classification) > 1 else None
+                    bullets = [f"• Race Winner: {winner_name} won the {season_val} {gp_name}."]
+                    if p2_driver:
+                        bullets.append(f"• Classification: Finished ahead of {p2_driver} in P2.")
+                    exec_summary = "\n".join(bullets)
                 else:
                     exec_summary = "No verified race data exists for this request."
 
@@ -2074,7 +2096,11 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
             # 10. Race Winner (Default ONLY when requested metric is winner)
             elif requested_metric == "winner" or intent_name == "race_result" or any(kw in q_lower for kw in ["who won", "winner", "victor", "first place", "won the race", "take victory"]):
                 if winner_name:
-                    exec_summary = f"{winner_name} won the {season_val} {gp_name}."
+                    p2_driver = classification[1].get('driver') if len(classification) > 1 else None
+                    bullets = [f"• Race Winner: {winner_name} won the {season_val} {gp_name}."]
+                    if p2_driver:
+                        bullets.append(f"• Classification: Finished ahead of {p2_driver} in P2.")
+                    exec_summary = "\n".join(bullets)
                 else:
                     exec_summary = f"No verified winner data exists for the {season_val} {gp_name}."
             else:
@@ -2082,12 +2108,15 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
                 confidence = 20.0
 
 
+        telem_data = evidence.get("telemetry_tool") or {}
         investigation_report = {
             "Executive Summary": exec_summary,
             "Evidence": list(evidence.keys()),
             "Standings": race_data.get("classification", []),
             "Confidence": confidence
         }
+        if telem_data.get("textual_analysis"):
+            investigation_report["Telemetry Findings"] = telem_data["textual_analysis"]
 
     else:
         exec_summary = corr_res["executive_summary"] or explanations.get("intermediate")

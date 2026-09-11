@@ -535,6 +535,21 @@ class StrategyTool(SimulationTool):
             except Exception as st_ex:
                 logger.warning(f"[StrategyTool] Failed to query actual stints: {st_ex}")
 
+        # OpenF1 Secondary Cross-Check for Strategy Engineer
+        openf1_cross_check = None
+        if session_id and driver_id and actual_pit_stops:
+            try:
+                from app.ingestion.openf1_collector import openf1_collector
+                openf1_cross_check = openf1_collector.cross_check_pit_stops(session_id, driver_id, actual_pit_stops)
+                for i, ps in enumerate(actual_pit_stops):
+                    if i < len(openf1_cross_check.get("comparisons", [])):
+                        cmp_item = openf1_cross_check["comparisons"][i]
+                        ps["openf1_lap"] = cmp_item.get("openf1_lap")
+                        ps["cross_check_agrees"] = cmp_item.get("agrees")
+                        ps["cross_check_flag"] = cmp_item.get("flag")
+            except Exception as o1_ex:
+                logger.warning(f"[StrategyTool] OpenF1 cross-check failed: {o1_ex}")
+
         if "simulated_pit_lap" not in inputs_copy or inputs_copy["simulated_pit_lap"] is None:
             for k in ("pit_lap", "lap", "pit_stop_lap"):
                 if inputs_copy.get(k) is not None:
@@ -550,6 +565,7 @@ class StrategyTool(SimulationTool):
                 "actual_stints": actual_stints,
                 "actual_pit_stops": actual_pit_stops,
                 "pit_stops": actual_pit_stops,
+                "openf1_cross_check": openf1_cross_check,
                 "pit_windows": [
                     {
                         "stint": s["stint"],
@@ -576,6 +592,8 @@ class StrategyTool(SimulationTool):
             res["actual_pit_stops"] = actual_pit_stops
             if actual_pit_stops:
                 res["pit_stops"] = actual_pit_stops
+            if openf1_cross_check:
+                res["openf1_cross_check"] = openf1_cross_check
         return res
 
 
@@ -845,7 +863,16 @@ class TelemetryTool(BaseF1Tool):
         else:
             perf_summary = f"{drv_b} was the stronger performer across all three sectors ({', '.join(b_wins)})."
 
-        executive_summary = f"{fast_drv} was faster overall on personal best laps at the {season_val} {gp_name} (Lap {fast_lap}: {fast_t:.3f}s vs {slow_t:.3f}s for {slow_drv} on Lap {slow_lap}), holding a total lap time advantage of {margin:.3f}s."
+        overall_sentence = f"{fast_drv} was faster overall on personal best laps at the {season_val} {gp_name} (Lap {fast_lap}: {fast_t:.3f}s vs {slow_t:.3f}s for {slow_drv} on Lap {slow_lap}), holding a total lap time advantage of {margin:.3f}s."
+
+        # FIX P: Short 2-3 line bullet summary for top AI_Verdict box (never full table)
+        strong_sectors = a_wins if fast_drv == drv_a else b_wins
+        strong_sectors_str = ", ".join(strong_sectors) if strong_sectors else "all sectors"
+        bullet_summary = (
+            f"• Overall Result: {fast_drv} held a {margin:.3f}s advantage on personal best laps (Lap {fast_lap}: {fast_t:.3f}s vs {slow_t:.3f}s).\n"
+            f"• Sector Dominance: {perf_summary}\n"
+            f"• Key Factor: {fast_drv} gained decisive time in {strong_sectors_str} through higher corner apex speeds and throttle commitment."
+        )
 
         table_markdown = (
             f"| Metric / Sector | {drv_a} (Lap {lap_a}) | {drv_b} (Lap {lap_b}) | Delta | Advantage | Key Telemetry Factor |\n"
@@ -855,12 +882,12 @@ class TelemetryTool(BaseF1Tool):
         )
 
         sector_narrative = "\n".join(sec_lines)
-        full_text = f"{executive_summary}\n\n{table_markdown}\n\n**Sector-by-Sector Breakdown:**\n{sector_narrative}\n\nPerformance Summary: {perf_summary}"
+        full_text = f"{overall_sentence}\n\n{table_markdown}\n\n**Sector-by-Sector Breakdown:**\n{sector_narrative}\n\nPerformance Summary: {perf_summary}"
 
         return {
             "textual_analysis": full_text,
-            "analysis_summary": f"{executive_summary} Performance Summary: {perf_summary}",
-            "executive_summary": executive_summary,
+            "analysis_summary": bullet_summary,
+            "executive_summary": bullet_summary,
             "table_markdown": table_markdown,
             "faster_driver": fast_drv,
             "lap_delta_s": margin,
@@ -974,9 +1001,10 @@ class TelemetryTool(BaseF1Tool):
             "SELECT r.name as grand_prix, c.name as circuit_name, r.year as season FROM sessions s JOIN races r ON s.race_id = r.id LEFT JOIN circuits c ON r.circuit_id = c.id WHERE s.id = %s",
             (session_id,), fetch=True
         )
+        from app.core.session_resolver import get_current_f1_season
         gp_name = sess_meta[0].get("grand_prix") if (sess_meta and sess_meta[0].get("grand_prix")) else "Grand Prix"
         circuit_name = sess_meta[0].get("circuit_name") if (sess_meta and sess_meta[0].get("circuit_name")) else "Circuit"
-        season_val = int(sess_meta[0].get("season")) if (sess_meta and sess_meta[0].get("season")) else 2024
+        season_val = int(sess_meta[0].get("season")) if (sess_meta and sess_meta[0].get("season")) else get_current_f1_season()
 
         telemetry_a, lap_info_a = self._load_telemetry_from_db(session_id, driver_id, lap_number)
         telemetry_b, lap_info_b = (None, None)
@@ -1010,20 +1038,34 @@ class TelemetryTool(BaseF1Tool):
             tot_cov = telem_cnt[0]["cnt"] if telem_cnt else 0
             
             if missing_drivers or drv_cov < 15 or tot_cov == 0:
-                # FIX J: Launch async background backfill task and return immediate status
+                # FIX O: Job registry check & lock to prevent duplicate background threads
                 from app.ingestion.fastf1_collector import start_async_backfill, get_backfill_job
                 job = get_backfill_job(session_id)
-                if not job or job.get("status") != "in_progress":
+                if job and job.get("status") == "in_progress":
+                    logger.info(f"[TelemetryTool] Attaching to existing in-progress backfill job for {session_id} (progress: {job.get('progress_pct')}%, stage: {job.get('stage')}). Returning immediate processing status.")
+                    return {
+                        "status": "backfilling",
+                        "session_id": session_id,
+                        "message": f"Telemetry data for {session_id} is downloading in the background.",
+                        "job": job,
+                        "progress_pct": job.get("progress_pct", 10),
+                        "stage": job.get("stage", "Downloading telemetry from FastF1...")
+                    }
+                elif job and job.get("status") == "completed":
+                    logger.info(f"[TelemetryTool] Backfill already completed for {session_id}. Proceeding with available database telemetry.")
+                elif job and job.get("status") == "failed":
+                    logger.warning(f"[TelemetryTool] Backfill previously failed for {session_id}: {job.get('error')}. Proceeding with available database telemetry.")
+                else:
+                    logger.info(f"[TelemetryTool] Async telemetry backfill started for {session_id} (missing drivers: {missing_drivers}, driver coverage: {drv_cov}/20). Returning immediate processing status.")
                     job = start_async_backfill(session_id)
-                logger.info(f"[TelemetryTool] Async telemetry backfill started for {session_id} (missing drivers: {missing_drivers}, driver coverage: {drv_cov}/20). Returning immediate processing status.")
-                return {
-                    "status": "backfilling",
-                    "session_id": session_id,
-                    "message": f"Telemetry data for {session_id} is downloading in the background.",
-                    "job": job,
-                    "progress_pct": job.get("progress_pct", 10),
-                    "stage": job.get("stage", "Downloading telemetry from FastF1...")
-                }
+                    return {
+                        "status": "backfilling",
+                        "session_id": session_id,
+                        "message": f"Telemetry data for {session_id} is downloading in the background.",
+                        "job": job,
+                        "progress_pct": job.get("progress_pct", 10),
+                        "stage": job.get("stage", "Downloading telemetry from FastF1...")
+                    }
 
         if not lap_info_a and not telemetry_a:
             return {
@@ -1490,6 +1532,7 @@ class TelemetryTool(BaseF1Tool):
                 )
                 result["textual_analysis"] = analysis_res["textual_analysis"]
                 result["analysis_summary"] = analysis_res["analysis_summary"]
+                result["executive_summary"] = analysis_res["executive_summary"]
                 result["comparative_analysis"] = analysis_res
 
         return result
@@ -1876,7 +1919,7 @@ class InvestigationTool(BaseF1Tool):
         if not session_id or not execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True):
             resolved = SessionResolver.resolve_session(
                 grand_prix=grand_prix,
-                season=year or 2024,
+                season=year,
                 session_type="Race"
             )
             if resolved.get("status") == "success" and resolved.get("session_id"):
@@ -2009,18 +2052,20 @@ class RaceResultsTool(BaseF1Tool):
 
         from app.core.session_resolver import SessionResolver
 
+        resolved = None
         if not session_id or not execute_query("SELECT 1 FROM sessions WHERE id = %s", (session_id,), fetch=True):
             resolved = SessionResolver.resolve_session(
                 grand_prix=grand_prix,
-                season=year or 2024,
+                season=year,
                 session_type=session_type
             )
             if resolved.get("status") == "success" and resolved.get("session_id"):
                 session_id = resolved["session_id"]
             else:
+                from app.core.session_resolver import get_current_f1_season
                 return {
                     "grand_prix": grand_prix or "Grand Prix",
-                    "season": year or 2024,
+                    "season": (resolved.get("season") if resolved else None) or year or get_current_f1_season(),
                     "winner": "Unknown",
                     "podium": [],
                     "classification": [],
@@ -2043,19 +2088,20 @@ class RaceResultsTool(BaseF1Tool):
             if not results or len(results) == 0:
                 resolved = SessionResolver.resolve_session(
                     grand_prix=grand_prix,
-                    season=year or 2024,
+                    season=year,
                     session_type=session_type
                 )
                 if resolved.get("status") == "success" and resolved.get("session_id"):
                     session_id = resolved["session_id"]
                     results = execute_query(sql, (session_id,), fetch=True)
 
+            from app.core.session_resolver import get_current_f1_season
             if not results or len(results) == 0:
                 try:
                     import fastf1
                     from pandas import isna as pandas_is_null
                     gp_str = grand_prix or "Spain"
-                    yr = int(year or 2024)
+                    yr = int(year or (resolved.get("season") if resolved else None) or get_current_f1_season())
                     f1_sess = fastf1.get_session(yr, gp_str, session_type[0].upper() if session_type else "R")
                     f1_sess.load(telemetry=False, laps=False, weather=False)
                     if hasattr(f1_sess, 'results') and f1_sess.results is not None and len(f1_sess.results) > 0:
@@ -2085,7 +2131,7 @@ class RaceResultsTool(BaseF1Tool):
             if not results or len(results) == 0:
                 return {
                     "grand_prix": grand_prix or "Grand Prix",
-                    "season": year or 2024,
+                    "season": (resolved.get("season") if resolved else None) or year or get_current_f1_season(),
                     "winner": "Unknown",
                     "podium": [],
                     "classification": [],
@@ -2102,7 +2148,7 @@ class RaceResultsTool(BaseF1Tool):
                 season_val = int(db_race[0]["year"])
             else:
                 gp_name = grand_prix or "Grand Prix"
-                season_val = year or 2024
+                season_val = (resolved.get("season") if resolved else None) or year or get_current_f1_season()
 
             classification = []
             retirements = []
@@ -2287,7 +2333,8 @@ class StandingsTool(BaseF1Tool):
             except Exception:
                 pass
         if not year:
-            year = 2024
+            from app.core.session_resolver import get_current_f1_season
+            year = get_current_f1_season()
             
         if st_type == "constructor":
             sql = """

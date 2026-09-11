@@ -41,7 +41,7 @@ def ensure_session_in_db(
 
     resolved = SessionResolver.resolve_session(
         grand_prix=gp_name,
-        season=year or 2024,
+        season=year,
         session_type=session_type
     )
     if resolved.get("status") == "success":

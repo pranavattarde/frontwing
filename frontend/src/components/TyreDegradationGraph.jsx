@@ -53,7 +53,10 @@ export function TyreDegradationGraph({
               <span className="text-amber-400 font-bold">{latest?.compound || "N/A"}</span>
             </span>
             <span className="text-text-muted">
-              LIFE: <span className="text-drs-cyan font-bold">{latest?.wear_pct !== null && latest?.wear_pct !== undefined ? `${latest.wear_pct}%` : "100%"}</span>
+              DEG: <span className="text-amber-400 font-bold">{latest?.wear_pct !== null && latest?.wear_pct !== undefined ? `${latest.wear_pct}%` : "—"}</span>
+            </span>
+            <span className="text-text-muted">
+              LIFE: <span className="text-drs-cyan font-bold">{latest?.wear_pct !== null && latest?.wear_pct !== undefined ? `${(100 - latest.wear_pct).toFixed(1).replace(/\.0$/, "")}%` : "—"}</span>
             </span>
             <button
               onClick={() => setIsExpanded(true)}
@@ -178,14 +181,28 @@ export function TyreDegradationGraph({
                 <span className="text-amber-400 font-bold">STINT {hoveredPoint.stint || 1}</span>
               </div>
               <div className="text-[10px] mt-1 flex items-center justify-between gap-4">
+                <span className="text-text-muted">TYRE DEG:</span>
+                <span className="font-bold text-amber-400 font-mono">
+                  {hoveredPoint.wear_pct !== null && hoveredPoint.wear_pct !== undefined ? `${hoveredPoint.wear_pct}%` : "—"}
+                </span>
+              </div>
+              <div className="text-[10px] mt-0.5 flex items-center justify-between gap-4">
                 <span className="text-text-muted">TYRE LIFE:</span>
                 <span
                   className={cn(
-                    "font-bold",
-                    hoveredPoint.wear_pct < 40 ? "text-red-400" : hoveredPoint.wear_pct < 70 ? "text-amber-400" : "text-emerald-400"
+                    "font-bold font-mono",
+                    hoveredPoint.wear_pct === null || hoveredPoint.wear_pct === undefined
+                      ? "text-text-muted"
+                      : (100 - hoveredPoint.wear_pct) > 60
+                      ? "text-emerald-400"
+                      : (100 - hoveredPoint.wear_pct) > 30
+                      ? "text-amber-400"
+                      : "text-red-400"
                   )}
                 >
-                  {hoveredPoint.wear_pct}%
+                  {hoveredPoint.wear_pct !== null && hoveredPoint.wear_pct !== undefined
+                    ? `${(100 - hoveredPoint.wear_pct).toFixed(1).replace(/\.0$/, "")}%`
+                    : "—"}
                 </span>
               </div>
               {hoveredPoint.compound && (
@@ -290,6 +307,7 @@ export function TyreDegradationGraph({
                     <tr>
                       <th className="py-2 px-3">LAP #</th>
                       <th className="py-2 px-3">STINT</th>
+                      <th className="py-2 px-3">TYRE DEGRADATION %</th>
                       <th className="py-2 px-3">TYRE LIFE %</th>
                       <th className="py-2 px-3">ESTIMATED PACE LOSS</th>
                       <th className="py-2 px-3">COMPOUND STATUS</th>
@@ -306,14 +324,28 @@ export function TyreDegradationGraph({
                           {d.wear_pct !== null && d.wear_pct !== undefined ? (
                             <span
                               className={cn(
-                                "px-2 py-0.5 rounded text-[11px]",
-                                d.wear_pct < 40 ? "bg-red-500/20 text-red-400" : d.wear_pct < 70 ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400"
+                                "px-2 py-0.5 rounded text-[11px] font-mono",
+                                d.wear_pct > 70 ? "bg-red-500/20 text-red-400" : d.wear_pct > 30 ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400"
                               )}
                             >
                               {d.wear_pct}%
                             </span>
                           ) : (
-                            <span className="text-[10px] text-text-muted">--</span>
+                            <span className="text-[11px] text-text-muted font-mono">—</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 font-bold">
+                          {d.wear_pct !== null && d.wear_pct !== undefined ? (
+                            <span
+                              className={cn(
+                                "px-2 py-0.5 rounded text-[11px] font-mono",
+                                (100 - d.wear_pct) > 60 ? "bg-emerald-500/20 text-emerald-400" : (100 - d.wear_pct) > 30 ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400"
+                              )}
+                            >
+                              {(100 - d.wear_pct).toFixed(1).replace(/\.0$/, "")}%
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-text-muted font-mono">—</span>
                           )}
                         </td>
                         <td className="py-2 px-3 text-text-muted font-mono">
@@ -322,11 +354,11 @@ export function TyreDegradationGraph({
                           ) : d.pace_loss_s !== null && d.pace_loss_s !== undefined ? (
                             `+${Number(d.pace_loss_s).toFixed(3)}s/lap`
                           ) : (
-                            <span className="text-[10px] text-text-muted">N/A</span>
+                            <span className="text-[10px] text-text-muted">—</span>
                           )}
                         </td>
                         <td className="py-2 px-3 text-amber-400 font-bold">
-                          {d.compound || "-"}
+                          {d.compound || "—"}
                         </td>
                       </tr>
                     ))}

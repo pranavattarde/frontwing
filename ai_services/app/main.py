@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional, List
 from app.scoring.aggregator import calculate_race_scores
 from app.simulation.simulation_engine import run_strategy_simulation
 from app.agents.planner import run_ai_race_engineer
+from app.agents.strategy_planner import run_strategy_planner
 from app.agents.memory import conversation_memory
 from app.core.logger import logger
 
@@ -243,5 +244,65 @@ async def get_session_backfill_status(session_id: str):
             "error": None
         }
     return job
+
+
+class StrategyQueryRequest(BaseModel):
+    question: str
+    session_id: Optional[str] = None
+    driver_id: Optional[str] = None
+    grand_prix: Optional[str] = None
+    season: Optional[int] = None
+    context: Optional[Dict[str, Any]] = None
+
+
+@app.post("/strategy/query")
+def strategy_query(req: StrategyQueryRequest):
+    """Dedicated endpoint for Strategy Engineer analysis and counterfactual what-if simulations."""
+    req_start_time = time.time()
+    req_start_utc = datetime.now(timezone.utc).isoformat()
+    logger.info(
+        f"\n======================================================\n"
+        f"[STRATEGY_REQUEST_RECEIVED] UTC: {req_start_utc}\n"
+        f"Question: \"{req.question}\"\n"
+        f"Caller Session ID: {req.session_id} | Caller Driver ID: {req.driver_id} | Grand Prix: {req.grand_prix} | Season: {req.season}\n"
+        f"======================================================"
+    )
+    try:
+        req_context = req.context or {}
+        if req.grand_prix and "grand_prix" not in req_context:
+            req_context["grand_prix"] = req.grand_prix
+        if req.season and "season" not in req_context:
+            req_context["season"] = req.season
+        if req.driver_id and "driver_id" not in req_context:
+            req_context["driver_id"] = req.driver_id
+        if req.session_id and "session_id" not in req_context:
+            req_context["session_id"] = req.session_id
+
+        response = run_strategy_planner(
+            question=req.question,
+            session_id=req.session_id,
+            driver_id=req.driver_id,
+            context=req_context
+        )
+        total_duration_ms = int((time.time() - req_start_time) * 1000)
+        req_end_utc = datetime.now(timezone.utc).isoformat()
+        logger.info(
+            f"\n======================================================\n"
+            f"[STRATEGY_RESPONSE_SENT] UTC: {req_end_utc}\n"
+            f"Question: \"{req.question}\"\n"
+            f"Total Strategy Latency: {total_duration_ms}ms\n"
+            f"Query Type: {response.get('query_type')}\n"
+            f"======================================================"
+        )
+        return response
+    except Exception as e:
+        total_duration_ms = int((time.time() - req_start_time) * 1000)
+        req_end_utc = datetime.now(timezone.utc).isoformat()
+        logger.error(
+            f"[STRATEGY_REQUEST_FAILED] UTC: {req_end_utc} | Latency: {total_duration_ms}ms | Error: {e}",
+            exc_info=True
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 

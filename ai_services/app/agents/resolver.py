@@ -15,14 +15,9 @@ from app.core.db import execute_query
 
 
 def get_latest_f1_season() -> int:
-    """Dynamically resolves the latest available Formula 1 season from the database."""
-    try:
-        res = execute_query("SELECT MAX(year) as max_year FROM races", fetch=True)
-        if res and res[0]["max_year"]:
-            return int(res[0]["max_year"])
-    except Exception:
-        pass
-    return 2024
+    """Dynamically resolves the current Formula 1 season."""
+    from app.core.session_resolver import get_current_f1_season
+    return get_current_f1_season()
 
 
 # ---------------------------------------------------------------------------
@@ -89,16 +84,22 @@ _SESSION_TYPE_KEYWORDS: Dict[str, List[str]] = {
 
 def _extract_driver(q_lower: str) -> Optional[str]:
     """Returns driver_id only if a driver keyword appears in the question. Never invents."""
+    if not q_lower:
+        return None
+    q_str = q_lower.lower()
     for drv_id, aliases in _DRIVERS_MAP.items():
-        if any(re.search(r"\b" + re.escape(alias) + r"\b", q_lower) for alias in aliases):
+        if any(re.search(r"\b" + re.escape(alias) + r"\b", q_str) for alias in aliases):
             return drv_id
     return None
 
 
 def _extract_circuit(q_lower: str) -> Optional[str]:
     """Returns circuit_id only if a GP/circuit keyword appears in the question. Never invents."""
+    if not q_lower:
+        return None
+    q_str = q_lower.lower()
     for circ_id, aliases in _CIRCUIT_MAP.items():
-        if any(re.search(r"\b" + re.escape(alias) + r"\b", q_lower) for alias in aliases):
+        if any(re.search(r"\b" + re.escape(alias) + r"\b", q_str) for alias in aliases):
             return circ_id
     return None
 

@@ -29,13 +29,34 @@ _backfill_jobs: Dict[str, Dict[str, Any]] = {}
 
 def get_backfill_job(session_id: str) -> Optional[Dict[str, Any]]:
     with _backfill_lock:
-        return _backfill_jobs.get(session_id)
+        job = _backfill_jobs.get(session_id)
+        if job and job.get("status") == "in_progress":
+            # FIX O: 180s server-side timeout transition
+            if time.time() - job.get("started_at", 0) > 180:
+                job["status"] = "failed"
+                job["stage"] = "Backfill job timed out after 3 minutes."
+                job["error"] = "Timeout: FastF1 telemetry ingestion exceeded 180 seconds."
+                job["updated_at"] = time.time()
+        return job
 
 def start_async_backfill(session_id: str) -> Dict[str, Any]:
     with _backfill_lock:
         job = _backfill_jobs.get(session_id)
-        if job and job.get("status") == "in_progress":
-            return job
+        if job:
+            if job.get("status") == "in_progress":
+                if time.time() - job.get("started_at", 0) > 180:
+                    job["status"] = "failed"
+                    job["stage"] = "Backfill job timed out after 3 minutes."
+                    job["error"] = "Timeout: FastF1 telemetry ingestion exceeded 180 seconds."
+                    job["updated_at"] = time.time()
+                    return job
+                # Attach to existing in-progress job without spawning duplicate thread
+                return job
+            elif job.get("status") == "completed":
+                return job
+            elif job.get("status") == "failed":
+                if time.time() - job.get("updated_at", 0) < 600:
+                    return job
         
         job = {
             "session_id": session_id,
@@ -142,6 +163,24 @@ class FastF1Collector(BaseCollector):
             
         return None
 
+    def _verify_event_matches_query(self, session: fastf1.core.Session, gp_name: str) -> bool:
+        """Verifies FastF1's fuzzy search didn't correct gp_name to an unrelated event."""
+        if not hasattr(session, 'event') or session.event is None:
+            return False
+        ev = session.event
+        ev_text = f"{ev.get('EventName', '')} {ev.get('Location', '')} {ev.get('Country', '')}".lower()
+        clean_q = re.sub(r"\b(grand prix|gp|race)\b", "", gp_name, flags=re.IGNORECASE).strip().lower()
+        if any(w in clean_q for w in ["imola", "emilia", "romagna"]):
+            return any(w in ev_text for w in ["imola", "emilia", "romagna"])
+        if "austria" in clean_q or "spielberg" in clean_q:
+            return ("austria" in ev_text or "spielberg" in ev_text) and "australia" not in ev_text
+        if "australia" in clean_q or "melbourne" in clean_q:
+            return "australia" in ev_text or "melbourne" in ev_text
+        tokens = [t for t in clean_q.split() if len(t) >= 4]
+        if not tokens:
+            return True
+        return any(t in ev_text for t in tokens)
+
     def load_session(
         self,
         year: int,
@@ -186,6 +225,26 @@ class FastF1Collector(BaseCollector):
             if progress_callback:
                 progress_callback(30, f"Downloading {year} {gp_name} data package from FastF1...")
             session = self.collect(year, gp_name, session_type, load_telemetry=should_fetch_telem)
+
+            # Verify that FastF1 did not fuzzy-match to a completely unrelated event
+            if not self._verify_event_matches_query(session, gp_name):
+                matched_name = getattr(session.event, 'EventName', '') if hasattr(session, 'event') else ''
+                logger.warning(f"[{self.name}] FastF1 fuzzy matched '{gp_name}' to unrelated event '{matched_name}'. Rejecting as not found for year {year}.")
+                return {
+                    "status": "error",
+                    "session_id": None,
+                    "message": f"Event '{gp_name}' not found on the {year} F1 calendar."
+                }
+
+            # Verify that session actually has classification results (not a future uncompleted race)
+            if session_type in ("R", "Race") and (not hasattr(session, 'results') or session.results is None or len(session.results) == 0):
+                logger.warning(f"[{self.name}] Session {year} {gp_name} ({session_type}) has 0 classified drivers (future or uncompleted session).")
+                return {
+                    "status": "error",
+                    "session_id": None,
+                    "message": f"Session {year} {gp_name} has no race results available yet."
+                }
+
             if not self.validate(session):
                 return {
                     "status": "error",
@@ -274,7 +333,9 @@ class FastF1Collector(BaseCollector):
 
     def process_and_save(self, session: fastf1.core.Session, load_telemetry: bool = False, progress_callback=None) -> str:
         """Extracts sessions, drivers, laps, stints, weather, race_results, and optionally telemetry_metadata into PostgreSQL."""
-        year = int(session.event.get('Season', getattr(session.event, 'year', 2024))) if hasattr(session.event, 'get') else int(getattr(session.event, 'year', 2024))
+        from app.core.session_resolver import get_current_f1_season
+        default_yr = get_current_f1_season()
+        year = int(session.event.get('Season', getattr(session.event, 'year', default_yr))) if hasattr(session.event, 'get') else int(getattr(session.event, 'year', default_yr))
         round_num = int(session.event.get('RoundNumber', getattr(session.event, 'round', 1))) if hasattr(session.event, 'get') else int(getattr(session.event, 'round', 1))
         
         session_type_map = {

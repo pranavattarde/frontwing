@@ -4,6 +4,7 @@ import { BriefingRoom } from "./pages/BriefingRoom";
 import { InvestigationThread } from "./pages/InvestigationThread";
 import { RaceBriefing } from "./pages/RaceBriefing";
 import { StrategyPlayground } from "./pages/StrategyPlayground";
+import { StrategyEngineer } from "./pages/StrategyEngineer";
 import { GhostBattle } from "./pages/GhostBattle";
 import { CommandPalette } from "./components/CommandPalette";
 import { SearchOverlay } from "./components/SearchOverlay";
@@ -54,5 +55,5 @@ export default function App() {
     recentSearches={recentSearches}
     trending={trendingSearches}
     onResultClick={handleSearchResultClick}
-  /><NotificationContainer /><Routes><Route path="/" element={<BriefingRoom />} /><Route path="/investigate/:id" element={<InvestigationThread />} /><Route path="/race/:raceId" element={<RaceBriefing />} /><Route path="/strategy/:raceId" element={<StrategyPlayground />} /><Route path="/ghost-battle/:raceId" element={<GhostBattle />} /></Routes></ErrorBoundary></BrowserRouter>;
+  /><NotificationContainer /><Routes><Route path="/" element={<BriefingRoom />} /><Route path="/investigate/:id" element={<InvestigationThread />} /><Route path="/strategy" element={<StrategyEngineer />} /><Route path="/race/:raceId" element={<RaceBriefing />} /><Route path="/strategy/:raceId" element={<StrategyPlayground />} /><Route path="/ghost-battle/:raceId" element={<GhostBattle />} /></Routes></ErrorBoundary></BrowserRouter>;
 }

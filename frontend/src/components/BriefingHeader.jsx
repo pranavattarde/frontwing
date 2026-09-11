@@ -54,6 +54,32 @@ export const BriefingHeader = memo(function BriefingHeader2({
       sessionState === "error" && "bg-f1-red"
     )}
   /><span className="text-mono-meta font-mono text-text-muted">{sessionState === "streaming" && "STREAMING"}{sessionState === "loading" && "LOADING"}{sessionState === "error" && "ERROR"}</span></div>}</div>{
+    /* Top-level Nav Tabs */
+  }<div className="hidden md:flex items-center gap-1">{
+    /* Investigation Tab */
+  }<button
+    onClick={() => window.location.pathname !== "/" && (window.location.href = "/")}
+    className={cn(
+      "px-3 py-1 text-xs font-mono font-semibold tracking-wider uppercase rounded transition-colors",
+      window.location.pathname === "/" || window.location.pathname.startsWith("/investigate")
+        ? "text-drs-cyan bg-panel border border-drs-cyan/30 shadow-sm"
+        : "text-text-muted hover:text-text-primary"
+    )}
+  >
+    INVESTIGATION
+  </button>{
+    /* Strategy Engineer Tab */
+  }<button
+    onClick={() => window.location.pathname !== "/strategy" && (window.location.href = "/strategy")}
+    className={cn(
+      "px-3 py-1 text-xs font-mono font-semibold tracking-wider uppercase rounded transition-colors",
+      window.location.pathname.startsWith("/strategy")
+        ? "text-drs-cyan bg-panel border border-drs-cyan/30 shadow-sm"
+        : "text-text-muted hover:text-text-primary"
+    )}
+  >
+    STRATEGY ENGINEER
+  </button></div>{
     /* Search Trigger */
   }<button
     onClick={onSearchTrigger || (() => window.dispatchEvent(new CustomEvent("toggle-search-overlay")))}

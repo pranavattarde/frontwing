@@ -169,3 +169,34 @@ export async function fetchBackfillStatus(sessionId) {
   }
 }
 
+export async function submitStrategyQuery(question, context = {}, signal) {
+  const backendUrl = getBackendUrl();
+  console.log(`[API Client] Submitting strategy query: ${backendUrl}/strategy/query`, { question, context });
+  try {
+    const response = await fetch(`${backendUrl}/strategy/query`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        question,
+        session_id: context.session_id,
+        driver_id: context.driver_id,
+        grand_prix: context.grand_prix,
+        season: context.season,
+        context: context
+      }),
+      signal
+    });
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[API Client] Strategy Gateway Error: ${errText}`);
+      throw new Error(errText || "Strategy query failed");
+    }
+    return await response.json();
+  } catch (error) {
+    if (error.name === "AbortError") throw error;
+    console.error(`[API Client] Strategy query exception:`, error);
+    throw error;
+  }
+}
+
+

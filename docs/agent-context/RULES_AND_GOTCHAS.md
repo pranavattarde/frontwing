@@ -244,3 +244,23 @@ To run all tests: pytest tests/ -v
    - Redis: Connected, total cached keys = 0.
    - PostgreSQL: Table `scoring_results` contains 0 precomputed rows for `2024_qatar_gp_race` (confirming all scores are computed live from raw lap timing).
 
+---
+
+## Entry 016 — 2026-09-11 — Strict Anti-Mocking Policy & Test Suite Architecture
+
+**RULE:** Tests in FrontWing MUST exercise real system behavior against real data, real database operations in PostgreSQL, real FastF1 data, or pure deterministic mathematical functions. Tests that mock out the entire system under test (e.g., using `MagicMock` to fake FastF1 downloads, simulating tool execution with dummy failure mocks, or patching LLM agents with synthetic responses to force green pytest passes) are STRICTLY FORBIDDEN.
+
+**Why:** Mocks mask catastrophic real-world failure modes (such as 2024 season hardcoded ceilings, silent fallback to synthetic data, database schema mismatches, and demonyic stemming collisions). A test suite with 100% green checks against fake mocks provides zero assurance of system health and leads future agents to chase phantom bugs.
+
+**Test Architecture (Consolidated 8-Module Standard):**
+All tests under `ai_services/tests/` are organized into 8 domain-focused modules:
+1. `test_race_results.py`: Real season resolution (2026/2025/2024), FastF1 live schedules, `RaceResultsTool` classification.
+2. `test_telemetry_pipeline.py`: TelemetryTool, personal best flying laps matching SQL `MIN(lap_time_ms)`, stint-bounded tyre degradation, fuel-corrected monotonicity, gear trace integrity.
+3. `test_scoring_engine.py`: 5 scoring metrics (Strategy, Tire, Pace, Pitstop, Execution), mathematical boundaries, composite score aggregator.
+4. `test_strategy_simulation.py`: Simulation physics (pit loss, undercut, traffic loss, lap time projection), query parameter binding, honest failure handling on non-racing drivers.
+5. `test_planner_and_reasoning.py`: Heuristic & structured plan extraction, entity resolution, parse_step parsing, multi-turn PostgreSQL conversation memory, reflection/judge nodes, correlator.
+6. `test_infrastructure_and_api.py`: FastAPI endpoints (`/health`, `/simulate`), configuration loading & validation, prompt loader & disk caching, startup health diagnostics, background backfill registry & timeout.
+7. `test_tool_registry.py`: Tool registration, schema validation, `infer_parameter`, `ExplainModeTool`, knowledge RAG retrieval.
+8. `test_end_to_end_investigations.py`: Full multi-agent investigations against real ingested PostgreSQL sessions verifying reports, short bullet executive summaries, and zero raw JSON/status leaks.
+
+

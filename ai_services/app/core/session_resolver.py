@@ -1,8 +1,37 @@
+import datetime
 import re
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from app.core.db import execute_query
 from app.core.logger import logger
 from app.ingestion.fastf1_collector import FastF1Collector
+
+_CACHED_CURRENT_F1_SEASON: Optional[int] = None
+
+def get_current_f1_season() -> int:
+    """
+    Returns the current real-world F1 season (calendar year, verified via FastF1 or system date).
+    Dynamic: defaults to current calendar year (e.g. 2026), verified against fastf1.get_event_schedule().
+    """
+    global _CACHED_CURRENT_F1_SEASON
+    if _CACHED_CURRENT_F1_SEASON is not None:
+        return _CACHED_CURRENT_F1_SEASON
+
+    current_year = datetime.datetime.now().year
+    try:
+        import fastf1
+        sched = fastf1.get_event_schedule(current_year)
+        if sched is not None and not sched.empty:
+            _CACHED_CURRENT_F1_SEASON = current_year
+            return current_year
+        sched_prev = fastf1.get_event_schedule(current_year - 1)
+        if sched_prev is not None and not sched_prev.empty:
+            _CACHED_CURRENT_F1_SEASON = current_year - 1
+            return current_year - 1
+    except Exception as e:
+        logger.debug(f"[SessionResolver] FastF1 schedule lookup fallback: {e}")
+
+    _CACHED_CURRENT_F1_SEASON = current_year
+    return current_year
 
 class SessionResolver:
     """
@@ -102,82 +131,18 @@ class SessionResolver:
         return clean or gp_lower
 
     @classmethod
-    def resolve_session(
+    def _resolve_single_year(
         cls,
-        grand_prix: Optional[str] = None,
-        season: Optional[int] = None,
-        session_type: str = "Race",
+        target_year: int,
+        grand_prix: Optional[str],
+        gp_clean: Optional[str],
+        stype_str: str,
         load_telemetry: bool = False
-    ) -> Dict[str, Any]:
-        gp_clean = cls._clean_gp_name(grand_prix)
-        
-        if not gp_clean and not season:
-            return {
-                "status": "success",
-                "session_id": None,
-                "rows_returned": 0,
-                "fastf1_downloaded": False,
-                "season": None,
-                "grand_prix": None,
-                "session_type": session_type
-            }
-
-
-
-
-        # If no explicit season supplied, query latest verified season for this GP from DB
-        target_year = season
-        if not target_year:
-            sql_latest = """
-                SELECT r.year FROM sessions s
-                JOIN races r ON s.race_id = r.id
-                LEFT JOIN circuits c ON r.circuit_id = c.id
-                JOIN race_results rr ON s.id = rr.session_id
-                WHERE (c.id ILIKE %s OR c.name ILIKE %s OR r.name ILIKE %s OR r.id ILIKE %s OR c.country ILIKE %s)
-                  AND r.year <= 2025
-                GROUP BY r.year, r.id
-                HAVING COUNT(DISTINCT rr.driver_id) >= 15
-                ORDER BY r.year DESC LIMIT 1
-            """
-            kw = f"%{gp_clean}%"
-            latest_gp_row = execute_query(sql_latest, (kw, kw, kw, kw, kw), fetch=True)
-            if latest_gp_row and latest_gp_row[0].get("year"):
-                target_year = int(latest_gp_row[0]["year"])
-            else:
-                latest_row = execute_query("""
-                    SELECT r.year FROM races r
-                    JOIN sessions s ON s.race_id = r.id
-                    JOIN race_results rr ON s.id = rr.session_id
-                    WHERE r.year <= 2025
-                    GROUP BY r.year, r.id
-                    HAVING COUNT(DISTINCT rr.driver_id) >= 15
-                    ORDER BY r.year DESC LIMIT 1
-                """, fetch=True)
-                if latest_row and latest_row[0].get("year"):
-                    target_year = int(latest_row[0]["year"])
-                else:
-                    target_year = 2024
-
-
-        else:
-            try:
-                target_year = int(target_year)
-            except (ValueError, TypeError):
-                target_year = season
-
-        
-        session_type_map = {
-            "R": "Race", "Q": "Qualifying", "SQ": "Sprint Qualifying",
-            "S": "Sprint", "FP1": "FP1", "FP2": "FP2", "FP3": "FP3"
-        }
-        stype_str = session_type_map.get(session_type.upper(), session_type)
-        
-        # 1. Query PostgreSQL for session
+    ) -> Optional[Dict[str, Any]]:
         session_id = cls._query_db_session(target_year, gp_clean, grand_prix or gp_clean, stype_str)
         fastf1_downloaded = False
         rows_inserted = 0
 
-        # Check if session exists and has race_results rows
         has_results = False
         if session_id:
             res_cnt = execute_query(
@@ -196,15 +161,16 @@ class SessionResolver:
                 load_res = collector.load_session(target_year, grand_prix or gp_clean, stype_str, load_telemetry=load_telemetry)
                 if load_res and load_res.get("session_id"):
                     session_id = load_res["session_id"]
-                    has_results = True
+                    fastf1_downloaded = True
                     res_cnt = execute_query(
                         "SELECT COUNT(*) as cnt FROM race_results WHERE session_id = %s",
                         (session_id,), fetch=True
                     )
                     if res_cnt and res_cnt[0]["cnt"] > 0:
+                        has_results = True
                         rows_inserted = res_cnt[0]["cnt"]
             except Exception as e:
-                logger.warning(f"[SessionResolver] FastF1 download exception: {e}")
+                logger.warning(f"[SessionResolver] FastF1 download exception for year={target_year}, gp={grand_prix}: {e}")
 
             # Retry DB query after ingestion
             if not session_id or not has_results:
@@ -229,14 +195,59 @@ class SessionResolver:
                 "grand_prix": grand_prix or gp_clean,
                 "session_type": stype_str
             }
+        return None
 
-        logger.warning(f"[SessionResolver] Unable to resolve session for year={target_year}, gp={grand_prix}")
+    @classmethod
+    def resolve_session(
+        cls,
+        grand_prix: Optional[str] = None,
+        season: Optional[int] = None,
+        session_type: str = "Race",
+        load_telemetry: bool = False
+    ) -> Dict[str, Any]:
+        gp_clean = cls._clean_gp_name(grand_prix)
+        
+        if not gp_clean and not season:
+            return {
+                "status": "success",
+                "session_id": None,
+                "rows_returned": 0,
+                "fastf1_downloaded": False,
+                "season": None,
+                "grand_prix": None,
+                "session_type": session_type
+            }
+
+        session_type_map = {
+            "R": "Race", "Q": "Qualifying", "SQ": "Sprint Qualifying",
+            "S": "Sprint", "FP1": "FP1", "FP2": "FP2", "FP3": "FP3"
+        }
+        stype_str = session_type_map.get(session_type.upper(), session_type)
+
+        if season is not None:
+            try:
+                target_year = int(season)
+            except (ValueError, TypeError):
+                target_year = get_current_f1_season()
+            years_to_try = [target_year]
+        else:
+            current_season = get_current_f1_season()
+            # Descend chronologically from current real-world season down to 2018
+            years_to_try = list(range(current_season, 2017, -1))
+
+        for yr in years_to_try:
+            res = cls._resolve_single_year(yr, grand_prix, gp_clean, stype_str, load_telemetry=load_telemetry)
+            if res:
+                return res
+
+        fallback_year = years_to_try[0]
+        logger.warning(f"[SessionResolver] Unable to resolve session for candidate years={years_to_try}, gp={grand_prix}")
         return {
             "status": "DATA_UNAVAILABLE",
             "session_id": None,
             "rows_returned": 0,
-            "fastf1_downloaded": fastf1_downloaded,
-            "season": target_year,
+            "fastf1_downloaded": False,
+            "season": fallback_year,
             "grand_prix": grand_prix or gp_clean,
             "session_type": stype_str
         }
@@ -252,20 +263,28 @@ class SessionResolver:
             for token in list(tokens):
                 if not token or len(token) < 3:
                     continue
-                sub_tokens = [token]
-                if token.endswith("ian"):
-                    sub_tokens.append(token[:-3])
-                elif token.endswith("an"):
-                    sub_tokens.append(token[:-2])
-                if "sao paulo" in token or token == "sao paulo":
-                    sub_tokens.append("paulo")
-                if token == "brazilian" or token == "brazil":
-                    sub_tokens.append("brazil")
+                if token in ("austria", "austrian", "spielberg"):
+                    sub_tokens = ["austria", "spielberg"]
+                    exclude_clause = "AND (r.name NOT ILIKE '%australia%' AND r.id NOT ILIKE '%australia%')"
+                elif token in ("australia", "australian", "melbourne"):
+                    sub_tokens = ["australia", "melbourne"]
+                    exclude_clause = "AND (r.name NOT ILIKE '%austria%' AND r.id NOT ILIKE '%austria%')"
+                else:
+                    exclude_clause = ""
+                    sub_tokens = [token]
+                    if token.endswith("ian"):
+                        sub_tokens.append(token[:-3])
+                    elif token.endswith("an"):
+                        sub_tokens.append(token[:-2])
+                    if "sao paulo" in token or token == "sao paulo":
+                        sub_tokens.append("paulo")
+                    if token == "brazilian" or token == "brazil":
+                        sub_tokens.append("brazil")
 
                 for sub_token in sub_tokens:
                     if not sub_token or len(sub_token) < 3:
                         continue
-                    sql = """
+                    sql = f"""
                         SELECT s.id FROM sessions s
                         JOIN races r ON s.race_id = r.id
                         LEFT JOIN circuits c ON r.circuit_id = c.id
@@ -275,6 +294,7 @@ class SessionResolver:
                             OR r.name ILIKE %s OR r.id ILIKE %s
                           )
                           AND (s.type ILIKE %s OR s.id ILIKE %s)
+                          {exclude_clause}
                         LIMIT 1
                     """
                     res = execute_query(

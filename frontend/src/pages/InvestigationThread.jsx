@@ -80,7 +80,13 @@ function mapResponseToMessages(id, response, timestamp, isLast) {
       });
     }
   }
-  const verdictText = response.investigation_report?.["Executive Summary"] || response.final_answer || response.error || "Race debrief analysis complete.";
+  const rawVerdict = response.investigation_report?.["Executive Summary"] || response.final_answer || response.error || "Race debrief analysis complete.";
+  let verdictText = rawVerdict;
+  if (typeof rawVerdict === "string" && rawVerdict.includes("|")) {
+    const lines = rawVerdict.split("\n").map(l => l.trim()).filter(Boolean);
+    const cleanLines = lines.filter(l => !l.startsWith("|") && !l.startsWith("---") && !l.startsWith("Sector-by-Sector Breakdown") && !l.startsWith("**Sector-by-Sector"));
+    verdictText = cleanLines.slice(0, 4).join("\n");
+  }
   let narrativeContent = "";
   if (response.investigation_report) {
     const rep = response.investigation_report;
@@ -356,24 +362,73 @@ export function InvestigationThread() {
     setQuestionTitle(queryText);
     const controller = new AbortController();
     setAbortController(controller);
-    const startTime = Date.now();
+    // STAGE B: Strategy Isolation Boundary Check
+    // Strategy questions are out-of-scope for the General tab and must redirect to the Strategy Engineer tab
+    const isStrategyQuestion = (text) => {
+      const q = (text || "").toLowerCase().trim();
+      const patterns = [
+        /\bwhat\s+if\b/,
+        /\bsimulate\b/,
+        /\bwhat\s+happens?\s+if\b/,
+        /\bwhy\s+did\s+.*\s+finish\b/,
+        /\bwhat\s+went\s+wrong\s+with\s+.*\s+strategy\b/,
+        /\bcould\s+.*\s+(?:have\s+)?pitted\b/,
+        /\bif\s+.*\s+pitted\b/,
+        /\b(?:earlier|later)\s+(?:pit\s+stop|pit|stop)\b/,
+        /\b\d+\s+laps?\s+(?:earlier|later)\b/,
+        /\balternative\s+(?:strategy|pit|lap)\b/,
+        /\bpit\s+(?:on\s+)?lap\s+\d+\b/,
+        /\bbox\s+(?:on\s+)?lap\s+\d+\b/
+      ];
+      return patterns.some((p) => p.test(q));
+    };
+
+    if (isStrategyQuestion(queryText)) {
+      setIsLoading(false);
+      inFlightRef.current = false;
+      const redirectMsgs = [
+        {
+          id: `verdict-${activeId}-${Date.now()}`,
+          type: "verdict",
+          content: "⚠️ Strategy analysis and What-If simulations are out of scope for the General Investigation tab.",
+          timestamp: Date.now()
+        },
+        {
+          id: `narrative-${activeId}-${Date.now()}`,
+          type: "narrative",
+          content: `**Strategy Question Detected:** "${queryText}"\n\nThe General Investigation tab is reserved for telemetry channel analysis, fastest lap comparisons, and race classifications. Counterfactual simulations, stint degradation, and pit strategy cost analysis are exclusively handled in the **Strategy Engineer** workspace.\n\n👉 [**Open Strategy Engineer Workspace →**](/strategy)`,
+          timestamp: Date.now() + 100
+        }
+      ];
+      setMessages(redirectMsgs);
+      return;
+    }
+
     try {
       let apiResponse = await submitEngineerQuery(queryText, activeId, controller.signal, contextData);
 
-      // FIX A: Handle async background backfill with honest progress indicator
+      // FIX O: Dedicated lightweight status polling loop with hard cap & stagnant progress detection
       if (apiResponse && apiResponse.status === "backfilling") {
-        const backfillSessionId = apiResponse.session_id;
+        const backfillSessionId = apiResponse.session_id || apiResponse.job?.session_id;
+        if (!backfillSessionId) {
+          throw new Error("This is taking longer than expected, please try again.");
+        }
         setLoadingStage("loading_data");
         setLoadingDetail(apiResponse.stage || `Downloading telemetry package for ${backfillSessionId}...`);
 
         let completed = false;
         let attempts = 0;
-        const maxAttempts = 120;
+        let noProgressAttempts = 0;
+        let lastProgressPct = apiResponse.progress_pct ?? null;
+        let lastStage = apiResponse.stage ?? null;
+        const maxAttempts = 60; // Hard cap of 60 attempts (~2.5 minutes at 2500ms interval)
 
         while (!completed && attempts < maxAttempts) {
           if (controller.signal.aborted) break;
           await new Promise((r) => setTimeout(r, 2500));
           attempts++;
+
+          // Poll ONLY the dedicated lightweight status endpoint
           const statusRes = await fetchBackfillStatus(backfillSessionId);
           if (statusRes) {
             if (statusRes.status === "completed") {
@@ -382,16 +437,46 @@ export function InvestigationThread() {
               break;
             } else if (statusRes.status === "failed") {
               throw new Error(statusRes.error || "Telemetry backfill failed.");
-            } else if (statusRes.stage) {
-              const pct = statusRes.progress_pct ? ` (${statusRes.progress_pct}%)` : "";
-              setLoadingDetail(`${statusRes.stage}${pct}`);
+            }
+
+            const currentPct = statusRes.progress_pct;
+            const currentStage = statusRes.stage;
+
+            // Detect stagnant progress
+            if (currentPct === lastProgressPct && currentStage === lastStage) {
+              noProgressAttempts++;
+            } else {
+              noProgressAttempts = 0;
+              lastProgressPct = currentPct;
+              lastStage = currentStage;
+            }
+
+            if (noProgressAttempts >= 60) {
+              throw new Error("This is taking longer than expected, please try again.");
+            }
+
+            if (currentStage) {
+              const pctText = currentPct !== undefined && currentPct !== null ? ` (${currentPct}%)` : "";
+              setLoadingDetail(`${currentStage}${pctText}`);
+            }
+          } else {
+            noProgressAttempts++;
+            if (noProgressAttempts >= 60) {
+              throw new Error("This is taking longer than expected, please try again.");
             }
           }
         }
 
+        if (!completed && attempts >= maxAttempts) {
+          throw new Error("This is taking longer than expected, please try again.");
+        }
+
         if (completed && !controller.signal.aborted) {
-          // Re-submit query automatically to obtain the complete synthesized response with telemetry
+          // Exactly ONE re-submission to obtain complete response with telemetry
           apiResponse = await submitEngineerQuery(queryText, activeId, controller.signal, contextData);
+          if (apiResponse && apiResponse.status === "backfilling") {
+            throw new Error("This is taking longer than expected, please try again.");
+          }
         }
       }
 

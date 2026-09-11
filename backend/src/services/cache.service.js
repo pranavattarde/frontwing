@@ -28,6 +28,7 @@ class CacheService {
         fa.includes('data_unavailable')
       ) return true;
     }
+    if (response.status === 'backfilling' || response.status === 'in_progress') return true;
     if (response.intelligence_trace && Array.isArray(response.intelligence_trace.errors) && response.intelligence_trace.errors.length > 0) return true;
     return false;
   }

@@ -21,9 +21,11 @@ export function VerdictBlock({ verdict, confidence, className }) {
       "absolute left-0 top-0 bottom-0 w-1",
       confidence >= 80 ? "bg-tire-inter" : confidence >= 50 ? "bg-teammate-yellow" : "bg-f1-red"
     )}
-  /><div className="flex-1 pl-2"><span className="text-[10px] font-mono text-text-muted uppercase tracking-wider block mb-1">
+  /><div className="flex-1 pl-2"><span className="text-[10px] font-mono text-text-muted uppercase tracking-wider block mb-1.5">
           AI_VERDICT
-        </span><h2 className="text-text-primary text-base font-semibold leading-snug">{verdict}</h2></div><div className="shrink-0 flex flex-col items-end pl-2 sm:pl-0"><span className="text-[9px] font-mono text-text-muted uppercase">CONFIDENCE</span><span
+        </span><div className="text-text-primary text-sm font-medium leading-snug whitespace-pre-line">
+          {verdict}
+        </div></div><div className="shrink-0 flex flex-col items-end pl-2 sm:pl-0"><span className="text-[9px] font-mono text-text-muted uppercase">CONFIDENCE</span><span
     className={cn(
       "font-mono text-xs font-semibold px-2 py-0.5 border rounded-sm mt-0.5",
       getConfidenceColor(confidence)

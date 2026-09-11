@@ -1,3 +1,196 @@
+## Session 029 -- 2026-09-11 -- STAGE C: OpenF1 Secondary Cross-Check for Strategy Pit Stops & Stints
+
+### What Was Changed
+- **OpenF1 API Confirmation & Architecture (`https://openf1.org/`)**:
+  - Confirmed OpenF1 `/pit` and `/stints` endpoints from official documentation and test client (`session_key`, `driver_number`, `lap_number`, `pit_duration`, `lane_duration`).
+  - Documented that OpenF1 historical coverage is 2023+ and verified that free API access is restricted with HTTP 401 during active live sessions, necessitating resilient local caching and graceful fallback.
+- **OpenF1 Collector Upgrade (`ai_services/app/ingestion/openf1_collector.py`)**:
+  - Implemented `get_session_key(year, circuit, session_type)` with circuit alias mapping and multi-tier resolution (in-memory -> disk cache `ai_services/cache/openf1/` -> live API -> built-in Grand Prix directory).
+  - Implemented `get_driver_number(driver_id)` resolving permanent competition numbers with memory map and PostgreSQL `drivers` query fallback.
+  - Implemented `get_pit_stops(session_id, driver_id)` and `get_stints(session_id, driver_id)`.
+  - Implemented `cross_check_pit_stops(session_id, driver_id, fastf1_pit_stops)` comparing lap numbers for each stop between FastF1 stints and OpenF1 pit logs.
+- **Strategy Tool & Planner Cross-Check Integration (`adapters.py`, `strategy_planner.py`)**:
+  - Wired `StrategyTool.execute()` and `strategy_planner.run_strategy_analysis()` to cross-check FastF1 pit stops against OpenF1.
+  - Non-destructive secondary verification: FastF1 remains primary source for all data.
+  - Strict reporting rule: If they agree, note nothing extra in narrative per specification. If they disagree, flag explicitly in narrative (e.g. `"Note: FastF1 and OpenF1 pit lap data disagree for this stop - FastF1 says lap X, OpenF1 says lap Y"`).
+  - Graceful fallback: If OpenF1 has no data (pre-2023 season or API downtime), notes that no cross-check was available and continues seamlessly using FastF1 data alone without failing the report.
+- **Strategy Debrief Frontend UI (`StrategyReportCard.jsx`)**:
+  - Added visual cross-check header badge: `✓ OPENF1 CROSS-CHECK: VERIFIED`, `⚠ OPENF1 CROSS-CHECK: DISCREPANCY FLAGGED`, or `OPENF1: UNAVAILABLE (FASTF1 PRIMARY)`.
+  - Added individual pit stop badge tags (`✓ OpenF1` or `OpenF1: Lap Y`).
+  - Added prominent discrepancy warning alert box below the pit stops list.
+- **Testing & Verification**:
+  - Added 3 unit tests in `ai_services/tests/test_strategy_engineer.py` covering agreement, discrepancy, and pre-2023 fallback. 9/9 tests passing (100%).
+  - Verified 3 real-world sessions:
+    1. *2024 Dutch GP (Verstappen)*: Agreement confirmed on Lap 27, zero extra notes.
+    2. *2024 British GP (Hamilton)*: Discrepancy flagged on Stop 1 (FastF1 lap 27 vs OpenF1 lap 28) and agreement on Stop 2 (Lap 38).
+    3. *2022 British GP (Verstappen)*: Graceful fallback on pre-2023 session with explicit note.
+  - Visual verification with browser subagent (`openf1_crosscheck_verification_1789142848096.png`).
+
+---
+
+## Session 028 -- 2026-09-11 -- STAGE B: Strategy Engineer Isolated Feature Implementation & End-to-End Verification
+
+### What Was Changed
+- **Architectural Isolation (`POST /strategy/query`)**:
+  - Implemented standalone `POST /strategy/query` endpoint in FastAPI (`ai_services/app/main.py`), completely segregated from `/engineer/query`.
+  - Added dedicated Express routing `backend/src/routes/strategy.routes.js` and controller `backend/src/controllers/strategy.controller.js` mounted at `/strategy` and `/api/strategy`.
+  - Zero strategy logic added to `planner.py` or `nlp_parser.py`, maintaining strict separation of concerns.
+- **Dedicated Strategy Planner (`ai_services/app/agents/strategy_planner.py`)**:
+  - Implemented `run_strategy_planner` that strictly handles `"strategy_analysis"` and `"strategy_whatif"`.
+  - `classify_strategy_query`: Heuristic keyword and phrase pattern classifier.
+  - `detect_unmodeled_variable`: Rejects physical variables not modeled in lap-time/pit-stop counterfactuals (e.g. aero, DRS train, engine modes, late braking) with a 0ms fast-path before triggering session checks.
+  - `run_strategy_analysis`: Gathers real race classification and actual pit stints via `RaceResultsTool` ("What Happened"), computes genuine Strategy, Tire, and Pace scores via `ScoringTool` explaining grid-to-finish position changes ("Strategy Cost Analysis"), and evaluates 12 real candidate simulation runs via `SimulationTool` across +/- 3, 5, 8 laps and alternate tyre compounds to select the single highest-performing simulated alternative ("Suggested Alternative Strategy").
+  - `run_strategy_whatif`: Evaluates explicit user pit lap/compound scenarios or relative pit offset scenarios against actual race stints with net position and time deltas.
+  - Strict anti-fabrication standard: Every numeric score and lap delta traces directly to tool outputs.
+- **Dedicated Strategy Test Suite (`ai_services/tests/test_strategy_engineer.py`)**:
+  - 6 unit tests covering classification, unmodeled variable detection, entity extraction, full analysis pipeline, what-if counterfactual pipeline, and FastAPI endpoint response format. 100% passing (6/6).
+- **Frontend Broadcast Strategy UI & Routing (`frontend/src/`)**:
+  - Created `/strategy` route in `frontend/src/App.jsx`.
+  - Created `frontend/src/pages/StrategyEngineer.jsx` with broadcast telemetry styling, dedicated query input, quick suggestion pills, and query execution against `/strategy/query`.
+  - Created `frontend/src/components/StrategyReportCard.jsx`: 4 sections with tyre compound badges, progress bars for strategy cost breakdown, simulation summary banner, and bulleted engineer verdict.
+  - Created `frontend/src/components/WhatIfSimulationCard.jsx`: Visual comparison cards for actual vs counterfactual simulation outcomes, delta highlight badge, and limitation alert for unmodeled variables.
+  - Updated `frontend/src/components/BriefingHeader.jsx`: Added top-level navigation tabs (`INVESTIGATION` and `STRATEGY ENGINEER`).
+  - Updated `frontend/src/pages/InvestigationThread.jsx`: Added boundary check that catches strategy queries in the general investigation tab and provides a direct one-click redirect to `/strategy`.
+- **End-to-End Verification**:
+  - Verified 6 real-world queries against running FastAPI and Express backends (Verstappen 2024 Dutch GP, Leclerc 2024 British GP, Russell 2026 Miami GP, Piastri 2024 Qatar GP what-if, Hamilton 2024 Dutch GP what-if, Verstappen late braking unmodeled variable).
+  - Visual verification with browser subagent and recorded artifacts.
+
+---
+
+## Session 027 -- 2026-09-11 -- Test Suite Audit, Mock Eradication & Consolidation into 8 Domain Modules (Part 2)
+
+### What Was Changed
+- **Comprehensive Audit & Mock Deletion (`ai_services/tests/`)**:
+  - Audited all 21 test files across the repository.
+  - Eliminated pure mock-heavy test files (e.g. `test_fastf1_ingestion.py` which only patched `collect()` with synthetic errors to test artificial branches) and artificial mock tools (`MockFailingTool`).
+  - Completely removed the 21-file sprawl of fragmented sprint-named files (`test_sprint3.py`, `test_sprint4.py`, `test_sprint5.py`, `test_sprint_validation.py`, `test_fixes_e_f_g.py`, `test_fixes_h_i_j_k_l.py`, `test_fixes_o_p_q.py`, `test_fixes_verification.py`, etc.).
+  - Moved runner script `verify_backend_pipeline.py` out of `tests/` into `scratch/`.
+- **Consolidated 8 Domain-Focused Test Modules**:
+  1. `test_race_results.py` (6 tests): Real dynamic season resolution (2026/2025/2024), FastF1 live schedules, `RaceResultsTool` classification, winner queries, zero fake root-cause boilerplate.
+  2. `test_telemetry_pipeline.py` (7 tests): `TelemetryTool` personal best flying laps matching raw SQL `MIN(lap_time_ms)` in PostgreSQL, stint-bounded tyre degradation with reset on new stints, fuel-corrected monotonic non-decreasing wear progression, tyre degradation + life % summing to 100.0%, real integer gear traces, dual-driver sector comparisons.
+  3. `test_scoring_engine.py` (3 tests): 5 core scoring functions (Strategy, Tire, Pace, Pitstop, Execution), mathematical boundaries [0, 100], and composite aggregator.
+  4. `test_strategy_simulation.py` (4 tests): Strategy simulation physics (pit loss, undercut, traffic loss, lap time projection), query parameter binding, honest error handling on non-racing drivers without fictitious grid position fallbacks.
+  5. `test_planner_and_reasoning.py` (11 tests): Heuristic & structured plan extraction, entity resolution without hallucinations, case-insensitive driver extraction, `parse_step` with `=` in values, multi-turn PostgreSQL conversation memory persistence, reflection & judge nodes, multi-domain investigation correlator.
+  6. `test_infrastructure_and_api.py` (7 tests): FastAPI endpoints (`GET /health`, `POST /simulate` validation), settings loading and environment validation, prompt loading & disk caching, startup health diagnostics, background backfill job registry de-duplication and 180s timeout transition.
+  7. `test_tool_registry.py` (6 tests): Tool registration & lookup, unregistered tool `KeyError`, missing required parameter `missing_data` handling, `ExplainModeTool` definitions, modular knowledge RAG retrieval, engineer personas interface conformance.
+  8. `test_end_to_end_investigations.py` (6 tests): Multi-agent investigations against real ingested PostgreSQL sessions verifying structured reports, short 2-3 line bullet executive summaries in verdict, absence of raw JSON/status leaks, and honest unsupported metric responses.
+- **Test Infrastructure (`conftest.py`)**:
+  - Added `ai_services/tests/conftest.py` ensuring `ai_services` root is automatically placed on Python's module path and environment variables are loaded.
+- **Documentation & Anti-Mocking Rule (`RULES_AND_GOTCHAS.md` & `PROJECT_STATE.md`)**:
+  - Added Entry 016: Strict anti-mocking rule prohibiting artificial mocks that mask real system bugs.
+
+---
+
+## Session 026 -- 2026-09-11 -- STAGE A: Dynamic Current-Season Auto-Ingestion (2018–2026+) & 2024 Ceiling Fix
+
+### What Was Changed
+- **`ai_services/app/core/session_resolver.py` (STAGE A - Dynamic Current-Season Default & Multi-Season Candidate Iteration)**:
+  - Added `get_current_f1_season() -> int` helper with module caching, dynamically evaluating the current real-world season via FastF1 schedule / current calendar year (`2026`).
+  - Added `_resolve_single_year` helper method for modular session database verification and FastF1 auto-ingestion.
+  - In `resolve_session`: when `season` is omitted (`None`), defaults to current season (`2026`) instead of querying only existing sessions in the DB.
+  - Added graceful multi-season candidate iteration: evaluates current season first, then checks DB for prior completed editions of the Grand Prix, and falls back cleanly through recent seasons down to 2018 if the event is not scheduled or has not yet taken place in the current calendar year.
+  - Completely removed hardcoded SQL `AND r.year <= 2025` constraint (lines 137, 151) and hardcoded `target_year = 2024` fallback (line 159).
+  - Ensured `fastf1_downloaded` flag is properly set to `True` upon successful auto-ingestion.
+- **`ai_services/app/agents/planner.py` (STAGE A - Excised Destructive 2026_ Rewrites & 2024 Hardcoded Strings)**:
+  - Removed lines 1062-1063 that forcibly executed `args[k] = args[k].replace("2026_", "2024_")` on bound tool session arguments.
+  - Removed line 1052 `and res_sid.startswith("2026_")` hack, ensuring consistent season matching across all seasons.
+  - Replaced hardcoded `or 2024` fallbacks in lines 1762 and 1947 with `get_current_f1_season()`.
+- **`ai_services/app/tools/adapters.py` (STAGE A - Removed 2024 Defaults from Tool Adapters)**:
+  - In `RaceResultsTool` and `DriverResultsTool`: changed `season=year or 2024` to `season=year`, enabling `SessionResolver` to dynamically resolve the current season for unspecified years.
+  - In `RaceResultsTool`: updated fallback year resolution `yr = int(year or 2024)` to `yr = int(year or (resolved.get("season") if resolved else None) or get_current_f1_season())`.
+  - In `TelemetryTool`: replaced `else 2024` with `else get_current_f1_season()`.
+  - In `StandingsTool`: replaced `year = 2024` with `year = get_current_f1_season()`.
+- **`ai_services/app/agents/resolver.py`, `app/ingestion/loader.py`, & `app/ingestion/fastf1_collector.py` (STAGE A - Dynamic Season Fallbacks)**:
+  - In `resolver.py`: updated `get_latest_f1_season()` to delegate to `get_current_f1_season()`.
+  - In `loader.py`: updated `ensure_session_in_db` to pass `season=year` directly without defaulting to 2024.
+  - In `fastf1_collector.py`: updated `process_and_save` fallback from `2024` to `get_current_f1_season()`.
+
+### How It Was Verified -- Real Test Output & Artifacts
+- **3 Self-Invented Queries (No Season Specified) Verified End-to-End via AI Strategy Engineer Pipeline**:
+  1. `"Who won the Australian Grand Prix?"`:
+     - Resolved Session: `2026_australian_gp_race` (Season: 2026).
+     - Tool Output: Winner `George Russell` (Mercedes-AMG Petronas F1 Team), P2 `Kimi Antonelli`, P3 `Charles Leclerc`.
+     - AI Executive Summary: `"🏆 Race Winner: George Russell won the 2026 Australian Grand Prix. Finished ahead of Kimi Antonelli in P2."` (0% 2024 fallback).
+  2. `"Who won the Monaco Grand Prix?"`:
+     - Resolved Session: `2026_monaco_gp_race` (Season: 2026).
+     - Tool Output: Winner `Kimi Antonelli` (Mercedes-AMG Petronas F1 Team), P2 `Lewis Hamilton` (Scuderia Ferrari), P3 `Pierre Gasly` (Alpine).
+     - AI Executive Summary: `"🏆 Race Winner: Kimi Antonelli won the 2026 Monaco Grand Prix driving for the Mercedes-AMG Petronas F1 Team!"` (0% 2024 fallback).
+  3. `"Who won the British Grand Prix?"`:
+     - Auto-Ingested Session: `2026_british_gp_race` downloaded live on-demand via FastF1 into PostgreSQL (22 drivers, 70 laps).
+     - Tool Output: Winner `Charles Leclerc` (Scuderia Ferrari), P2 `George Russell`, P3 `Lewis Hamilton`.
+     - AI Executive Summary: `"🏆 Race Winner: Charles Leclerc won the 2026 British Grand Prix. Finished ahead of George Russell in P2."` (0% 2024 fallback).
+- **Historical Pre-2024 On-Demand Auto-Ingestion Verification**:
+  - `SessionResolver.resolve_session(grand_prix='Austrian GP', season=2022, session_type='Race')`:
+    - Auto-ingested `2022_austrian_gp_race` (20 drivers, 71 laps) directly from FastF1 into PostgreSQL.
+    - Output: Winner `Charles Leclerc` (Ferrari), P2 `Max Verstappen` (Red Bull), P3 `Lewis Hamilton` (Mercedes).
+  - `SessionResolver.resolve_session(grand_prix='Australian GP', season=2025, session_type='Race')`:
+    - Resolved `2025_australian_gp_race` (20 drivers, 58 laps); Winner: `Lando Norris`.
+- **Automated Regression Test Suite**:
+  - `ai_services/tests/test_season_ceiling_fix.py`: 4/4 PASSED (100% clean).
+
+---
+
+## Session 025 -- 2026-09-11 -- Fixes O, P, Q: Async Backfill Polling Deduplication & Timeout, AI Verdict 2-3 Line Bullet Summary, and Tyre Degradation vs Life % Table Columns
+
+### What Was Changed
+- **`ai_services/app/ingestion/fastf1_collector.py` & `app/tools/adapters.py` (FIX O - Async Backfill Registry, Single Background Task & 180s Timeout)**:
+  - **Thread-Safe Job Registry & Deduplication**: Added existing in-progress check with `_backfill_lock` in `start_async_backfill`. If a job is already in progress, attaches to it and returns the active job instance without spawning duplicate threads.
+  - **Single Logger Notice**: In `adapters.py`, ensured `[TelemetryTool] Async telemetry backfill started for {session_id}` is logged **EXACTLY ONCE** per session. Re-queries log `[TelemetryTool] Attaching to existing in-progress backfill job for {session_id}`. Completed sessions bypass backfill and proceed directly with available database telemetry.
+  - **180s Server-Side Timeout**: Added automatic transition in `get_backfill_job` and `start_async_backfill`: if `time.time() - job["started_at"] > 180`, job transitions to `status: "failed"` with `stage: "Backfill job timed out after 3 minutes."` and `error: "Timeout: FastF1 telemetry ingestion exceeded 180 seconds."`.
+- **`backend/src/services/cache.service.js` (FIX O - Redis Cache Guard)**:
+  - Updated `isErrorResponse()` to refuse caching responses with `status: "backfilling"` or `status: "in_progress"`, preventing Redis from caching transient backfill states.
+- **`frontend/src/pages/InvestigationThread.jsx` (FIX O - Lightweight Endpoint Polling & Hard Cap)**:
+  - In `executeQuery`, constrained backfill polling exclusively to `fetchBackfillStatus(sessionId)` (`GET /sessions/backfill-status/:sessionId`). Re-POSTing to `/engineer/query` during backfilling is completely eliminated.
+  - Added hard cap of 60 attempts (~2.5 minutes at 2.5s interval) and stagnant progress detection: after 60 consecutive ticks without stage/pct change, stops polling and displays honest error: `"This is taking longer than expected, please try again."`.
+  - Dispatches exactly ONE query re-submission upon `status === "completed"`, immediately throwing the timeout error if `backfilling` is returned again.
+- **`ai_services/app/tools/adapters.py`, `app/agents/planner.py`, `frontend/src/pages/InvestigationThread.jsx`, & `VerdictBlock.jsx` (FIX P - Short 2-3 Line AI_Verdict Bullet Summary)**:
+  - In `adapters.py`, generated a concise 2-3 bullet executive summary (`• Overall Result: ...`, `• Sector Dominance: ...`, `• Key Factor: ...`) stored in `executive_summary`, separating it from `textual_analysis` (which retains the full markdown table and sector-by-sector prose).
+  - In `planner.py`, assigned `investigation_report["Executive Summary"]` to the clean 2-3 line bullet summary across telemetry comparisons, race results/winners (`• Race Winner: ...`, `• Classification: ...`), and strategy simulations (`• Projected Outcome: ...`, `• Net Race Time Delta: ...`, `• Strategy Tradeoff: ...`).
+  - Preserved the complete comparative table and sector narrative in `investigation_report["Telemetry Findings"]` for rendering in the detailed split-view below.
+  - In `InvestigationThread.jsx`, added defensive check in `mapResponseToMessages` stripping any stray markdown table pipes (`|`) from `verdictText`.
+  - Updated `VerdictBlock.jsx` to render bullet points with `whitespace-pre-line` and clean typography.
+- **`frontend/src/components/TyreDegradationGraph.jsx` (FIX Q - Tyre Degradation % and Tyre Life % Table Columns)**:
+  - Renamed previous wear column to `TYRE DEGRADATION %` (wear percentage, matching the curve above).
+  - Added dedicated `TYRE LIFE %` column showing `(100 - wear_pct)%`.
+  - Verified numerical consistency: `TYRE DEGRADATION % + TYRE LIFE % = 100.0%` across all clean flying laps.
+  - Set `—` (em-dash `\u2014`) consistently for non-representative laps (`[START-LAP]`, `[IN-LAP]`, `[OUT-LAP]`) across both columns.
+  - Updated card header to show `DEG: {latest.wear_pct}% | LIFE: {100 - latest.wear_pct}%` and updated tooltip to show both metrics.
+
+### How It Was Verified -- Real Test Output & Artifacts
+- **FIX O Live Backfill & Single Job Verification**:
+  - Live Abu Dhabi GP (`2024_abu_dhabi_gp_race`) backfill triggered from cold state:
+    - Query 1 initiated backfill; Query 2 dispatched concurrently returned attached job within 3.20s without spawning duplicate threads.
+    - Verified direct lightweight endpoint polling (`/sessions/backfill-status/2024_abu_dhabi_gp_race`): returned live progress (`61% -> 63% -> 65%`) driver by driver.
+    - Single background job ran and completed (`status: "completed"`, `progress_pct: 100`, `started_at: 1789107721.776`).
+    - Querying Abu Dhabi telemetry post-backfill returned full comparative analysis between Verstappen and Leclerc with `has_telemetry_evidence: True`.
+- **FIX P Live Verification Across 3 Query Types**:
+  - **Race Result (`who won the 2024 dutch gp`)**:
+    - AI_Verdict: 2 lines (`• Race Winner: Lando Norris won the 2024 Dutch Grand Prix.\n• Classification: Finished ahead of Max Verstappen in P2.`). Contains markdown table: `False`.
+    - Screenshot: `query_1_dutch_gp_winner_1789109379311.png`.
+  - **Telemetry Comparison (`compare verstappen and norris at dutch gp`)**:
+    - AI_Verdict: 3 lines (`• Overall Result: Lando Norris held a 0.935s advantage on personal best laps (Lap 72: 73.817s vs 74.752s).\n• Sector Dominance: Max Verstappen was the stronger performer in Sector 2, whereas Lando Norris held the advantage in Sector 1, Sector 3.\n• Key Factor: Lando Norris gained decisive time in Sector 1, Sector 3 through higher corner apex speeds and throttle commitment.`). Contains markdown table: `False`.
+    - Detailed comparative table and sector-by-sector breakdown cleanly rendered below in split view.
+    - Screenshot: `query_2_verstappen_norris_verdict_1789109484515.png`.
+  - **Strategy Simulation (`what if piastri pitted on lap 18 at qatar 2024`)**:
+    - AI_Verdict: 3 lines (`• Projected Outcome: Oscar Piastri projected to finish P7 (-4).\n• Net Race Time Delta: -7.98s net time loss by pitting on Lap 18.\n• Strategy Tradeoff: Simulated stop on Lap 18 vs actual stop on Lap 34.`). Contains markdown table: `False`.
+- **FIX Q Numerical & Visual Verification**:
+  - Verified in browser modal table (`tyre_degradation_modal_table_1789109665770.png`):
+    - Lap 1: `[START-LAP]` | `—` | `—`
+    - Lap 2: `0%` DEG | `100%` LIFE | `+0.000s/lap` (0 + 100 = 100)
+    - Lap 3: `3.7%` DEG | `96.3%` LIFE | `+0.092s/lap` (3.7 + 96.3 = 100.0)
+    - Lap 4: `6.7%` DEG | `93.3%` LIFE | `+0.168s/lap` (6.7 + 93.3 = 100.0)
+    - Lap 5: `9.6%` DEG | `90.4%` LIFE | `+0.240s/lap` (9.6 + 90.4 = 100.0)
+    - Lap 6: `11.8%` DEG | `88.2%` LIFE | `+0.294s/lap` (11.8 + 88.2 = 100.0)
+    - Lap 27: `[IN-LAP]` | `—` | `—`
+    - Lap 28: `[OUT-LAP]` | `—` | `—`
+- **Automated Test Suites**:
+  - `ai_services/tests/test_fixes_o_p_q.py`: 6/6 PASSED (100%).
+  - `ai_services/tests/test_fixes_h_i_j_k_l.py`: 6/6 PASSED (100%).
+  - `ai_services/tests/test_telemetry_fastest_lap_comparison.py`: 4/4 PASSED (100%).
+  - `frontend` Vite build (`npm run build`): PASSED in 4.64s with 0 errors.
+
+---
+
 ## Session 024 -- 2026-09-08 -- Full Frontend Redesign: F1 Broadcast Design System, Circuit SVG Tracks, Chart Tooltips, Streaming UX & Multi-Viewport Verification
 
 ### What Was Changed

@@ -8,6 +8,7 @@ const { connectRedis, redisClient } = require('./config/redis');
 const authRoutes = require('./routes/auth.routes');
 const historyRoutes = require('./routes/history.routes');
 const engineerRoutes = require('./routes/engineer.routes');
+const strategyRoutes = require('./routes/strategy.routes');
 const sessionRoutes = require('./routes/session.routes');
 
 // Load environment variables
@@ -61,6 +62,9 @@ app.delete('/delete/:id', authenticateToken, HistoryController.deleteHistory);
 
 app.use('/api/engineer', engineerRoutes);
 app.use('/engineer', engineerRoutes);
+
+app.use('/api/strategy', strategyRoutes);
+app.use('/strategy', strategyRoutes);
 
 app.use('/api/sessions', sessionRoutes);
 app.use('/sessions', sessionRoutes);
