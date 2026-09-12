@@ -356,3 +356,38 @@ All tests under `ai_services/tests/` are organized into 8 domain-focused modules
   - 3D Ghost Battle telemetry pipeline: `tags=["ghost-battle"]`
 - **Graceful Fallback:** If `LANGCHAIN_API_KEY` is missing or LangSmith is unreachable, tracing decorators degrade gracefully to local execution with zero crashes.
 
+---
+
+## Entry 021 — 2026-09-12 — FrontWing Security Baseline & Hardening Protocols
+
+**1. Layered Rate Limiting On High-Cost / High-Risk Surface Area:**
+- **RULE:** Apply targeted rate limiting to abuse-prone and expensive endpoints:
+  - `/auth/login`, `/auth/register`: 10 attempts per 15 minutes per IP (`authLimiter`) to mitigate brute-force and credential stuffing.
+  - `/engineer/query`, `/strategy/query`: 30 queries per 15 minutes (`queryLimiter`), keyed by `req.user.id` when authenticated, falling back to IP address. Prevents LLM quota and inference compute depletion.
+  - `/ghost-battle/data`: 40 requests per 15 minutes (`ghostBattleLimiter`), keyed by user ID or IP address.
+  - `/api/*` safety net: 150 requests per 15 minutes (`generalLimiter`).
+- **Standard Protocol:** Always return `429 Too Many Requests` with a structured, safe JSON payload (`{ error: "...", status: 429 }`).
+
+**2. Strict Input Validation & Length Limits Before Forwarding to Compute/LLM:**
+- **RULE:** Never forward unbounded user free-text into agent planners or LLM providers.
+- **Protocol:**
+  - Free-text questions must be trimmed, stripped of non-printable control characters (`[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]`), and bounded between 2 and 2,000 characters via `zod` (`validation.middleware.js`).
+  - UUID path parameters (e.g. `/history/:id`, `/save/:id`) must be validated against `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` before executing database queries.
+  - Array inputs (e.g. `driver_ids` in `/ghost-battle/data`) must enforce bounded limits (min 2, max 22 drivers).
+  - Malformed JSON payloads must be intercepted immediately after `express.json()` and rejected with a clean `400 Bad Request` (`{ error: "Malformed JSON payload in request body" }`). Never allow default HTML error stacks to reach the client.
+
+**3. Zero Unparameterized SQL In Production Code:**
+- **RULE:** Every database query in Node.js (`pg`) and Python (`psycopg2`) MUST use parameterized placeholders (`$1, $2, ...` in Node.js; `%s` tuple in Python).
+- **Gotcha:** Never use f-strings or template string interpolation (`${val}`) to construct SQL WHERE clauses or table filters. All query builders must push values strictly to a parameter array/tuple.
+
+**4. External Link Sanitization & XSS Mitigation:**
+- **RULE:** React intrinsically escapes text nodes, but any external hyperlink URL rendered into an `<a>` tag (e.g. `sourceUrl` in `RaceStoryCard.jsx`) MUST be validated with `/^https?:\/\//i` before rendering. This completely blocks `javascript:` or `data:` URI attacks from scraped or AI-generated links.
+
+**5. Production CORS Whitelist Enforcement:**
+- **RULE:** Express CORS must never be wide open (`*`) in production.
+- **Protocol:** Whitelist approved origins via `ALLOWED_ORIGINS` (or defaults `localhost:5173`, `localhost:3000`). In production (`NODE_ENV=production`), reject unlisted browser origins with `403 Forbidden` (`{ error: "CORS policy violation: origin not allowed" }`), while allowing legitimate server-to-server and non-browser curl requests.
+
+**6. Safe Error Masking & Zero Internal Leakage:**
+- **RULE:** Never send internal database connection errors, table names, file paths, or stack traces in HTTP responses to clients.
+- **Protocol:** In production (`NODE_ENV=production`), all 500 responses must return safe, generic error text (`"An internal server error occurred. Please try again later."`) while logging the complete `error.message` and `error.stack` server-side for investigation.
+

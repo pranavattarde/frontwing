@@ -16,8 +16,12 @@ class HeroController {
       const data = await HeroService.refreshHero();
       return res.json({ status: 'refreshed', data });
     } catch (err) {
-      console.error('[HeroController] Failed to refresh hero data:', err.message);
-      return res.status(500).json({ error: 'Failed to refresh hero content', details: err.message });
+      console.error('[HeroController] Failed to refresh hero data:', err.message, err.stack);
+      const isProd = process.env.NODE_ENV === 'production';
+      return res.status(500).json({
+        error: 'Failed to refresh hero content',
+        ...(isProd ? {} : { details: err.message })
+      });
     }
   }
 }

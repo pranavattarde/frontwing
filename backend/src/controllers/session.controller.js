@@ -24,8 +24,9 @@ class SessionController {
       const data = await response.json();
       return res.json(data);
     } catch (error) {
-      console.error('[SessionController] Error in session load handler:', error.message);
-      return res.status(500).json({ error: error.message || 'Failed to load session data' });
+      console.error('[SessionController] Error in session load handler:', error.message, error.stack);
+      const isProd = process.env.NODE_ENV === 'production';
+      return res.status(500).json({ error: isProd ? 'Internal server error loading session data' : (error.message || 'Failed to load session data') });
     }
   }
 
@@ -52,8 +53,9 @@ class SessionController {
       const data = await response.json();
       return res.json(data);
     } catch (error) {
-      console.error('[SessionController] Error in backfillStatus handler:', error.message);
-      return res.status(500).json({ error: error.message || 'Failed to fetch backfill status' });
+      console.error('[SessionController] Error in backfillStatus handler:', error.message, error.stack);
+      const isProd = process.env.NODE_ENV === 'production';
+      return res.status(500).json({ error: isProd ? 'Internal server error checking backfill status' : (error.message || 'Failed to fetch backfill status') });
     }
   }
 }

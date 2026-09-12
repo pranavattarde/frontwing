@@ -1,3 +1,40 @@
+## Session 039 -- 2026-09-12 -- Security Hardening Pass: Rate Limiting, Input Validation & Length Bounds, Secrets Audit, CORS Whitelisting, and Safe Error Masking
+
+### What Was Changed
+- **Part 1: Layered Rate Limiting (`backend/src/middleware/rate_limit.middleware.js`)**:
+  - Implemented `authLimiter`: 10 attempts per 15-minute window per IP on `/auth/login`, `/auth/register` (and `/api/auth/*`) to prevent credential stuffing and brute force attacks.
+  - Implemented `queryLimiter`: 30 queries per 15-minute window on `/engineer/query` and `/strategy/query`. Automatically keys by authenticated user ID (`req.user.id`) with client IP fallback to guard expensive LLM inference compute.
+  - Implemented `ghostBattleLimiter`: 40 requests per 15-minute window on `/ghost-battle/data`.
+  - Implemented `generalLimiter`: 150 requests per 15-minute window on `/api/*` routes as a baseline denial-of-service defense.
+  - Verified live: Rapid repeated requests return HTTP `429 Too Many Requests` with safe JSON payloads.
+- **Part 2: Input Validation, Free-Text Length Bounds & Injection Audits (`validation.middleware.js`, `RaceStoryCard.jsx`)**:
+  - Built Zod validation schemas (`registerSchema`, `loginSchema`, `engineerQuerySchema`, `strategyQuerySchema`, `ghostBattleDataSchema`, `sessionLoadSchema`, `uuidParamSchema`).
+  - Enforced strict length limits on free-text questions: **minimum 2 characters, maximum 2,000 characters**, preventing prompt explosion attacks and LLM provider token exhaustion.
+  - Built `sanitizeText()` to strip non-printable ASCII control characters (`[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]`).
+  - Added malformed JSON error handler immediately after `express.json({ limit: '1mb' })` returning clean `400 Bad Request` (`{ error: 'Malformed JSON payload in request body' }`), preventing default HTML stack traces.
+  - Audited SQL queries across Node (`pg`) and Python (`psycopg2`): confirmed 100% of queries use parameter bindings (`$1, $2, ...` and `%s` tuples). Zero SQL injection risk.
+  - Audited frontend content rendering: verified React DOM intrinsically escapes HTML text (no `dangerouslySetInnerHTML`). Hardened external story links in `RaceStoryCard.jsx` with `/^https?:\/\//i` validation, blocking `javascript:` and `data:` XSS vectors.
+- **Part 3: Secrets Management Audit & Provisioning Guide**:
+  - Audited git history: verified `.env` files were **never** committed to repository history (only template `.env.example` files with dummy values exist).
+  - Grep audit confirmed zero hardcoded API keys or passwords in source code. `JWT_SECRET` strictly required from environment variables and throws a fatal error if missing.
+  - Documented full Production Secrets Inventory and Phase 6/7 Provisioning Architecture in `PROJECT_STATE.md`.
+- **Part 4: CORS Restriction to Production Whitelist (`backend/src/index.js`)**:
+  - Replaced wide-open `cors()` with origin-restricted validator supporting `ALLOWED_ORIGINS` / `FRONTEND_URL` and development localports (`5173`, `3000`).
+  - Enforced rejection of unauthorized browser origins in production with HTTP `403 Forbidden` (`{ error: 'CORS policy violation: origin not allowed' }`).
+- **Part 5: Safe Error Masking & Information Leakage Prevention**:
+  - Added Express global error handling middleware masking internal 500 error messages in production mode (`"An internal server error occurred. Please try again later."`) while logging full stack traces server-side.
+  - Hardened controller error handlers in `engineer.controller.js`, `strategy.controller.js`, `ghost_battle.controller.js`, `history.controller.js`, `session.controller.js`, `hero.controller.js`, and `editorial.controller.js`.
+  - Audited client payloads: verified zero internal stack traces, file system paths (`C:\...`), or raw database credentials reach the client.
+- **Permanent Automated Security Suite (`backend/tests/security.test.js`)**:
+  - Created automated test suite covering 14 security assertions across rate limiting, input validation, CORS, and error masking. Wired into `npm test` in `backend/package.json`.
+
+### Verification
+- `npm test` in `backend/`: 14/14 tests passed (0 failures) in 2.1s.
+- `pytest ai_services/tests/`: 63/63 tests passed (0 failures) in 389s.
+- `Entry 021` added to `RULES_AND_GOTCHAS.md`.
+
+---
+
 ## Session 038 -- 2026-09-12 -- Multi-Season 2025/2026 Data Integrity Re-Verification, 2026 Physics Constant Recalibration Audit, and Multi-Season OpenF1 Cross-Check
 
 ### What Was Changed

@@ -69,9 +69,13 @@ class GhostBattleController {
       const data = await GhostBattleService.getGhostBattleData(session_id, driver_ids);
       return res.json(data);
     } catch (err) {
-      console.error('[GhostBattleController] getGhostBattleData error:', err.message);
+      console.error('[GhostBattleController] getGhostBattleData error:', err.message, err.stack);
       const statusCode = err.status || 500;
-      return res.status(statusCode).json({ status: 'error', message: err.message });
+      const isProd = process.env.NODE_ENV === 'production';
+      const safeMsg = statusCode >= 500 && isProd
+        ? 'Internal server error retrieving ghost battle telemetry'
+        : err.message;
+      return res.status(statusCode).json({ status: 'error', message: safeMsg });
     }
   }
 }

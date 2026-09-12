@@ -80,8 +80,10 @@ class EngineerController {
 
       return res.json(data);
     } catch (error) {
-      console.error('[EngineerController] Query handling error:', error.message);
-      return res.status(500).json({ error: error.message });
+      console.error('[EngineerController] Query handling error:', error.message, error.stack);
+      const isProd = process.env.NODE_ENV === 'production';
+      const safeMsg = isProd ? 'Internal server error processing engineering query' : error.message;
+      return res.status(500).json({ error: safeMsg });
     }
   }
 }

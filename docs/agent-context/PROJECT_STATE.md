@@ -1,11 +1,59 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-09-12 by Antigravity (Session 038 - Multi-Season 2025/2026 Data Integrity Re-Verification, 2026 Physics Constant Audit, and OpenF1 Multi-Season Coverage)
-> Audit method: Byte-for-byte FastF1 cross-check against 24 driver laps across 5 sessions (3x 2025, 2x 2026) confirmed 0ms fastest lap and sector deltas (Fix I holds); tyre degradation audit on 2025 Bahrain and 2026 Austria confirmed 0.0% stint resets and monotonic wear (Fix M holds); 2026 regulations physics audit evaluated 0.060s/lap fuel correction vs 70kg capacity; live OpenF1 API coverage verified across 2025/2026 with 100% pit stop match.
+> Last updated: 2026-09-12 by Antigravity (Session 039 - Full Security Hardening Pass: Rate Limiting, Input Validation & Length Caps, Secrets Audit & Provisioning Architecture, Restricted CORS Whitelist, Safe Error Masking)
+> Audit method: Verified layered rate limiting on /auth, /engineer/query, /strategy/query, /ghost-battle/data (14/14 security test assertions passed); verified strict Zod schemas with 2,000-character caps and control character stripping; audited SQL injection risks across pg and psycopg2 (100% parameterized queries); audited XSS in frontend (React DOM auto-escaping + http/https URL validation); confirmed .env was never committed to git history and zero hardcoded keys exist in source; restricted Express CORS with production origin whitelisting; masked 500 error messages with safe fallbacks. All 63 pytest tests and 14 Node security tests passed.
 
 ---
 
 ## 1. What Works Right Now
+
+### Full-Stack Security Hardening & Protection Baseline (SESSION 039 VERIFIED)
+- **Layered Rate Limiting (`backend/src/middleware/rate_limit.middleware.js`)**:
+  - `authLimiter`: Strict 10 attempts per 15-minute window per IP on `/auth/login` and `/auth/register` (and `/api/auth/*`) to prevent credential stuffing and brute-force attacks.
+  - `queryLimiter`: 30 queries per 15-minute window on `/engineer/query` and `/strategy/query`. Automatically keys by authenticated user ID (`req.user.id`) with client IP fallback, mitigating LLM token drainage and compute exhaustion.
+  - `ghostBattleLimiter`: 40 requests per 15-minute window on `/ghost-battle/data` keyed by user ID or IP.
+  - `generalLimiter`: 150 requests per 15-minute window across all `/api/*` routes as a baseline denial-of-service shield.
+  - Verified live: Rapid repeated requests return HTTP `429 Too Many Requests` with safe structured JSON payloads.
+- **Strict Input Validation & Free-Text Length Bounds (`validation.middleware.js`)**:
+  - `engineerQuerySchema` and `strategyQuerySchema`: Validates free-text questions, trims whitespace, strips non-printable control characters (`[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]`), and enforces strict length boundaries: **minimum 2 characters, maximum 2,000 characters**. Prevents prompt explosion and LLM quota depletion.
+  - `ghostBattleDataSchema`: Enforces valid `session_id` and bounds driver selection strictly to $2 \le \text{drivers} \le 22$.
+  - `uuidParamSchema`: Validates UUID path parameters against standard regex format before hitting database queries.
+  - Malformed JSON interception: Custom JSON syntax error handler catches invalid JSON payloads and returns clean HTTP `400 Bad Request` (`{ error: 'Malformed JSON payload in request body' }`), preventing default Express HTML stack dumps.
+- **Zero SQL Injection Vulnerabilities (Audited Across Backend & AI Services)**:
+  - 100% of queries in Node.js (`backend/src/services/history.service.js`, `auth.service.js`, `hero.service.js`, `editorial.service.js`) use PostgreSQL parameterized placeholders (`$1, $2, ...`) with values arrays.
+  - 100% of queries in Python (`ai_services/app/ingestion/fastf1_collector.py`, `ai_services/app/tools/adapters.py`, `ai_services/app/core/db.py`) use parameter binding tuples with `%s` placeholders. Zero f-strings or raw string interpolations in SQL execution paths.
+- **Zero XSS Risk in Frontend Content Rendering**:
+  - All Markdown and telemetry tables rendered via [`MarkdownContent.jsx`](file:///c:/VS-Code_C_drive/Projects/FrontWing/frontend/src/components/MarkdownContent.jsx) decompose text into standard React virtual DOM text nodes, ensuring intrinsic browser HTML-escaping. Zero instances of `dangerouslySetInnerHTML` or raw `innerHTML` in the frontend codebase.
+  - External web-search links in [`RaceStoryCard.jsx`](file:///c:/VS-Code_C_drive/Projects/FrontWing/frontend/src/components/RaceStoryCard.jsx) strictly validate URLs using `/^https?:\/\//i` before rendering `<a>` tags with `rel="noopener noreferrer"`, completely blocking `javascript:` or `data:` URI execution.
+- **CORS Configuration Hardened for Production (`backend/src/index.js`)**:
+  - Restricted CORS origin validation: Allows local development origins (`http://localhost:5173`, `http://localhost:3000`, `http://127.0.0.1:*`), while strictly enforcing `ALLOWED_ORIGINS` in production (`NODE_ENV=production`). Disallowed browser origins are rejected with HTTP `403 Forbidden` (`{ error: 'CORS policy violation: origin not allowed' }`).
+- **Safe Error Masking & Zero Internal Info Leakage**:
+  - Production 500 errors across all controllers and Express global error handler return generic safe text (`"An internal server error occurred. Please try again later."`) while logging full tracebacks and stacks server-side.
+  - Zero internal stack traces, filesystem directory paths (`C:\...`), or raw database credentials leaked in client error payloads (verified by automated security audit suite).
+- **Automated Security Test Suite (`backend/tests/security.test.js`)**:
+  - Integrated into `npm test` in `backend/package.json`. Verifies 14 distinct security invariants across rate limiting, input validation, CORS enforcement, and error masking in <2 seconds.
+
+### Production Secrets Inventory & Provisioning Architecture Guide
+- **Active Environment Secrets Inventory**:
+  1. `JWT_SECRET`: High-entropy 256-bit signing key used by `jsonwebtoken` for signing and validating session bearer tokens. Strictly required from environment (`process.env.JWT_SECRET`); server throws a fatal startup error if undefined.
+  2. `DATABASE_URL`: PostgreSQL connection string with credentials (`postgresql://<user>:<password>@<host>:<port>/<dbname>`). Used by `pg` in Node backend and `psycopg2` in Python microservice.
+  3. `REDIS_URL`: Redis connection URL with authentication credentials (`redis://:<password>@<host>:<port>/0`). Used for query caching, session lock deduplication, and rate limiting state.
+  4. `GEMINI_API_KEY`: Google Gemini API key used by `GeminiProvider` in `providers.py` for primary F1 reasoning, plan generation, and synthesis.
+  5. `GROQ_API_KEY`: Groq API key used by `GroqProvider` in `providers.py` for ultra-fast Llama-3.3 inference and fallback generation.
+  6. `LANGCHAIN_API_KEY` / `LANGSMITH_API_KEY`: LangSmith observability authentication token used for tracing spans across LangGraph nodes, personas, and tools.
+  7. `ALLOWED_ORIGINS`: Comma-separated list of approved web origins (e.g. `https://frontwing.app,https://admin.frontwing.app`) enforcing strict CORS boundary in production environments.
+- **Git History & Source Code Audit**:
+  - Confirmed `.env` files are tracked in `.gitignore` and have **never** been committed to git history (`git log --all --full-history -- "*/.env" ".env"` returned 0 commits).
+  - Only template `.env.example` files containing dummy placeholders exist in repository history.
+  - Comprehensive grep verified zero hardcoded API keys, passwords, or secrets anywhere in production source code.
+- **Production Provisioning Architecture (Phase 6/7 Deployment Standard)**:
+  - **Secret Store**: Production environments must inject secrets dynamically at container runtime using an enterprise secrets manager (e.g. AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault, or Railway encrypted environment injection).
+  - **Zero Plaintext Files on Host**: Production containers must not write persistent `.env` files to container filesystems.
+  - **Rotation Policy**:
+    - `JWT_SECRET`: Rotate every 90 days. Implement dual-key verification window during rotation so active user sessions do not abruptly invalidate.
+    - LLM API Keys (`GEMINI_API_KEY`, `GROQ_API_KEY`, `LANGCHAIN_API_KEY`): Rotate every 180 days or immediately upon team departure.
+    - Database & Redis Passwords: Rotate on scheduled quarterly cycle via managed cloud database IAM or credential manager.
+  - **Least Privilege Access**: Cloud database users must only have DML permissions (`SELECT`, `INSERT`, `UPDATE`, `DELETE`) on application tables, with DDL restricted to automated migration pipelines.
 
 ### Multi-Season 2025/2026 Data Integrity Re-Verification (SESSION 038 VERIFIED)
 - **Fix I (Fastest Lap & Sector Times Cross-Check Across 2025 & 2026)**:

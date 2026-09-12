@@ -16,8 +16,12 @@ class EditorialController {
       const data = await EditorialService.refreshEditorial();
       return res.json({ status: 'refreshed', data });
     } catch (err) {
-      console.error('[EditorialController] Failed to refresh editorial data:', err.message);
-      return res.status(500).json({ error: 'Failed to refresh editorial content', details: err.message });
+      console.error('[EditorialController] Failed to refresh editorial data:', err.message, err.stack);
+      const isProd = process.env.NODE_ENV === 'production';
+      return res.status(500).json({
+        error: 'Failed to refresh editorial content',
+        ...(isProd ? {} : { details: err.message })
+      });
     }
   }
 }

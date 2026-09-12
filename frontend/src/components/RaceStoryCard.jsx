@@ -36,9 +36,9 @@ export function RaceStoryCard({
       <span className="text-drs-cyan/90 uppercase tracking-wider px-2 py-0.5 rounded border border-drs-cyan/30 bg-drs-cyan/10">
         {sourceOutlet}
       </span>
-      {sourceUrl && (
+      {sourceUrl && /^https?:\/\//i.test(sourceUrl.trim()) && (
         <a
-          href={sourceUrl}
+          href={sourceUrl.trim()}
           target="_blank"
           rel="noopener noreferrer"
           className="text-text-muted hover:text-drs-cyan transition-colors flex items-center gap-1"

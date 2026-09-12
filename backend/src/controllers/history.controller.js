@@ -24,8 +24,9 @@ class HistoryController {
 
       return res.json(result);
     } catch (err) {
-      console.error('[HistoryController.getHistory] Error:', err.message);
-      return res.status(500).json({ error: err.message });
+      console.error('[HistoryController.getHistory] Error:', err.message, err.stack);
+      const isProd = process.env.NODE_ENV === 'production';
+      return res.status(500).json({ error: isProd ? 'Internal server error retrieving history' : err.message });
     }
   }
 
@@ -45,8 +46,9 @@ class HistoryController {
 
       return res.json(investigation);
     } catch (err) {
-      console.error('[HistoryController.getHistoryById] Error:', err.message);
-      return res.status(500).json({ error: err.message });
+      console.error('[HistoryController.getHistoryById] Error:', err.message, err.stack);
+      const isProd = process.env.NODE_ENV === 'production';
+      return res.status(500).json({ error: isProd ? 'Internal server error retrieving investigation' : err.message });
     }
   }
 
@@ -70,8 +72,9 @@ class HistoryController {
 
       return res.json({ message: 'Investigation deleted successfully', id });
     } catch (err) {
-      console.error('[HistoryController.deleteHistory] Error:', err.message);
-      return res.status(500).json({ error: err.message });
+      console.error('[HistoryController.deleteHistory] Error:', err.message, err.stack);
+      const isProd = process.env.NODE_ENV === 'production';
+      return res.status(500).json({ error: isProd ? 'Internal server error deleting investigation' : err.message });
     }
   }
 
@@ -91,8 +94,9 @@ class HistoryController {
       const result = await HistoryService.toggleSaveInvestigation(userId, id);
       return res.json(result);
     } catch (err) {
-      console.error('[HistoryController.toggleSave] Error:', err.message);
-      return res.status(500).json({ error: err.message });
+      console.error('[HistoryController.toggleSave] Error:', err.message, err.stack);
+      const isProd = process.env.NODE_ENV === 'production';
+      return res.status(500).json({ error: isProd ? 'Internal server error bookmarking investigation' : err.message });
     }
   }
 }
