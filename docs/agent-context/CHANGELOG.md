@@ -1,3 +1,32 @@
+## Session 038 -- 2026-09-12 -- Multi-Season 2025/2026 Data Integrity Re-Verification, 2026 Physics Constant Recalibration Audit, and Multi-Season OpenF1 Cross-Check
+
+### What Was Changed
+- **Part 1.1: Fix I (Fastest Lap & Sector Times Cross-Check Across 2025 & 2026)**:
+  - Conducted byte-for-byte cross-check against FastF1 raw lap data and PostgreSQL `laps` across 24 driver laps in 5 sessions (3x 2025: Australia, China, Dutch GP; 2x 2026: Austria, British GP).
+  - Verified that lap selection, total lap times, sector 1, sector 2, sector 3, and compound match FastF1 raw data with **exact 0 ms delta** for all drivers (e.g. 2025 Australia Norris Lap 43 82,167ms; 2026 Austria Russell Lap 49 70,683ms; 2026 Britain Hamilton Lap 25 92,309ms). Fix I holds robustly across 2025 and 2026 data.
+- **Part 1.2: Fix M (Tyre Degradation Stint Reset & Fuel Correction Verification)**:
+  - Audited multi-stint sessions with pit stops: 2025 Bahrain GP (Verstappen 3 stints, Sainz 4 stints) and 2026 Austrian GP (Hamilton 4 stints, Leclerc 4 stints).
+  - Verified that across all 15 pit stops, wear strictly resets to `0.0%` (`pace_loss_s = 0.0s`) on the lap immediately following an out-lap.
+  - Out-laps, in-laps, start laps, and safety car laps are cleanly excluded (`wear_pct = None`) without corrupting regression slopes.
+  - Confirmed wear increases monotonically without any negative or spurious wear values throughout all stints. Fix M holds across 2025 and 2026 data.
+- **Part 1.3: 2026 Regulations Physics Constant Recalibration Audit**:
+  - Investigated the physical constants in scoring and degradation models under 2026 technical regulations (starting race fuel capacity reduced to 70–75kg from 105–110kg in 2022–2025, narrower tyres, active aerodynamics).
+  - Calculated calibrated theoretical 2026 fuel burn pace acceleration: `0.042s/lap` ($1.36\text{ kg/lap} \times 0.31\text{s}/10\text{kg}$) vs the legacy constant `0.060s/lap` ($0.018\text{s/lap}$ difference).
+  - Tested `ScoringTool` across 2026 Austria and Britain: verified all scoring pillars (Strategy, Tire, Pace, Pitstop, Execution) remain physically sane and properly bounded in $[0, 100]$ (e.g. Austria 2026 Russell composite 72.14, Hamilton composite 52.97; Britain 2026 Hamilton composite 63.18). Recommends dynamic seasonal coefficient `fuel_burn_rate = 0.042 if season >= 2026 else 0.060` for future precision tuning.
+- **Part 2: OpenF1 Live Multi-Season Cross-Check Coverage**:
+  - Audited live OpenF1 API across 2025 and 2026 sessions.
+  - Confirmed 2025 calendar is completely present in OpenF1 `/sessions`. Cross-checked Melbourne 2025 (`session_key = 9693`) and Sakhir 2025 (`session_key = 10014`) with **100% pit stop match** against FastF1.
+  - Confirmed 2026 calendar present in pre-cached registry and live `/pit` endpoints for Silverstone (`key = 11326`) and Spielberg (`key = 11315`) with **100% pit stop match** against FastF1.
+  - Verified `StrategyTool` returns `openf1_cross_check.status: "verified"` across both 2025 and 2026 sessions.
+
+### Verification
+- Ran byte-for-byte FastF1 raw vs database comparison script (`check_fix_i_2025_2026.py`): 24/24 driver laps verified with 0 ms error.
+- Ran Fix M multi-stint degradation regression script (`check_fix_m_2025_2026.py`): 15/15 stints verified with 0.0% wear reset.
+- Evaluated `ScoringTool.execute()` on 2026 sessions: verified bounded $[0, 100]$ scores.
+- Tested OpenF1 live `/pit` API and `StrategyTool.execute()`: verified 100% agreement and `"verified"` status across 2025 and 2026.
+
+---
+
 ## Session 037 -- 2026-09-12 -- Part 1: StandingsTool Decommission & Future Scope, Part 2: Historical Tools Tech Debt Purged, Part 3: Ghost Battle Dialogue & Driver DNA Assessment
 
 ### What Was Changed

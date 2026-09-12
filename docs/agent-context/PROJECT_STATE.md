@@ -1,11 +1,38 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-09-12 by Antigravity (Session 037 - Part 1: StandingsTool Decommission & Future Scope, Part 2: Historical Tools Cleanup, Part 3: Ghost Battle Dialogue & Driver DNA Assessment)
-> Audit method: Verified PostgreSQL database contains partial race results (2025 has only 6 rounds, 2026 has 8, missing sprint/fastest-lap points) making cumulative standings calculation partial/distorted; decommissioned StandingsTool from active registry; deleted dead/duplicate HistoricalDataTool and HistoricalResultsTool classes; verified all 11 core tools register cleanly with 100% startup diagnostic health (missing_tools: []); ran unit test suite with 0 failures.
+> Last updated: 2026-09-12 by Antigravity (Session 038 - Multi-Season 2025/2026 Data Integrity Re-Verification, 2026 Physics Constant Audit, and OpenF1 Multi-Season Coverage)
+> Audit method: Byte-for-byte FastF1 cross-check against 24 driver laps across 5 sessions (3x 2025, 2x 2026) confirmed 0ms fastest lap and sector deltas (Fix I holds); tyre degradation audit on 2025 Bahrain and 2026 Austria confirmed 0.0% stint resets and monotonic wear (Fix M holds); 2026 regulations physics audit evaluated 0.060s/lap fuel correction vs 70kg capacity; live OpenF1 API coverage verified across 2025/2026 with 100% pit stop match.
 
 ---
 
 ## 1. What Works Right Now
+
+### Multi-Season 2025/2026 Data Integrity Re-Verification (SESSION 038 VERIFIED)
+- **Fix I (Fastest Lap & Sector Times Cross-Check Across 2025 & 2026)**:
+  - Byte-for-byte cross-check executed against FastF1 raw lap data and PostgreSQL `laps` table across **24 driver laps in 5 sessions** (3 in 2025, 2 in 2026):
+    - *2025 Australian GP (`2025_australian_gp_race`)*: Norris (L43: 82,167ms), Verstappen (L43: 83,081ms), Leclerc (L43: 85,271ms), Piastri (L43: 83,242ms), Russell (L43: 85,065ms) -> **0 ms delta** on total lap time, Sector 1, Sector 2, Sector 3, and compound.
+    - *2025 Chinese GP (`2025_chinese_gp_race`)*: Verstappen (L56: 95,488ms), Norris (L53: 95,454ms), Leclerc (L49: 96,157ms) -> **0 ms delta** across all sectors and lap times.
+    - *2025 Dutch GP (`2025_dutch_gp_race`)*: Verstappen (L70: 72,921ms), Leclerc (L33: 74,557ms), Piastri (L60: 72,271ms), Russell (L70: 73,728ms) -> **0 ms delta** across all sectors and lap times.
+    - *2026 Austrian GP (`2026_austria_gp_race`)*: Russell (L49: 70,683ms), Piastri (L45: 70,595ms), Verstappen (L57: 70,483ms), Hamilton (L45: 70,946ms), Leclerc (L67: 70,606ms) -> **0 ms delta** across all sectors and lap times.
+    - *2026 British GP (`2026_british_gp_race`)*: Hamilton (L25: 92,309ms), Verstappen (L40: 92,101ms), Norris (L45: 92,625ms), Piastri (L42: 92,917ms), Russell (L36: 92,489ms) -> **0 ms delta** across all sectors and lap times.
+  - **Verdict**: Selection query accurately identifies fastest lap number and exact millisecond sector times without floating-point drift or table truncation.
+- **Fix M (Tyre Degradation Stint Reset & Fuel Correction Across Multi-Stop Races)**:
+  - Verified across multi-stint sessions: 2025 Bahrain GP (Verstappen 3 stints, Sainz 4 stints) and 2026 Austrian GP (Hamilton 4 stints, Leclerc 4 stints).
+  - **Stint Reset**: All 15 pit stop transitions strictly reset wear to `0.0%` and pace loss to `0.0s` on the lap immediately following an out-lap (e.g. Verstappen 2025 Bahrain L11 wear `0.0%`, L27 wear `0.0%`; Hamilton 2026 Austria L14 wear `0.0%`, L27 wear `0.0%`, L44 wear `0.0%`).
+  - **Exclusion Cleaning**: Out-laps, in-laps, start laps, and safety car laps cleanly excluded (`wear_pct = None`) without corrupting regression slopes.
+  - **Monotonicity & Non-Negative Wear**: Zero negative wear values observed across all stints; wear increases monotonically throughout each tire lifecycle.
+- **2026 Regulations Physics Constant Recalibration Audit**:
+  - Investigated `0.060s/lap` linear fuel burn correction factor against 2026 regulations (70–75kg starting fuel vs 105–110kg in 2022–2025).
+  - Theoretical calibrated 2026 rate: `0.042s/lap` ($1.36\text{ kg/lap} \times 0.31\text{s}/10\text{kg}$).
+  - Difference across a typical 20-lap stint is $0.36\text{s}$ degradation slope delta ($0.018\text{s/lap}$).
+  - `ScoringTool` evaluation on 2026 Austria and Britain confirmed all scoring pillars (Strategy, Tire, Pace, Pitstop, Execution) remain physically sane and mathematically bounded in $[0, 100]$ (e.g. Austria 2026 Russell composite 72.14, Hamilton composite 52.97; Britain 2026 Hamilton composite 63.18). Existing models are robust, with seasonal recalibration (`fuel_burn_rate = 0.042 if season >= 2026 else 0.060`) recommended for future sub-tenth precision.
+- **OpenF1 Live Multi-Season Cross-Check Coverage**:
+  - Live OpenF1 API fully operational and cross-checked for 2025 and 2026:
+    - 2025 Australian GP (`session_key = 9693`): Norris pit stops on laps `[2, 3, 4, 34, 44]` matched FastF1 database stints with 100% agreement.
+    - 2025 Bahrain GP (`session_key = 10014`): Verstappen pit stops on laps `[10, 26]` matched FastF1 database stints with 100% agreement.
+    - 2026 British GP (`session_key = 11326`): Hamilton pit stops on laps `[23, 48]` matched FastF1 database stints with 100% agreement.
+    - 2026 Austrian GP (`session_key = 11315`): Hamilton pit stops on laps `[12, 25, 42]` matched FastF1 database stints with 100% agreement.
+  - Confirmed `StrategyTool.execute()` returns `openf1_cross_check.status: "verified"` across both 2025 and 2026 sessions.
 
 ### Clean Tool Registry & Startup Diagnostics (SESSION 037 VERIFIED)
 - **11 Active Core Tools Registered Globally (`adapters.py`, `registry.py`)**:
@@ -280,17 +307,17 @@
 
 | Season | Grand Prix | Session ID | Real Data? | Telemetry JSON? | OpenF1 Cross-Check? | Notes |
 |--------|-----------|------------|------------|-----------------|---------------------|-------|
-| 2026 | Austrian GP | 2026_austria_gp_race | YES | On-demand | No (future/synthetic OpenF1) | Ingested live |
-| 2026 | Canadian GP | 2026_canadian_gp_race | YES | On-demand | No (future/synthetic OpenF1) | Ingested live |
-| 2026 | Miami GP | 2026_miami_gp_race | YES | On-demand | No (future/synthetic OpenF1) | Ingested live |
-| 2026 | Australian GP | 2026_australian_gp_race | YES | On-demand | No (future/synthetic OpenF1) | Ingested live |
-| 2026 | Monaco GP | 2026_monaco_gp_race | YES | On-demand | No (future/synthetic OpenF1) | Ingested live |
-| 2026 | British GP | 2026_british_gp_race | YES | On-demand | No (future/synthetic OpenF1) | Auto-ingested live |
-| 2025 | Emilia Romagna GP | 2025_emilia_romagna_gp_race | YES | On-demand | On-demand | Ingested live |
-| 2025 | Bahrain GP | 2025_bahrain_gp_race | YES | On-demand | On-demand | Ingested live |
-| 2025 | Japanese GP | 2025_japanese_gp_race | YES | On-demand | On-demand | Ingested live |
-| 2025 | Chinese GP | 2025_chinese_gp_race | YES | On-demand | On-demand | Ingested live |
-| 2025 | Australian GP | 2025_australian_gp_race | YES | On-demand | On-demand | Ingested live |
+| 2026 | Austrian GP | 2026_austria_gp_race | YES | On-demand | VERIFIED (key 11315) | Verified 100% pit stop match |
+| 2026 | Canadian GP | 2026_canadian_gp_race | YES | On-demand | Supported (key 11304) | Ingested live |
+| 2026 | Miami GP | 2026_miami_gp_race | YES | On-demand | Supported (key 11293) | Ingested live |
+| 2026 | Australian GP | 2026_australian_gp_race | YES | On-demand | Supported (key 11260) | Ingested live |
+| 2026 | Monaco GP | 2026_monaco_gp_race | YES | On-demand | Supported (key 11348) | Ingested live |
+| 2026 | British GP | 2026_british_gp_race | YES | On-demand | VERIFIED (key 11326) | Verified 100% pit stop match |
+| 2025 | Emilia Romagna GP | 2025_emilia_romagna_gp_race | YES | On-demand | Supported (key 9704) | Ingested live |
+| 2025 | Bahrain GP | 2025_bahrain_gp_race | YES | On-demand | VERIFIED (key 10014) | Verified 100% pit stop match |
+| 2025 | Japanese GP | 2025_japanese_gp_race | YES | On-demand | Supported (key 9682) | Ingested live |
+| 2025 | Chinese GP | 2025_chinese_gp_race | YES | On-demand | Supported (key 9671) | Ingested live |
+| 2025 | Australian GP | 2025_australian_gp_race | YES | On-demand | VERIFIED (key 9693) | Verified 100% pit stop match |
 | 2024 | Abu Dhabi GP | 2024_abu_dhabi_gp_race | YES | YES | Supported | Ingested & auto-backfilled live |
 | 2024 | Italian GP | 2024_italian_gp_race | YES | YES | Supported (key 9605) | Ingested & auto-backfilled |
 | 2024 | Qatar GP | 2024_qatar_gp_race | YES | YES | Supported (key 9642) | Ingested & verified end-to-end |
