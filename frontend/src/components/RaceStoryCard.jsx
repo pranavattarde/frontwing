@@ -16,6 +16,8 @@ export function RaceStoryCard({
   keyMoments,
   onMomentClick,
   onFullDebrief,
+  sourceUrl,
+  sourceOutlet,
   variant = "featured"
 }) {
   const isFeatured = variant === "featured";
@@ -28,8 +30,25 @@ export function RaceStoryCard({
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
   >{
-    /* Title */
-  }<h3
+    /* Source Outlet Badge & Title */
+  }{sourceOutlet && (
+    <div className="flex items-center justify-between gap-2 mb-2 text-[10px] font-mono">
+      <span className="text-drs-cyan/90 uppercase tracking-wider px-2 py-0.5 rounded border border-drs-cyan/30 bg-drs-cyan/10">
+        {sourceOutlet}
+      </span>
+      {sourceUrl && (
+        <a
+          href={sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-text-muted hover:text-drs-cyan transition-colors flex items-center gap-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span>SOURCE ↗</span>
+        </a>
+      )}
+    </div>
+  )}<h3
     className={cn(
       "text-text-primary font-semibold mb-3",
       isFeatured ? "text-h1" : "text-h2"
@@ -38,7 +57,7 @@ export function RaceStoryCard({
     /* Narrative */
   }<p className="text-body text-text-secondary leading-relaxed mb-4">{summary}</p>{
     /* Key Moments */
-  }{keyMoments.length > 0 && <div className="flex flex-col gap-2 mb-4"><span className="text-mono-meta font-mono text-text-muted uppercase tracking-wider">
+  }{keyMoments && keyMoments.length > 0 && <div className="flex flex-col gap-2 mb-4"><span className="text-mono-meta font-mono text-text-muted uppercase tracking-wider">
             Key Moments
           </span><div className="flex flex-col gap-1.5">{keyMoments.map((moment, i) => <motion.button
     key={i}
@@ -52,11 +71,23 @@ export function RaceStoryCard({
     transition={{ delay: i * 0.05 + 0.1, duration: 0.15 }}
   ><span className="font-mono text-mono-meta shrink-0">{MOMENT_ICONS[moment.type]}</span><span className="font-mono text-mono-meta text-text-muted shrink-0 w-10">
                   L{moment.lap}</span><span className="text-sm text-text-secondary">{moment.description}</span></motion.button>)}</div></div>}{
-    /* Full Debrief CTA */
-  }{isFeatured && onFullDebrief && <button
+    /* CTAs: Local debrief and external source */
+  }<div className="flex items-center justify-between flex-wrap gap-3 mt-2 pt-3 border-t border-fw-border/40">{isFeatured && onFullDebrief && <button
     onClick={onFullDebrief}
     className="text-mono-meta font-mono text-drs-cyan hover:underline underline-offset-2 transition-colors duration-[80ms]"
   >
-          VIEW FULL RACE BRIEFING →
-        </button>}</motion.article>;
+          INVESTIGATE IN CONSOLE →
+        </button>}
+    {sourceUrl && (
+      <a
+        href={sourceUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-mono-meta font-mono text-text-muted hover:text-text-primary transition-colors flex items-center gap-1"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span>VERIFY ON {sourceOutlet ? sourceOutlet.toUpperCase() : "ORIGINAL OUTLET"} ↗</span>
+      </a>
+    )}
+  </div></motion.article>;
 }

@@ -10,6 +10,7 @@ const historyRoutes = require('./routes/history.routes');
 const engineerRoutes = require('./routes/engineer.routes');
 const strategyRoutes = require('./routes/strategy.routes');
 const sessionRoutes = require('./routes/session.routes');
+const ghostBattleRoutes = require('./routes/ghost_battle.routes');
 
 // Load environment variables
 dotenv.config();
@@ -45,20 +46,25 @@ app.get('/health', async (req, res) => {
   }
 });
 
-const { authenticateToken } = require('./middleware/auth.middleware');
+const { authenticateJWT } = require('./middleware/auth.middleware');
 const { AuthController } = require('./controllers/auth.controller');
 const { HistoryController } = require('./controllers/history.controller');
+const { HeroController } = require('./controllers/hero.controller');
+const { HeroService } = require('./services/hero.service');
+const { EditorialController } = require('./controllers/editorial.controller');
+const { EditorialService } = require('./services/editorial.service');
 
 // Register Core Backend Foundation API Routes
 app.use('/api/auth', authRoutes);
 app.use('/auth', authRoutes);
-app.get('/me', authenticateToken, AuthController.me);
+app.get('/me', authenticateJWT, AuthController.me);
+app.get('/auth/me', authenticateJWT, AuthController.me);
 
 app.use('/api/history', historyRoutes);
 app.use('/history', historyRoutes);
-app.get('/bookmarks', authenticateToken, HistoryController.getHistory);
-app.post('/save/:id', authenticateToken, HistoryController.toggleSave);
-app.delete('/delete/:id', authenticateToken, HistoryController.deleteHistory);
+app.get('/bookmarks', authenticateJWT, HistoryController.getHistory);
+app.post('/save/:id', authenticateJWT, HistoryController.toggleSave);
+app.delete('/delete/:id', authenticateJWT, HistoryController.deleteHistory);
 
 app.use('/api/engineer', engineerRoutes);
 app.use('/engineer', engineerRoutes);
@@ -66,8 +72,23 @@ app.use('/engineer', engineerRoutes);
 app.use('/api/strategy', strategyRoutes);
 app.use('/strategy', strategyRoutes);
 
+// Dedicated 3D Ghost Battle routes guarded by authenticateJWT
+app.use('/api/ghost-battle', ghostBattleRoutes);
+app.use('/ghost-battle', ghostBattleRoutes);
+
 app.use('/api/sessions', sessionRoutes);
 app.use('/sessions', sessionRoutes);
+
+// Live Hero Schedule & Editorial Pipelines (Fixes T & V)
+app.get(['/api/hero/current', '/hero/current'], HeroController.getCurrent);
+app.post(['/api/hero/refresh', '/hero/refresh'], HeroController.refresh);
+
+app.get(['/api/editorial/current', '/editorial/current'], EditorialController.getCurrent);
+app.post(['/api/editorial/refresh', '/editorial/refresh'], EditorialController.refresh);
+
+// Start scheduled recurring background jobs
+HeroService.startScheduledJob();
+EditorialService.startScheduledJob();
 
 // Create HTTP server
 const server = http.createServer(app);

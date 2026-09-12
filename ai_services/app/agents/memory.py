@@ -46,16 +46,26 @@ class PostgresConversationMemory(BaseConversationMemory):
         except Exception as e:
             logger.warning(f"[PostgresConversationMemory] DB table init warning (using in-memory fallback): {e}")
 
-    def save_message(self, conversation_id: str, question: str, answer: str, context: Dict[str, Any]) -> None:
+    def save_message(self, conversation_id: str, question: str, answer: str, context: Dict[str, Any], user_id: Optional[str] = None) -> None:
         """Saves message exchange into PostgreSQL database and fallback cache."""
+        u_id = user_id or (context.get("user_id") if isinstance(context, dict) else None)
         try:
-            execute_query(
-                """
-                INSERT INTO conversations (conversation_id, question, answer, context)
-                VALUES (%s, %s, %s, %s)
-                """,
-                (conversation_id, question, answer, json.dumps(context))
-            )
+            if u_id:
+                execute_query(
+                    """
+                    INSERT INTO conversations (conversation_id, question, answer, context, user_id)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (conversation_id, question, answer, json.dumps(context), str(u_id))
+                )
+            else:
+                execute_query(
+                    """
+                    INSERT INTO conversations (conversation_id, question, answer, context)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (conversation_id, question, answer, json.dumps(context))
+                )
         except Exception as e:
             logger.warning(f"[PostgresConversationMemory] DB save_message failed: {e}")
 

@@ -160,10 +160,8 @@ class EntityResolver:
         gp_input = planner_entities.get("grand_prix") or planner_entities.get("gp") or state.get("grand_prix") or ctx.get("grand_prix")
         session_type = planner_entities.get("session_type") or state.get("session_type") or "Race"
 
-        # Check if telemetry_tool is in execution plan (FIX 1)
-        planned_tools = state.get("tools") or (state.get("structured_plan") or {}).get("required_tools") or (state.get("structured_plan") or {}).get("tools") or state.get("plan") or []
-        needs_telemetry = any("telemetry_tool" in str(t) for t in planned_tools)
-
+        # Session resolution only needs session and race metadata (FastF1 loads in 1-2s).
+        # Heavy telemetry is retrieved asynchronously or on-demand by TelemetryTool.
         if gp_input:
             entities_found["grand_prix"] = gp_input
             entities_found["session_type"] = session_type
@@ -173,7 +171,7 @@ class EntityResolver:
                 grand_prix=gp_input,
                 season=year,
                 session_type=session_type,
-                load_telemetry=needs_telemetry
+                load_telemetry=False
             )
 
             if sess_res.get("status") == "success" and sess_res.get("session_id"):

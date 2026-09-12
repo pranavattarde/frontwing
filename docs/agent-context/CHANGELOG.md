@@ -1,3 +1,182 @@
+## Session 034 -- 2026-09-12 -- Dedicated 3D Ghost Battle Tab with FastF1 Telemetry, Three.js & Multi-Car Sync
+
+### What Was Changed
+- **Dedicated 3D Ghost Battle Architecture (`/ghost-battle`)**:
+  - Engineered a standalone, high-performance 3D Ghost Battle workbench completely separate from the existing 2D `GhostBattleViewer.jsx` telemetry card.
+  - Installed and verified `@react-three/fiber@^8.16.8`, `three@^0.160.0`, and `@react-three/drei@^9.106.0` with full React 18 compatibility.
+- **Python FastF1 3D Telemetry Engine (`ghost_battle_service.py`)**:
+  - Implemented `get_available_years()` querying FastF1 schedules + DB completed sessions.
+  - Implemented `get_available_gps(year)` filtering only completed Grand Prix with results actually available.
+  - Implemented `get_drivers_teams(session_id)` extracting authentic driver/team grid who actually competed in that session (accounts for driver substitutions/injuries).
+  - Implemented `normalize_and_center_3d()` mapping decimeter track coordinates to Three.js coordinates `[X_norm, Z_norm * 1.5, Y_norm]` centered around origin `(0,0,0)`.
+  - Implemented `get_ghost_battle_data(session_id, driver_ids)` fetching fastest valid lap full telemetry (speed, throttle, brake, gear, distance, X/Y/Z) and extracting authentic 3D circuit centerlines (cached in `ai_services/cache/circuits/<circuit_key>_centerline.json`).
+  - Strict server-side validation enforcing min 2 / max 22 driver selection.
+- **Backend Express Layer (`ghost_battle.service.js`, `ghost_battle.controller.js`, `ghost_battle.routes.js`, `index.js`)**:
+  - Created backend service spawning Python engine via `execFile` with Redis caching (`TTL_YEARS`, `TTL_GPS`, `TTL_ROSTER`, `TTL_BATTLE_DATA`).
+  - Mounted routes at `/api/ghost-battle/*` and `/ghost-battle/*` with `optionalAuth` middleware.
+  - Validated HTTP 400 rejection for driver selections < 2 or > 22.
+- **Frontend 3D Workbench Components (`CircuitCanvas3D.jsx`, `GhostBattleControls.jsx`, `GhostBattleStatsTable.jsx`, `GhostBattle3D.jsx`)**:
+  - **4-Step Selection Deck**: Year selector -> Completed GP selector -> F1.com style team cards (auto-select both drivers) & driver cards -> Generate button.
+  - **URL Parameter Direct Linking**: Added `useSearchParams` support for `?session=X&drivers=Y` allowing bookmarkable / shareable 3D ghost battles.
+  - **3D Circuit Viewport**: Three.js Canvas with `OrbitControls`, `CatmullRomCurve3` ribbon track geometry with inner/outer white track boundaries, start/finish line gantry, low-poly team-colored F1 car meshes, and 3D HTML driver code billboard tags.
+  - **Timing Synchronization**: Cars animate along 3D track driven by authentic elapsed time (`currentTime`). Faster cars cross the finish line first and despawn, visualizing real-time deltas.
+  - **Playback Controls**: Timeline scrub slider, Play/Pause, Reset, Speed toggles (`0.5x`, `1x`, `2x`, `4x`), and live timestamp formatting.
+  - **Per-Driver Telemetry Stats Table**: Real performance breakdown below canvas showing rank, driver, team, lap time, delta, sector times (S1, S2, S3), top speed, and status.
+
+### Verification
+- **Automated Frontend Build**: `npm run build` bundled 2,511 modules in 15.02s with 0 errors.
+- **Backend Unit & API Integration Tests**:
+  - `GET /api/ghost-battle/available-years` -> 200 OK
+  - `GET /api/ghost-battle/available-gps?year=2024` -> 200 OK (24 completed races)
+  - `GET /api/ghost-battle/drivers-teams?session_id=2024_british_gp_race` -> 200 OK (20 drivers, 10 teams)
+  - `POST /api/ghost-battle/data` with 1 driver -> 400 Bad Request ("Minimum 2 and maximum 22 drivers required")
+  - `POST /api/ghost-battle/data` with 2 drivers -> 200 OK (675 circuit points + driver telemetry)
+- **3 Distinct Combination Browser Tests (with Screenshots)**:
+  1. **Combination 1 (2 Drivers - H2H)**: 2024 British GP (VER vs HAM) -> Silverstone 3D ribbon, VER 1:28.952 vs HAM 1:29.438 (+0.486s). Screenshot: `3d_ghost_battle_loaded_1789201724830.png`.
+  2. **Combination 2 (Full Team Selection - 4 Drivers)**: 2024 Dutch GP (McLaren NOR+PIA and Ferrari LEC+SAI auto-selected via team cards) -> Zandvoort banked 3D track ribbon, 4 team-colored cars. Screenshot: `ghost_battle_dutch_zandvoort_3d.png`.
+  3. **Combination 3 (Multi-Car Battle - 6 Drivers)**: 2024 Italian GP (Monza: LEC, PIA, NOR, SAI, HAM, RUS) -> High-speed Monza track ribbon, 6 cars, real-time deltas, complete classification table (Winner NOR 1:21.432, HAM +0.080s, PIA +0.511s, RUS +0.604s, SAI +1.787s, LEC +1.794s, top speeds 339-341 km/h). Screenshot: `ghost_battle_monza_6drivers_1789218415947.png`.
+
+---
+
+## Session 033 -- 2026-09-12 -- Fixes R, S, T, U, V: Dynamic Breadcrumbs, Navigation Restructure, FastF1 Hero with IST, Live Editorial Pipeline & Honest History Archive
+
+### What Was Changed
+- **FIX R: Eliminate Stale Breadcrumb & Header Residue (`InvestigationThread.jsx`)**:
+  - Found and eradicated all hardcoded `"Investigation T..."` and Austrian GP / Red Bull Ring leftovers.
+  - Dynamically computes breadcrumbs from `resolvedGrandPrix`, `sessionId`, and `questionTitle`: `[ { label: "Home", href: "/" }, ...(resolvedGrandPrix ? [{ label: resolvedGrandPrix, href: sessionId ? `/race/${sessionId}` : "#" }] : []), ...(questionTitle ? [{ label: questionTitle, href: "#" }] : [{ label: "Investigation", href: "#" }]) ]`.
+  - Dynamically computes subheader badge: `INVESTIGATION_THREAD // {resolvedGrandPrix || sessionId || "ACTIVE_SESSION"}`.
+  - Independently tested and verified across 3 distinct Grand Prix investigations (British GP, Dutch GP, Italian GP) with zero stale Austrian data.
+- **FIX S: Restructure Navigation per Specification (`BriefingHeader.jsx`, `Sidebar.jsx`, `App.jsx`)**:
+  - Top-right Search (`⌘K`) button conditionally rendered **ONLY** on the homepage (`location.pathname === "/"`).
+  - On every other page (`/investigate/:id`, `/strategy`, etc.), search moves exclusively into the left sidebar (`SEARCH ⌘K`).
+  - User auth and account controls anchored at the bottom of the left sidebar, consistent across all routes.
+  - Single source of truth for navigation: Left sidebar provides recent history, `+ NEW INVESTIGATION`, and account controls without duplicate buttons elsewhere.
+  - Added route alias `<Route path="/strategy-engineer" element={<StrategyEngineer />} />` alongside `/strategy`.
+- **FIX T: Real Hero Section with FastF1 & IST Conversion (`05_hero_and_editorial_content.sql`, `hero_service.py`, `hero.service.js`, `hero.controller.js`, `circuitTracks.js`, `BriefingRoom.jsx`)**:
+  - Created migration `05_hero_and_editorial_content.sql` provisioning `hero_content` and `editorial_content` tables.
+  - Created Python service `hero_service.py` querying FastF1's official event calendar. Automatically identifies current event (Spanish Grand Prix 2026, Barcelona).
+  - Converts official session times to **IST** (`Asia/Kolkata`, UTC+5:30) and local track time (e.g., `13 Sep, 18:30 IST | 15:00 UTC+02:00`).
+  - Created backend `HeroService` with automated background job (scheduled every 5 days + manual trigger `/api/hero/refresh`) and Express router `/api/hero/*`.
+  - Added authentic `barcelona` circuit vector geometry to `circuitTracks.js` (14 turns, 2 DRS zones, 4.657 km).
+  - Replaced hardcoded Spielberg / Red Bull Ring hero in `BriefingRoom.jsx` with dynamic event headline, live IST session schedule, and authentic circuit vector outline.
+- **FIX U: Real User History Archive (`BriefingRoom.jsx`)**:
+  - Connected `BriefingRoom.jsx` investigation archive strictly to `fetchHistory({ limit: 10 })` (`GET /history`).
+  - Implemented honest empty state when user has 0 investigations (`ARCHIVE_EMPTY // NO_SAVED_DEBRIEFS`).
+  - Implemented honest guest mode sign-in banner when unauthenticated (`AUTHENTICATION // GUEST SESSION`).
+  - Eliminated all fake/mock Austrian GP placeholder items.
+- **FIX V: Real "Featured Debriefs" and "Trending Tactical Insights" Pipeline (`editorial.service.js`, `editorial.controller.js`, `RaceStoryCard.jsx`, `InsightCard.jsx`, `BriefingRoom.jsx`)**:
+  - Implemented backend `EditorialService` fetching real F1 strategy news via HTTPS RSS feeds every 12 hours (with `/api/editorial/refresh` manual trigger).
+  - Persists real debriefs and tactical insights to `editorial_content` table with Redis caching and graceful fallback to last successful batch.
+  - Enhanced `RaceStoryCard.jsx` and `InsightCard.jsx` to render authentic source outlet pills and clickable external source URLs (`[SOURCE ↗]`, `[VERIFY ↗]`).
+  - Replaced static `FEATURED_STORIES` and `KEY_INSIGHTS` in `BriefingRoom.jsx` with live editorial feeds and `LAST_UPDATED` timestamp.
+
+### Verification
+- **Automated Frontend Build**: `npm run build` completed in 7.91s with 0 errors.
+- **Backend Endpoints**: `GET /api/hero/current` and `GET /api/editorial/current` returning 200 with live FastF1 Spanish GP calendar (IST times) and real F1 RSS debriefs.
+- **Browser Subagent Visual Proofs**:
+  - `homepage_final_verification_1789194772153.png`: Live hero with Spanish GP, Barcelona SVG track outline, IST timetable, top-right search ONLY on homepage, left sidebar search, and honest user debrief archive.
+  - `homepage_editorial_verification_1789194793928.png`: Live Featured Debriefs and Trending Insights with Formula1.com, Tom's Hardware, autoracing1.com, and Frontiers clickable source links.
+  - `british_gp_breadcrumb_verification_1789194470871.png`: British GP investigation breadcrumb `Home / British GP / Who had the fastest lap...` and header `INVESTIGATION_THREAD // BRITISH_GP`.
+  - `dutch_gp_breadcrumb_verification_1789196027822.png`: Dutch GP investigation breadcrumb `Home / Dutch GP / Analyze telemetry at ...` and header `INVESTIGATION_THREAD // DUTCH_GP`.
+  - `italian_gp_breadcrumb_final_verification_1789196357370.png`: Italian GP investigation breadcrumb `Home / Italian GP / Compare top speeds at...` and header `INVESTIGATION_THREAD // ITALIAN_GP`.
+
+---
+
+## Session 032 -- 2026-09-12 -- Email/Password JWT Authentication, Middleware Guards, and Per-User History Isolation
+
+### What Was Changed
+- **Task 1: Database Migration for Conversation Tagging (`database/migrations/04_add_user_id_to_conversations.sql`, `migration.service.js`, `migrate.js`)**:
+  - Inspected existing PostgreSQL tables: `users` and `investigations` were already provisioned with `user_id UUID REFERENCES users(id) ON DELETE CASCADE`.
+  - Authored and applied migration `04_add_user_id_to_conversations.sql` adding `user_id UUID REFERENCES users(id) ON DELETE CASCADE` and index `idx_conversations_user_id` to `conversations`.
+  - Updated `migration.service.js` migration registry and fallback schema definition.
+  - Updated AI services `memory.py` and `strategy_planner.py` to store `user_id` from context during conversation turn persistence.
+- **Task 2: Backend JWT Auth & Password Hashing (`jwt.js`, `hash.js`, `auth.controller.js`, `auth.service.js`, `auth.middleware.js`)**:
+  - **Environment Configuration**: Set `JWT_SECRET` and `JWT_EXPIRES_IN=7d` in `backend/.env` and `backend/.env.example`.
+  - **Zero Hardcoded Secrets**: Updated `src/utils/jwt.js` to strictly enforce `process.env.JWT_SECRET`, throwing a fatal error on startup if missing.
+  - **Bcrypt Cost Factor 12**: Updated `src/utils/hash.js` to `SALT_ROUNDS = 12`. Verified directly against database password hashes (`$2a$12$...`).
+  - **Email Format Validation**: Added strict regex format validation (`/^[^\s@]+@[^\s@]+\.[^\s@]+$/`) in `auth.controller.js`, rejecting malformed email registrations with HTTP 400.
+  - **Duplicate Rejection**: Catches PostgreSQL unique constraint errors on `users.email` and returns clear error (`"User with this email already exists"`).
+  - **Generic Credential Errors**: Hardened `auth.service.js` and `auth.controller.js` to return generic `"Invalid credentials"` with HTTP 401 on both wrong password and nonexistent email to prevent account enumeration.
+  - **HTTP 401 Middleware**: Exported `authenticateJWT` (and alias `authenticateToken`) strictly returning HTTP 401 on missing or invalid tokens.
+- **Task 3: Protected Route Enforcement & User Tagging (`engineer.routes.js`, `strategy.routes.js`, `history.routes.js`, `index.js`, `engineer.controller.js`, `strategy.controller.js`)**:
+  - Guarded `/engineer/query`, `/strategy/query`, `/ghost-battle/*`, `/bookmarks`, and `/history` with `authenticateJWT`.
+  - Tagged all newly saved investigations with `req.user.id` in `EngineerController` and `StrategyController`.
+  - Strategy queries pass `user_id` inside context to FastAPI AI microservice for conversation turn memory tagging.
+  - Protected `GET /history/:id`, `DELETE /history/:id`, and `POST /history/save/:id` ensuring users cannot access or delete another user's investigation.
+- **Task 4: Strict History Isolation (`history.service.js`)**:
+  - `HistoryService.getHistory` filters strictly by `WHERE i.user_id = $1` and orders by `i.timestamp DESC`.
+  - `HistoryService.getInvestigationById` filters strictly by `(i.user_id = $2 OR i.user_id IS NULL)`.
+- **Task 5: Frontend F1 Sidebar & Auth Widget (`Sidebar.jsx`, `App.jsx`, `api.js`, `BriefingRoom.jsx`)**:
+  - Built `Sidebar.jsx` with F1 telemetry design language:
+    - Top: Brand header, `+ NEW INVESTIGATION` button, navigation buttons (`INVESTIGATION ROOM`, `STRATEGY ENGINEER`, `GHOST BATTLE`).
+    - Center: Live user investigation history fetched from `GET /history`. Empty state / sign-in prompt when unauthenticated.
+    - Bottom: Standard chat app auth widget showing user avatar, name, email, and `LOGOUT` when logged in, and minimal `[LOGIN]` / `[REGISTER]` forms with mode toggle, input validation, and clear error banners when logged out.
+  - Removed fake/hardcoded history items and cross-session local storage mixing from `BriefingRoom.jsx`.
+  - In `api.js`: attached JWT Bearer header to all requests, added 401 interception dispatching `frontwing-auth-unauthorized` which resets auth state and prompts login.
+  - Mounted `<Sidebar />` into main application layout in `App.jsx`.
+- **End-to-End Verification (35/35 Automated Tests Passing in `test_auth_e2e.js`)**:
+  - 401 rejection verified across all protected endpoints without token and with invalid token.
+  - Email format validation rejection verified.
+  - Bcrypt cost factor 12 verified on raw DB hashes.
+  - Registered 2 separate accounts: `Lewis Hamilton` (`hamilton_...@mercedes-f1.com`) and `Max Verstappen` (`verstappen_...@redbull-f1.com`).
+  - Created investigations under each account.
+  - Verified `GET /history` returns ONLY the requesting user's investigation with zero cross-contamination.
+  - Raw PostgreSQL table query printed proving foreign key association and isolation.
+  - Frontend production build verified (`npm run build` succeeded with 0 errors).
+
+---
+
+## Session 031 -- 2026-09-12 -- Strategy Engine Multi-Turn Memory, Tyre Degradation Inversion Fix & Graph Hover Performance
+
+### What Was Changed
+- **Task 1: Strategy Engine Multi-Turn Conversation Memory (`strategy_planner.py`, `main.py`, `strategy.controller.js`, `api.js`, `StrategyEngineer.jsx`)**:
+  - **Context Resolution**: Added driver fallback resolution in `strategy_planner.py` using previous turn context (`driver_id`, `driver_name`, `session_id`, `grand_prix`, `season`) when queries contain pronouns (*"he"*, *"his"*) or omit driver/session details.
+  - **Thread Persistence**: Extended `StrategyQueryRequest` with `conversation_id`. Recovered previous turn context using `conversation_memory.get_history(conversation_id)` and saved completed turns with context tags.
+  - **Controller Forwarding**: Updated `strategy.controller.js` to pass `conversation_id` through to `:8000/strategy/query` and bypass Redis query cache when `conversation_id` is present to prevent cross-conversation collisions on follow-ups.
+  - **Threaded Chat UI**: Redesigned `StrategyEngineer.jsx` with full threaded conversation support:
+    - Displays active thread banner (`THREAD: {driver_name} @ {grand_prix}`).
+    - Added prominent `+ NEW CHAT` button that resets thread, context, and generates a fresh `conversationId`.
+    - Renders turn history sequentially with user inquiry badges, `StrategyReportCard` (Turn 1 analysis), and `WhatIfSimulationCard` (Turn 2+ counterfactuals).
+    - Dynamic continuation suggestions tailored to the active driver/event.
+    - Sticky bottom chat input bar with dynamic placeholder.
+- **Task 2: Tyre Degradation Graph Color Inversion Fix (`TyreDegradationGraph.jsx`)**:
+  - Diagnosed inverted wear curve colors in `TyreDegradationGraph.jsx` where `<40%` wear was styled red (`#EF4444`) and `>70%` was styled green (`#10B981`).
+  - Added exportable `getTyreWearColor(pct)`:
+    - 0%–30% Wear (Fresh): Emerald Green (`#10B981`)
+    - 31%–70% Wear (Moderate): Amber/Yellow (`#F59E0B`)
+    - >70% Wear (High degradation): Red (`#EF4444`)
+  - Applied `getTyreWearColor` to main SVG circles and expanded modal circles, aligning graph colors with the STINT_DEGRADATION_METRICS_LOG table.
+- **Task 3: Graph Hover Performance & Smooth Animation Polish (`TelemetryCard.jsx`, `TyreDegradationGraph.jsx`, `LapTimeGraph.jsx`)**:
+  - **Binary Search Lookup**: Replaced $O(N)$ `.reduce()` search in `TelemetryCard.jsx` with $O(\log N)$ binary search over 5,000+ points, cutting search time from thousands of operations to ~12 operations.
+  - **RAF Throttling**: Wrapped mousemove coordinate state updates and `onHover` callbacks in `requestAnimationFrame` using `useRef`, preventing event loop flooding.
+  - **GPU Compositing**: Replaced `style={{ left: ... }}` on crosshair line and hover HUD with `transform: translate3d(...)` and `will-change: transform`, eliminating layout reflow on every mouse pixel movement.
+  - **SVG Hover Transitions**: Replaced layout-thrashing CSS `transition-all hover:scale-125` on SVG `<circle>`s in `LapTimeGraph.jsx` and `TyreDegradationGraph.jsx` with dynamic radius changes (`r={isHovered ? 6.5 : 3.5}`), stroke rings, and drop-shadow glow filters (`transition-[r,stroke-width]`).
+- **End-to-End Visual Verification**:
+  - Verified via browser subagent on `/investigate/...` that fresh tyre stint points display emerald green and speed trace crosshairs glide smoothly with zero lag.
+  - Verified on `/strategy` that Turn 1 ("Analyze Hamilton's strategy at Silverstone 2024") generates debrief, Turn 2 ("What if he pitted on lap 18 on hard tires?") continues in the same chat thread executing counterfactual simulation, and "+ NEW CHAT" cleanly resets the workspace.
+
+---
+
+## Session 030 -- 2026-09-11 -- Fix Investigation Tab Results Failure & Windows Charmap Codec Crashes
+
+### What Was Changed
+- **Windows Console / Logger Charset Crash Fix (`logger.py`, `main.py`, `registry.py`, `adapters.py`)**:
+  - Identified root cause of `UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f3c6'`: On Windows PowerShell/CMD, standard output defaults to CP1252. Tool execution in `adapters.py` produced strings containing the trophy emoji (`🏆`), and `print_debug_log()` / `logger.info()` caused fatal uncaught exceptions crashing `TelemetryTool`.
+  - Reconfigured `sys.stdout` and `sys.stderr` to `encoding="utf-8", errors="replace"` at startup in `app/core/logger.py` and `app/main.py`.
+  - Wrapped `print_debug_log()` in `app/tools/registry.py` in a try/except with safe ASCII replacement fallback.
+  - Replaced all raw `🏆` trophy emojis and non-ASCII bullets in `ai_services/app/tools/adapters.py` with standard ASCII strings (`FASTER`, `[P1]`, `-`).
+- **Entity Resolution Telemetry Decoupling (`entity_resolver.py`)**:
+  - Replaced `load_telemetry=needs_telemetry` with `load_telemetry=False` during `SessionResolver.resolve_session`. Entity resolution only requires race classification and session metadata (<1.5s), preventing catastrophic 200s synchronous telemetry blocking. Heavy telemetry is managed asynchronously by `TelemetryTool`.
+- **Circuit & Grand Prix Alias Matching (`session_resolver.py`)**:
+  - Added `"silverstone"` -> `["silverstone", "british", "britain"]` mapping in `_query_db_session()`. Previously, queries referencing "Silverstone" failed to match database records titled "British Grand Prix" with circuit ID "british", causing redundant 60-second FastF1 re-downloads on every query.
+- **Frontend `InvestigationThread.jsx` Missing Variable Fix**:
+  - Added `const startTime = Date.now();` at the start of `executeQuery()`. Previously, `startTime` was undefined, triggering `ReferenceError: startTime is not defined` when computing `elapsedSeconds`, which aborted execution before `setMessages(newMsgs)` could render investigation cards.
+- **End-to-End Verification**:
+  - Directly tested `POST /engineer/query` and Express proxy `http://localhost:5000/api/engineer/query` with `"compare verstappen and hamilton at silverstone"`. Both succeeded with 200 OK in ~2s with full telemetry comparison and sector breakdown evidence.
+  - Verified via browser subagent on `http://localhost:5173/investigate/` that results render cleanly with AI Verdict, Head-to-Head Comparison Matrix, Live Ghost Battle, Lap Evolution, and Speed Trace graphs.
+
+---
+
 ## Session 029 -- 2026-09-11 -- STAGE C: OpenF1 Secondary Cross-Check for Strategy Pit Stops & Stints
 
 ### What Was Changed

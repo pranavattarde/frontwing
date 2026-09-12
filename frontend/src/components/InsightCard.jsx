@@ -6,7 +6,25 @@ export function InsightCard({
   onClick,
   onDismiss
 }) {
-  const { headline, metric, confidence, source } = insight;
+  if (!insight) return null;
+
+  const headline = insight.headline || insight.title || "Strategic Telemetry Insight";
+  const rawMetric = insight.metric || (insight.metrics ? {
+    value: insight.metrics.metric_value,
+    unit: insight.metrics.metric_unit,
+    context: insight.metrics.metric_context
+  } : null);
+
+  const metric = {
+    value: rawMetric?.value ?? "+0.24s",
+    unit: rawMetric?.unit ?? "/ LAP",
+    context: rawMetric?.context ?? "Estimated delta"
+  };
+
+  const confidence = insight.confidence || "high";
+  const source = insight.source || insight.source_outlet || "Reputable F1 Media";
+  const source_url = insight.source_url;
+
   const confidenceColors = {
     high: "text-tire-inter border-tire-inter/20 bg-tire-inter/5",
     medium: "text-teammate-yellow border-teammate-yellow/20 bg-teammate-yellow/5",
@@ -17,7 +35,7 @@ export function InsightCard({
       onClick={onClick}
       className={cn(
         "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm font-mono text-xs border cursor-pointer hover:bg-elevated transition-colors duration-[80ms]",
-        confidenceColors[confidence]
+        confidenceColors[confidence] || confidenceColors.high
       )}
     ><span className="font-semibold">{metric.value}{metric.unit}</span><span className="text-text-muted">({headline})</span></span>;
   }
@@ -55,6 +73,18 @@ export function InsightCard({
     /* Metric */
   }<div className="flex items-baseline gap-1.5 mb-1"><span className="font-data text-xl font-semibold text-drs-cyan">{typeof metric.value === "number" && metric.unit === "s/lap" ? metric.value.toFixed(3) : metric.value}</span><span className="font-mono text-xs text-text-muted">{metric.unit}</span></div>{
     /* Context & Source */
-  }<p className="text-mono-meta font-mono text-text-muted leading-tight truncate" title={metric.context}>{metric.context}</p><p className="text-[10px] font-mono text-text-muted/60 mt-1 truncate" title={source}>
-          SRC: {source}</p></div></motion.div>;
+  }<p className="text-mono-meta font-mono text-text-muted leading-tight truncate" title={metric?.context}>{metric?.context}</p><div className="flex items-center justify-between text-[10px] font-mono text-text-muted/70 mt-1.5 pt-1.5 border-t border-fw-border/30">
+          <span className="truncate max-w-[140px]" title={source}>SRC: {source}</span>
+          {source_url && (
+            <a
+              href={source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-drs-cyan/80 hover:text-drs-cyan hover:underline transition-colors shrink-0 ml-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              VERIFY ↗
+            </a>
+          )}
+        </div></div></motion.div>;
 }

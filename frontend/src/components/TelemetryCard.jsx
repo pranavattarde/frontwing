@@ -324,7 +324,15 @@ export function TelemetryCard({
     getMetricConfig
   ]);
 
-  // Handle crosshair cursor movement
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  // Handle crosshair cursor movement with RAF throttling
   const handleMouseMove = (e) => {
     if (isCollapsed || !hasData) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -335,20 +343,41 @@ export function TelemetryCard({
     const relX = Math.max(0, Math.min(plotW, x - padLeft));
     const distM = Math.round((relX / plotW) * totalDistance);
     const clampedDist = Math.max(0, Math.min(totalDistance, distM));
-    setLocalHoverDist(clampedDist);
-    onHover?.(clampedDist);
+
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      setLocalHoverDist(clampedDist);
+      onHover?.(clampedDist);
+    });
   };
 
   const handleMouseLeave = () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
     setLocalHoverDist(null);
+    onHover?.(null);
   };
 
-  // Find closest point by distance bin
+  // Fast O(log N) binary search for closest point by distance bin
   const getPointAtDist = (points, dist) => {
     if (!points || points.length === 0) return null;
-    return points.reduce((prev, curr) =>
-      Math.abs((curr.distanceM || 0) - dist) < Math.abs((prev.distanceM || 0) - dist) ? curr : prev
-    );
+    let low = 0;
+    let high = points.length - 1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      const mDist = points[mid].distanceM || 0;
+      if (mDist < dist) {
+        low = mid + 1;
+      } else if (mDist > dist) {
+        high = mid - 1;
+      } else {
+        return points[mid];
+      }
+    }
+    if (low >= points.length) return points[points.length - 1];
+    if (high < 0) return points[0];
+    const p1 = points[high];
+    const p2 = points[low];
+    return Math.abs((p1.distanceM || 0) - dist) <= Math.abs((p2.distanceM || 0) - dist) ? p1 : p2;
   };
 
   const ptA = activeHoverDist !== null ? getPointAtDist(dataA, activeHoverDist) : null;
@@ -489,16 +518,19 @@ export function TelemetryCard({
             <>
               {/* Vertical crosshair line */}
               <div
-                className="absolute top-0 bottom-0 w-px border-l border-dashed border-drs-cyan/60 pointer-events-none"
-                style={{ left: `${crosshairLeft}px` }}
+                className="absolute top-0 bottom-0 w-px border-l border-dashed border-drs-cyan/80 pointer-events-none shadow-[0_0_8px_rgba(0,229,255,0.6)]"
+                style={{
+                  transform: `translate3d(${crosshairLeft}px, 0, 0)`,
+                  willChange: "transform"
+                }}
               />
 
               {/* Hover HUD Badge */}
               <div
-                className="absolute top-2 bg-panel/95 border border-drs-cyan/40 rounded-card p-2.5 text-mono-meta font-mono pointer-events-none z-20 flex flex-col gap-1.5 shadow-2xl backdrop-blur-md min-w-[150px]"
+                className="absolute top-2 bg-panel/95 border border-drs-cyan/50 rounded-card p-2.5 text-mono-meta font-mono pointer-events-none z-20 flex flex-col gap-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.6),0_0_15px_rgba(0,229,255,0.15)] backdrop-blur-md min-w-[150px] transition-transform duration-75"
                 style={{
-                  left: `${crosshairLeft + 14}px`,
-                  transform: crosshairLeft > dimensions.width - 180 ? "translateX(-115%)" : "none"
+                  transform: `translate3d(${crosshairLeft > dimensions.width - 180 ? crosshairLeft - 170 : crosshairLeft + 14}px, 0, 0)`,
+                  willChange: "transform"
                 }}
               >
                 <div className="text-text-primary font-bold border-b border-fw-border pb-1 flex justify-between items-center">

@@ -13,33 +13,37 @@ class StrategyController {
 
       const activeSession = session_id || session || null;
 
-      // 1. Check Redis Cache for identical request
-      const cached = await CacheService.getCachedResponse(queryText, activeSession);
-      if (cached && (cached.strategy_report || cached.whatif_simulation || cached.executive_summary)) {
-        let savedId = cached.id;
-        if (req.user?.id) {
-          try {
-            const saved = await HistoryService.saveInvestigation({
-              user_id: req.user.id,
-              question: queryText,
-              ai_response: cached,
-              session: activeSession,
-              provider_used: 'strategy-planner-redis',
-              investigation_metadata: { cached: true, strategy: true },
-            });
-            if (saved && saved.id) {
-              savedId = saved.id;
+      const conversationId = req.body.conversation_id || null;
+
+      // 1. Check Redis Cache for identical request (only for fresh standalone queries)
+      if (!conversationId) {
+        const cached = await CacheService.getCachedResponse(queryText, activeSession);
+        if (cached && (cached.strategy_report || cached.whatif_simulation || cached.executive_summary)) {
+          let savedId = cached.id;
+          if (req.user?.id) {
+            try {
+              const saved = await HistoryService.saveInvestigation({
+                user_id: req.user.id,
+                question: queryText,
+                ai_response: cached,
+                session: activeSession,
+                provider_used: 'strategy-planner-redis',
+                investigation_metadata: { cached: true, strategy: true },
+              });
+              if (saved && saved.id) {
+                savedId = saved.id;
+              }
+            } catch (histErr) {
+              console.warn('[StrategyController] Failed to save history for cached strategy query:', histErr.message);
             }
-          } catch (histErr) {
-            console.warn('[StrategyController] Failed to save history for cached strategy query:', histErr.message);
           }
+          return res.json({ ...cached, id: savedId, cached: true });
         }
-        return res.json({ ...cached, id: savedId, cached: true });
       }
 
       // 2. Proxy request to Python AI Microservice /strategy/query
       const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
-      console.log(`[StrategyController] Proxying strategy query to: ${aiServiceUrl}/strategy/query`);
+      console.log(`[StrategyController] Proxying strategy query to: ${aiServiceUrl}/strategy/query (conv: ${conversationId})`);
 
       const response = await fetch(`${aiServiceUrl}/strategy/query`, {
         method: 'POST',
@@ -52,7 +56,11 @@ class StrategyController {
           driver_id: driver_id || null,
           grand_prix: grand_prix || null,
           season: season || null,
-          context: req.body.context || {}
+          conversation_id: conversationId,
+          context: {
+            ...(req.body.context || {}),
+            user_id: req.user?.id || null
+          }
         }),
       });
 

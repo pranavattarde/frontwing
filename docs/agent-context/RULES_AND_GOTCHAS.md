@@ -263,4 +263,76 @@ All tests under `ai_services/tests/` are organized into 8 domain-focused modules
 7. `test_tool_registry.py`: Tool registration, schema validation, `infer_parameter`, `ExplainModeTool`, knowledge RAG retrieval.
 8. `test_end_to_end_investigations.py`: Full multi-agent investigations against real ingested PostgreSQL sessions verifying reports, short bullet executive summaries, and zero raw JSON/status leaks.
 
+---
 
+## Entry 017 — 2026-09-11 — Windows Charmap Encodings, Telemetry Ingestion Traps & Frontend Latency Handlers
+
+**1. Windows Console Charmap Encoding Crashes:**
+- **RULE:** NEVER inject high Unicode characters (such as emojis like `🏆` or special non-ASCII symbols) into strings that are written to standard output or logged via `logger.info()` without ensuring UTF-8 stream handling.
+- **Gotcha:** On Windows (PowerShell/cmd), Python's default console encoding is `cp1252`. Writing characters like `\U0001f3c6` throws `UnicodeEncodeError: 'charmap' codec can't encode character...`. When this happens inside a tool or inside `print_debug_log()`, it crashes the engineer execution.
+- **Fix Applied:**
+  - Reconfigured `sys.stdout` and `sys.stderr` to `encoding="utf-8", errors="replace"` in `app/core/logger.py` and `app/main.py`.
+  - Wrapped `print_debug_log()` in `app/tools/registry.py` with an encoding-safe fallback.
+  - Replaced `🏆` in `adapters.py` with standard ASCII strings (`FASTER`, `[P1]`).
+
+**2. Never Run Synchronous Heavy Telemetry Extraction in Entity Resolution:**
+- **RULE:** During entity resolution (`entity_resolver.py`), `SessionResolver.resolve_session` must ALWAYS be invoked with `load_telemetry=False`.
+- **Why:** Ingesting 22 drivers with full telemetry traces synchronously blocks the event loop for >200 seconds. Entity resolution only needs session and race classification metadata (<1.5s). Full telemetry fetching is the exclusive domain of `TelemetryTool`, which operates asynchronously with background backfill jobs.
+
+**3. Circuit & Grand Prix Alias Resolution in Postgres Queries:**
+- **Gotcha:** In PostgreSQL, sessions and races often use formal titles (e.g. `r.name = 'British Grand Prix'`, `c.id = 'british'`), whereas user queries mention colloquial circuit names (`"silverstone"`).
+- **Rule:** In `_query_db_session()`, always expand `sub_tokens` to include canonical aliases (`"silverstone"` -> `["silverstone", "british", "britain"]`). Without this, existing database records will fail to match, causing redundant and slow FastF1 download attempts.
+
+**4. Frontend Elapsed Time Variables:**
+- **Gotcha:** In `InvestigationThread.jsx`, calculating elapsed time via `(endTime - startTime) / 1e3` will throw `ReferenceError: startTime is not defined` if `startTime` is not recorded at the start of `executeQuery()`. This caught error prevents `setMessages()` from running, resulting in a blank or errored investigation tab despite a 200 OK backend response.
+
+---
+
+## Entry 018 — 2026-09-12 — Multi-Turn Memory Resolution, Graph Hover Rendering Bottlenecks & SVG Color Mappings
+
+**1. Multi-Turn Context Carryover for Pronouns and Counterfactuals:**
+- **RULE:** When executing follow-up queries in `strategy_planner.py` (e.g. *"what if he pitted on lap 18 instead?"*), if the query does not name a driver or Grand Prix, the planner MUST resolve the active driver and session from `context` tags stored in the conversation memory.
+- **Gotcha:** Never rely solely on pronoun regex; check if `resolve_driver()` returns None and fall back to `context.get("driver_id")` and `context.get("driver_name")`.
+- **Cache Invalidation:** Always bypass Redis query caching in the Express controller when a `conversation_id` is supplied to ensure follow-up turns are never clobbered by prior cached queries.
+
+**2. Telemetry Trace Distance Lookups Must Use O(log N) Binary Search:**
+- **RULE:** NEVER run linear `.reduce()` over 5,000+ points on every mousemove event in `TelemetryCard.jsx`.
+- **Gotcha:** Telemetry datasets contain thousands of points sorted monotonically by track distance in meters (`distanceM`). Calling `.reduce()` on every pixel mousemove blocks the JavaScript event loop and causes severe chart stuttering/lag, especially when multiple cards are rendered.
+- **Fix:** Use binary search $O(\log N)$ for closest distance lookups, and throttle mouse movement coordinate updates inside `requestAnimationFrame`.
+
+**3. SVG Hover Layout Thrashing vs GPU Compositing:**
+- **RULE:** Do not use `className="transition-all hover:scale-125"` on dozens of raw SVG `<circle>` elements.
+- **Why:** In SVG, CSS transforms force layout recalculation and boundary box re-evaluations across the entire SVG DOM tree on every hover event.
+- **Fix:** Use dynamic SVG attributes (`r={isHovered ? 6.5 : 3.5}`, `stroke={isHovered ? "#FFF" : "..."}`) paired with CSS GPU-composited overlay indicators (`transform: translate3d(...)` with `will-change: transform`).
+
+**4. Tyre Degradation Graph Color Mapping:**
+- **RULE:** Degradation wear percentage curve colors MUST match the metrics table:
+  - $0\% \le \text{wear} \le 30\%$: Emerald Green (`#10B981`) [Fresh tyre / minimal wear]
+  - $30\% < \text{wear} \le 70\%$: Amber / Yellow (`#F59E0B`) [Moderate wear / pace loss onset]
+  - $\text{wear} > 70\%$: Red (`#EF4444`) [High degradation / cliff reached]
+- **Gotcha:** Inverted comparisons (`wear_pct < 40 ? red : green`) will show green when tyres are dead and red when fresh off the tyre blankets.
+
+---
+
+## Entry 019 — 2026-09-12 — FastF1 Cache Unification, 3D Coordinate Mapping, React 18 Fiber Compatibility & Session Roster Guardrails
+
+**1. FastF1 Cache Must Always Point to Unified `ai_services/cache`:**
+- **RULE:** Never initialize `fastf1.Cache.enable_cache(...)` with temporary paths like `~/AppData/Local/Temp/fastf1`.
+- **Why:** The project maintains a centralized 500MB+ HTTP cache (`ai_services/cache/fastf1_http_cache.sqlite`). Initializing FastF1 with a different directory forces a redundant re-download of full multi-car race streams (car_data, pos_data) over the network, which can take 60–120s or hang if throttled by F1 live timing servers. Pointing to `PROJECT_ROOT / "ai_services" / "cache"` enables instant local loading (<2s).
+
+**2. React 18 Peer Dependency Constraint for React Three Fiber:**
+- **RULE:** In this codebase (React 18.3.1), do NOT install `@react-three/fiber` version 9.x.
+- **Gotcha:** Fiber v9 targets React 19 and will fail npm installation. Always specify `@react-three/fiber@^8.16.8` and `@react-three/drei@^9.106.0` for 100% React 18 compatibility.
+
+**3. FastF1 Coordinate Mapping to Three.js Space:**
+- **RULE:** When transforming FastF1 decimeter tracking coordinates `(X, Y, Z)` to Three.js coordinates:
+  - `ThreeX = X_centered * scale` (lateral track span)
+  - `ThreeY = Z_centered * scale * 1.5` (elevation / banking, with 1.5x vertical exaggeration for 3D visibility)
+  - `ThreeZ = Y_centered * scale` (longitudinal depth)
+- Center the track points around origin `(0, 0, 0)` and scale so `max(span_x, span_y) == target_radius * 2` (e.g. 240 units) so the camera orbit framing is always consistent across different circuit lengths.
+
+**4. Team Roster Object Properties in API Contracts:**
+- **RULE:** When serializing roster teams, always provide both `name` and `team_name`, as well as `color` and `team_color`. Accessing `team.team_name.toLowerCase()` when the backend returned `team.name` throws an unhandled `TypeError` in frontend render loops.
+
+**5. Future/In-Progress Season Verification:**
+- **RULE:** Do not assume a season or race is completed just because its date is on the event calendar. Always verify `session.results` is not empty before exposing the GP in `/ghost-battle/available-gps`.

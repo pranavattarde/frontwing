@@ -1,5 +1,19 @@
 import os
+import sys
 import time
+
+# Guarantee UTF-8 stream handling across Windows console environments
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -252,6 +266,7 @@ class StrategyQueryRequest(BaseModel):
     driver_id: Optional[str] = None
     grand_prix: Optional[str] = None
     season: Optional[int] = None
+    conversation_id: Optional[str] = None
     context: Optional[Dict[str, Any]] = None
 
 
@@ -264,7 +279,7 @@ def strategy_query(req: StrategyQueryRequest):
         f"\n======================================================\n"
         f"[STRATEGY_REQUEST_RECEIVED] UTC: {req_start_utc}\n"
         f"Question: \"{req.question}\"\n"
-        f"Caller Session ID: {req.session_id} | Caller Driver ID: {req.driver_id} | Grand Prix: {req.grand_prix} | Season: {req.season}\n"
+        f"Caller Session ID: {req.session_id} | Caller Driver ID: {req.driver_id} | Grand Prix: {req.grand_prix} | Season: {req.season} | Conv: {req.conversation_id}\n"
         f"======================================================"
     )
     try:
@@ -282,6 +297,7 @@ def strategy_query(req: StrategyQueryRequest):
             question=req.question,
             session_id=req.session_id,
             driver_id=req.driver_id,
+            conversation_id=req.conversation_id,
             context=req_context
         )
         total_duration_ms = int((time.time() - req_start_time) * 1000)

@@ -9,6 +9,11 @@ class AuthController {
         return res.status(400).json({ error: 'Email and password are required' });
       }
 
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(String(email).trim())) {
+        return res.status(400).json({ error: 'Invalid email format' });
+      }
+
       if (password.length < 6) {
         return res.status(400).json({ error: 'Password must be at least 6 characters long' });
       }
@@ -33,7 +38,7 @@ class AuthController {
       return res.json(result);
     } catch (err) {
       console.error('[AuthController.login] Error:', err.message);
-      return res.status(401).json({ error: err.message });
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
   }
 

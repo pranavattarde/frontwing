@@ -24,11 +24,17 @@ async function runDatabaseMigrations() {
     '01_init_schema.sql',
     '02_intelligence_tables.sql',
     '03_auth_and_history.sql',
+    '04_add_user_id_to_conversations.sql',
   ];
 
   if (migrationDir) {
     console.log(`[Migration] Found database migrations directory at: ${migrationDir}`);
-    for (const file of migrationFiles) {
+    // Read all SQL files dynamically, sorted in order
+    const filesToRun = fs.readdirSync(migrationDir)
+      .filter(file => file.endsWith('.sql'))
+      .sort();
+
+    for (const file of filesToRun) {
       const filePath = path.join(migrationDir, file);
       if (fs.existsSync(filePath)) {
         try {
@@ -83,14 +89,54 @@ async function runDatabaseMigrations() {
         question TEXT NOT NULL,
         answer TEXT,
         context JSONB,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_conversations_cid ON conversations(conversation_id);
+    CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
+    ALTER TABLE conversations ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+
+    CREATE TABLE IF NOT EXISTS hero_content (
+        id VARCHAR(50) PRIMARY KEY DEFAULT 'current',
+        event_name VARCHAR(255) NOT NULL,
+        official_event_name VARCHAR(255),
+        location VARCHAR(255),
+        country VARCHAR(255),
+        round_number INT,
+        season INT,
+        circuit_name VARCHAR(255),
+        circuit_key VARCHAR(100),
+        track_length_km NUMERIC(6,3),
+        turns INT,
+        drs_zones INT,
+        lap_record VARCHAR(50),
+        hero_headline TEXT,
+        hero_subheadline TEXT,
+        sessions JSONB NOT NULL DEFAULT '[]'::jsonb,
+        suggested_questions JSONB NOT NULL DEFAULT '[]'::jsonb,
+        source VARCHAR(100) DEFAULT 'fastf1_official',
+        last_updated TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS editorial_content (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        category VARCHAR(50) NOT NULL,
+        title TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        source_outlet VARCHAR(100) NOT NULL,
+        source_url TEXT NOT NULL,
+        published_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        metrics JSONB DEFAULT '{}'::jsonb,
+        last_updated TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_editorial_category ON editorial_content(category);
+    CREATE INDEX IF NOT EXISTS idx_editorial_published ON editorial_content(published_at DESC);
   `;
 
   try {
     await pool.query(inlineDdl);
-    console.log('[Migration] Database tables verified (users, investigations, saved_investigations, conversations).');
+    console.log('[Migration] Database tables verified (users, investigations, conversations, hero_content, editorial_content).');
   } catch (err) {
     console.error('[Migration] Fallback DDL execution warning:', err.message);
   }

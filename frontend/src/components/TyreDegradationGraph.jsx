@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
+export const getTyreWearColor = (pct) => {
+  if (pct === null || pct === undefined) return "#8E9AA8";
+  if (pct <= 30) return "#10B981"; // Low degradation (0-30%): Emerald Green
+  if (pct <= 70) return "#F59E0B"; // Moderate degradation (31-70%): Amber/Yellow
+  return "#EF4444";               // High degradation (>70%): Red
+};
+
 export function TyreDegradationGraph({
   data,
   driverCode = "DRIVER",
@@ -158,8 +165,11 @@ export function TyreDegradationGraph({
                   cx={getX(d.lap)}
                   cy={getYWear(d.wear_pct)}
                   r={isHovered ? 6 : 4}
-                  fill={d.wear_pct < 40 ? "#EF4444" : d.wear_pct < 70 ? "#F59E0B" : "#10B981"}
-                  className="cursor-pointer transition-all hover:scale-125"
+                  fill={getTyreWearColor(d.wear_pct)}
+                  stroke={isHovered ? "#FFFFFF" : "rgba(0,0,0,0.5)"}
+                  strokeWidth={isHovered ? 2 : 0.5}
+                  filter={isHovered ? "drop-shadow(0 0 6px rgba(245, 158, 11, 0.9))" : undefined}
+                  className="cursor-pointer transition-[r,stroke-width] duration-150 ease-out"
                   onMouseEnter={() => setHoveredPoint(d)}
                 />
               );
@@ -289,7 +299,9 @@ export function TyreDegradationGraph({
                       cx={cx}
                       cy={cy}
                       r={5}
-                      fill={d.wear_pct < 40 ? "#EF4444" : d.wear_pct < 70 ? "#F59E0B" : "#10B981"}
+                      fill={getTyreWearColor(d.wear_pct)}
+                      stroke="rgba(0,0,0,0.4)"
+                      strokeWidth={0.5}
                     />
                   );
                 })}

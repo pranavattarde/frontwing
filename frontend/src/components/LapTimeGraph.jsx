@@ -129,17 +129,24 @@ export function LapTimeGraph({
             <path d={pathA} fill="none" stroke="#00E5FF" strokeWidth="2.5" strokeLinecap="round" />
             {pathB && <path d={pathB} fill="none" stroke="#FF1801" strokeWidth="2" strokeDasharray="4 2" />}
 
-            {data.map((d, i) => (
-              <circle
-                key={i}
-                cx={getX(d.lap)}
-                cy={getY(d.lap_time)}
-                r={hoveredLap?.lap === d.lap ? 6 : 3.5}
-                fill={d.lap_time === fastestLapTime ? "#10B981" : "#00E5FF"}
-                className="transition-all cursor-pointer hover:scale-125"
-                onMouseEnter={() => setHoveredLap(d)}
-              />
-            ))}
+            {data.map((d, i) => {
+              const isHovered = hoveredLap?.lap === d.lap;
+              const isPB = d.lap_time === fastestLapTime;
+              return (
+                <circle
+                  key={i}
+                  cx={getX(d.lap)}
+                  cy={getY(d.lap_time)}
+                  r={isHovered ? 6.5 : 3.5}
+                  fill={isPB ? "#10B981" : "#00E5FF"}
+                  stroke={isHovered ? "#FFFFFF" : "rgba(0,0,0,0.5)"}
+                  strokeWidth={isHovered ? 2 : 0.5}
+                  filter={isHovered ? (isPB ? "drop-shadow(0 0 6px rgba(16,185,129,0.9))" : "drop-shadow(0 0 6px rgba(0,229,255,0.9))") : undefined}
+                  className="cursor-pointer transition-[r,stroke-width] duration-150 ease-out"
+                  onMouseEnter={() => setHoveredLap(d)}
+                />
+              );
+            })}
           </svg>
 
           {hoveredLap && (

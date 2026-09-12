@@ -6,11 +6,14 @@ import { RaceBriefing } from "./pages/RaceBriefing";
 import { StrategyPlayground } from "./pages/StrategyPlayground";
 import { StrategyEngineer } from "./pages/StrategyEngineer";
 import { GhostBattle } from "./pages/GhostBattle";
+import { GhostBattle3D } from "./pages/GhostBattle3D";
+import { Sidebar } from "./components/Sidebar";
 import { CommandPalette } from "./components/CommandPalette";
 import { SearchOverlay } from "./components/SearchOverlay";
 import { NotificationContainer } from "./components/Notification";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { generateId } from "./lib/utils";
+
 export default function App() {
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -24,6 +27,7 @@ export default function App() {
     "Carlos Sainz strategy optimization",
     "Piastri Turn 4 telemetry delta"
   ];
+
   useEffect(() => {
     const handleToggleCommand = () => setIsCommandOpen((prev) => !prev);
     const handleToggleSearch = () => setIsSearchOpen((prev) => !prev);
@@ -34,6 +38,7 @@ export default function App() {
       window.removeEventListener("toggle-search-overlay", handleToggleSearch);
     };
   }, []);
+
   const handleSearchResultClick = (queryText) => {
     setIsSearchOpen(false);
     const generatedId = generateId();
@@ -47,13 +52,36 @@ export default function App() {
     localStorage.setItem(`frontwing_investigation_${generatedId}`, JSON.stringify(newInvestigation));
     window.location.href = `/investigate/${generatedId}`;
   };
-  return <BrowserRouter><ErrorBoundary>{
-    /* Global Overlays */
-  }<CommandPalette isOpen={isCommandOpen} onClose={() => setIsCommandOpen(false)} /><SearchOverlay
-    isOpen={isSearchOpen}
-    onClose={() => setIsSearchOpen(false)}
-    recentSearches={recentSearches}
-    trending={trendingSearches}
-    onResultClick={handleSearchResultClick}
-  /><NotificationContainer /><Routes><Route path="/" element={<BriefingRoom />} /><Route path="/investigate/:id" element={<InvestigationThread />} /><Route path="/strategy" element={<StrategyEngineer />} /><Route path="/race/:raceId" element={<RaceBriefing />} /><Route path="/strategy/:raceId" element={<StrategyPlayground />} /><Route path="/ghost-battle/:raceId" element={<GhostBattle />} /></Routes></ErrorBoundary></BrowserRouter>;
+
+  return (
+    <BrowserRouter>
+      <ErrorBoundary>
+        <CommandPalette isOpen={isCommandOpen} onClose={() => setIsCommandOpen(false)} />
+        <SearchOverlay
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+          recentSearches={recentSearches}
+          trending={trendingSearches}
+          onResultClick={handleSearchResultClick}
+        />
+        <NotificationContainer />
+        <div className="flex h-screen w-screen overflow-hidden bg-canvas">
+          <Sidebar />
+          <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
+            <Routes>
+              <Route path="/" element={<BriefingRoom />} />
+              <Route path="/investigate/:id" element={<InvestigationThread />} />
+              <Route path="/strategy" element={<StrategyEngineer />} />
+              <Route path="/strategy-engineer" element={<StrategyEngineer />} />
+              <Route path="/race/:raceId" element={<RaceBriefing />} />
+              <Route path="/strategy/:raceId" element={<StrategyPlayground />} />
+              <Route path="/ghost-battle" element={<GhostBattle3D />} />
+              <Route path="/ghost-battle/:raceId" element={<GhostBattle3D />} />
+            </Routes>
+          </div>
+        </div>
+      </ErrorBoundary>
+    </BrowserRouter>
+  );
 }
+

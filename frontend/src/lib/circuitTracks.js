@@ -104,6 +104,19 @@ export const CIRCUITS = {
       { id: "S3", ratio: 1.00, color: "#FFD600", name: "Sector 3 (Campus, Blanchimont & Bus Stop)" },
     ],
   },
+  barcelona: {
+    name: "Circuit de Barcelona-Catalunya",
+    key: "barcelona",
+    viewBox: "0 0 480 290",
+    lengthMeters: 4657,
+    trackPath: "M 110 240 L 350 240 C 380 240 405 220 405 195 C 405 170 380 160 360 160 L 290 160 C 270 160 255 145 260 125 C 265 105 285 95 310 95 L 370 95 C 400 95 420 75 410 50 C 400 30 370 35 340 45 L 210 90 C 185 100 170 120 165 145 L 160 175 C 155 195 135 205 115 205 L 85 205 C 60 205 50 220 55 235 C 60 240 85 240 110 240 Z",
+    startFinish: { x: 230, y: 240, rotation: 0 },
+    sectors: [
+      { id: "S1", ratio: 0.31, color: "#B138DD", name: "Sector 1 (Elf & Long Right Renault)" },
+      { id: "S2", ratio: 0.65, color: "#00D26A", name: "Sector 2 (Seat & High-Speed Campsa)" },
+      { id: "S3", ratio: 1.00, color: "#FFD600", name: "Sector 3 (Banc Sabadell & Flat-Out Sweeps)" },
+    ],
+  },
 };
 
 /**
@@ -120,6 +133,7 @@ export function getCircuitByTrackName(trackName) {
   if (lower.includes("austria") || lower.includes("spielberg") || lower.includes("red_bull_ring")) return CIRCUITS.spielberg;
   if (lower.includes("monaco") || lower.includes("monte")) return CIRCUITS.monaco;
   if (lower.includes("spa") || lower.includes("belgian") || lower.includes("francorchamps")) return CIRCUITS.spa;
+  if (lower.includes("barcelona") || lower.includes("catalunya") || lower.includes("spain") || lower.includes("spanish") || lower.includes("madrid")) return CIRCUITS.barcelona;
 
   // Fallback to Monza layout if unknown
   return CIRCUITS.monza;

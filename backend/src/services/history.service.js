@@ -91,10 +91,10 @@ class HistoryService {
     const values = [id];
 
     if (userId) {
-      query += ` LEFT JOIN saved_investigations si ON i.id = si.investigation_id AND si.user_id = $2 WHERE i.id = $1`;
+      query += ` LEFT JOIN saved_investigations si ON i.id = si.investigation_id AND si.user_id = $2 WHERE i.id = $1 AND (i.user_id = $2 OR i.user_id IS NULL)`;
       values.push(userId);
     } else {
-      query += ` WHERE i.id = $1`;
+      query += ` WHERE i.id = $1 AND i.user_id IS NULL`;
     }
 
     const result = await pool.query(query, values);

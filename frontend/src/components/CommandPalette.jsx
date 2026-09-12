@@ -22,7 +22,7 @@ export function CommandPalette({ isOpen, onClose }) {
   };
   const commands = [
     { id: "nav-home", label: "Go to Home / Briefing Room", category: "NAVIGATION", shortcut: "G H", action: () => navigate("/") },
-    { id: "nav-briefing", label: "Go to Spielberg GP Race Briefing", category: "NAVIGATION", shortcut: "G B", action: () => navigate("/race/aut-2024") },
+    { id: "nav-briefing", label: "Go to Race Briefing", category: "NAVIGATION", shortcut: "G B", action: () => navigate("/race/aut-2024") },
     { id: "nav-playground", label: "Go to Strategy Playground Simulator", category: "NAVIGATION", shortcut: "G P", action: () => navigate("/strategy/aut-2024") },
     { id: "nav-ghost", label: "Go to Piastri vs Sainz Ghost Battle", category: "NAVIGATION", shortcut: "G G", action: () => navigate("/ghost-battle/aut-2024") },
     { id: "query-sainz", label: "Why did Sainz finish P3 instead of P2?", category: "QUERIES", action: () => runPaletteQuery("Why did Sainz finish P3 instead of P2?") },

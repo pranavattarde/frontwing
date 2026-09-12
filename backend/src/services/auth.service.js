@@ -36,13 +36,13 @@ class AuthService {
     );
 
     if (result.rows.length === 0) {
-      throw new Error('Invalid email or password');
+      throw new Error('Invalid credentials');
     }
 
     const row = result.rows[0];
     const isPasswordValid = await comparePassword(password, row.password_hash);
     if (!isPasswordValid) {
-      throw new Error('Invalid email or password');
+      throw new Error('Invalid credentials');
     }
 
     const user = {

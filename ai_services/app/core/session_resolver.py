@@ -269,6 +269,9 @@ class SessionResolver:
                 elif token in ("australia", "australian", "melbourne"):
                     sub_tokens = ["australia", "melbourne"]
                     exclude_clause = "AND (r.name NOT ILIKE '%austria%' AND r.id NOT ILIKE '%austria%')"
+                elif token in ("silverstone", "british", "britain", "uk"):
+                    exclude_clause = ""
+                    sub_tokens = ["silverstone", "british", "britain"]
                 else:
                     exclude_clause = ""
                     sub_tokens = [token]

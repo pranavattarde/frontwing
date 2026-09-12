@@ -237,20 +237,41 @@ export function InvestigationThread() {
   const [providerInfo, setProviderInfo] = useState(null);
   const [abortController, setAbortController] = useState(null);
   const [isSaved, setIsSaved] = useState(false);
-  const [questionTitle, setQuestionTitle] = useState("Investigation Thread");
+  const [questionTitle, setQuestionTitle] = useState("");
+  const [currentResponse, setCurrentResponse] = useState(null);
   const executedQueriesRef = useRef(/* @__PURE__ */ new Set());
   const inFlightRef = useRef(false);
   const lastResponseRef = useRef(null);
   const [expandedTelemetry, setExpandedTelemetry] = useState(null);
+
+  const lastResponse = currentResponse || lastResponseRef.current;
+  const sessionId = lastResponse?.evidence?.simulation_tool?.session_id ||
+                    lastResponse?.evidence?.telemetry_tool?.session_id ||
+                    lastResponse?.evidence?.race_results_tool?.session_id ||
+                    lastResponse?.session_id ||
+                    lastResponse?.session ||
+                    lastResponse?.intelligence_trace?.resolved_session_id;
+
+  const resolvedGrandPrix = lastResponse?.grand_prix ||
+                            lastResponse?.evidence?.telemetry_tool?.grand_prix ||
+                            lastResponse?.evidence?.race_results_tool?.grand_prix ||
+                            lastResponse?.evidence?.simulation_tool?.grand_prix ||
+                            lastResponse?.intelligence_trace?.entities?.grand_prix ||
+                            (sessionId ? sessionId.replace(/^\d{4}_/, "").replace(/_gp.*$/, " GP").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : null);
+
+  const rawTrackName = lastResponse?.evidence?.telemetry_tool?.circuit_name ||
+                       lastResponse?.evidence?.telemetry_tool?.grand_prix ||
+                       lastResponse?.evidence?.race_results_tool?.grand_prix ||
+                       resolvedGrandPrix ||
+                       (sessionId ? sessionId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "Circuit");
+  const trackName = rawTrackName;
+
   const breadcrumbs = [
     { label: "Home", href: "/" },
-    { label: "Investigation Thread", href: "#" },
-    { label: questionTitle, href: "#" }
+    ...(resolvedGrandPrix ? [{ label: resolvedGrandPrix, href: sessionId ? `/race/${sessionId}` : "#" }] : []),
+    ...(questionTitle ? [{ label: questionTitle, href: "#" }] : [{ label: "Investigation", href: "#" }])
   ];
-  const lastResponse = lastResponseRef.current;
-  const sessionId = lastResponse?.evidence?.simulation_tool?.session_id || lastResponse?.evidence?.telemetry_tool?.session_id || lastResponse?.evidence?.race_results_tool?.session_id;
-  const rawTrackName = lastResponse?.evidence?.telemetry_tool?.circuit_name || lastResponse?.evidence?.telemetry_tool?.grand_prix || lastResponse?.evidence?.race_results_tool?.grand_prix || (lastResponse?.evidence?.telemetry_tool?.session_id ? lastResponse.evidence.telemetry_tool.session_id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "Circuit");
-  const trackName = rawTrackName;
+
   const planningSteps = lastResponse?.planning_steps || [];
 
 
@@ -307,6 +328,7 @@ export function InvestigationThread() {
           const lastEx = data.exchanges ? data.exchanges[data.exchanges.length - 1] : { question: data.question, response: data.response, timestamp: data.timestamp || Date.now() };
           if (lastEx && lastEx.response) {
             lastResponseRef.current = lastEx.response;
+            setCurrentResponse(lastEx.response);
             const msgs = mapResponseToMessages(targetId, lastEx.response, lastEx.timestamp || Date.now(), true);
             setMessages(msgs);
             const trace = lastEx.response.intelligence_trace || {};
@@ -337,6 +359,7 @@ export function InvestigationThread() {
       if (remoteItem && remoteItem.ai_response) {
         executedQueriesRef.current.add(targetId);
         lastResponseRef.current = remoteItem.ai_response;
+        setCurrentResponse(remoteItem.ai_response);
         setQuestionTitle(remoteItem.question);
         setIsSaved(!!remoteItem.is_saved);
         const msgs = mapResponseToMessages(targetId, remoteItem.ai_response, new Date(remoteItem.timestamp).getTime(), true);
@@ -352,6 +375,7 @@ export function InvestigationThread() {
     setErrorMsg("Investigation thread not found. Please submit a question from the home screen.");
   };
   const executeQuery = async (queryText, currentId, contextData = {}) => {
+    const startTime = Date.now();
     const activeId = currentId || id || generateId();
     executedQueriesRef.current.add(activeId);
     inFlightRef.current = true;
@@ -512,6 +536,8 @@ export function InvestigationThread() {
       if (backendUuid) {
         localStorage.setItem(`frontwing_investigation_${backendUuid}`, JSON.stringify(completedData));
       }
+      lastResponseRef.current = apiResponse;
+      setCurrentResponse(apiResponse);
       setIsLoading(false);
       inFlightRef.current = false;
       setAbortController(null);
@@ -647,14 +673,14 @@ export function InvestigationThread() {
   >{
     /* Question Header & Title Section */
   }<div className="border-b border-fw-border pb-4 mb-6 flex flex-col gap-3"><div className="flex items-center justify-between">            <span className="text-mono-meta font-mono text-drs-cyan uppercase tracking-widest">
-              INVESTIGATION_THREAD // {String(sessionId || id || "LIVE").toUpperCase()}
+              INVESTIGATION_THREAD // {String(resolvedGrandPrix || sessionId || "ACTIVE_SESSION").toUpperCase().replace(/\s+/g, "_")}
             </span><button
     onClick={handleToggleSave}
     className={cn(
       "px-3 py-1 rounded-button font-mono text-[10px] uppercase tracking-wider border transition-colors flex items-center gap-1.5",
       isSaved ? "border-drs-cyan bg-drs-cyan/10 text-drs-cyan" : "border-fw-border text-text-muted hover:text-text-primary hover:bg-panel"
     )}
-  ><span>{isSaved ? "\u2605 SAVED" : "\u2606 SAVE DEBRIEF"}</span></button></div><h1 className="text-display-sm text-text-primary">{questionTitle}</h1></div>{
+  ><span>{isSaved ? "\u2605 SAVED" : "\u2606 SAVE DEBRIEF"}</span></button></div><h1 className="text-display-sm text-text-primary">{questionTitle || "Live Telemetry Investigation"}</h1></div>{
     /* Messages list container */
   }<div className="flex flex-col gap-6 flex-1 overflow-y-auto pr-1">{
     /* Latency & Metadata Bar */

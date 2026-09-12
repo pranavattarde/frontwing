@@ -66,16 +66,16 @@ def detect_unmodeled_variable(question: str) -> Optional[str]:
     return None
 
 
-def resolve_driver(question: str, driver_hint: Optional[str] = None) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+def resolve_driver(question: str, driver_hint: Optional[str] = None, context: Optional[dict] = None) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
-    Resolves driver from explicit hint or question text.
+    Resolves driver from explicit hint, question text, or conversation context.
     Returns (driver_id, driver_code, driver_display_name).
     """
     driver_input = driver_hint or ""
     preprocessed = preprocess_text(question)
     q_lower = preprocessed["normalized_lower"]
 
-    # 1. Match from alias map
+    # 1. Match from alias map in question text
     target_name = None
     if driver_input:
         target_name = F1_DRIVER_ALIAS_MAP.get(driver_input.lower(), driver_input)
@@ -84,6 +84,12 @@ def resolve_driver(question: str, driver_hint: Optional[str] = None) -> Tuple[Op
             if re.search(r'\b' + re.escape(alias) + r'\b', q_lower):
                 target_name = canonical
                 break
+
+    # 1b. Check conversation context if no driver explicitly in question
+    if not target_name and context:
+        ctx_drv = context.get("driver_id") or context.get("driver") or context.get("driver_name")
+        if ctx_drv:
+            target_name = F1_DRIVER_ALIAS_MAP.get(str(ctx_drv).lower(), str(ctx_drv))
 
     if not target_name:
         return None, None, None
@@ -694,14 +700,37 @@ def run_strategy_planner(
     question: str,
     session_id: Optional[str] = None,
     driver_id: Optional[str] = None,
+    conversation_id: Optional[str] = None,
     context: Optional[dict] = None
 ) -> Dict[str, Any]:
     """
     Main entrypoint for POST /strategy/query.
     Classifies query into strategy_analysis vs strategy_whatif and executes dedicated pipeline.
+    Supports multi-turn conversation memory via conversation_id.
     """
     start_time = time.time()
-    logger.info(f"[StrategyPlanner] Received query: \"{question}\" (session: {session_id}, driver: {driver_id})")
+    logger.info(f"[StrategyPlanner] Received query: \"{question}\" (session: {session_id}, driver: {driver_id}, conv: {conversation_id})")
+
+    ctx = dict(context or {})
+
+    # Multi-turn memory resolution
+    if conversation_id:
+        try:
+            from app.agents.memory import conversation_memory
+            history = conversation_memory.get_history(conversation_id)
+            if history:
+                logger.info(f"[StrategyPlanner] Recovered {len(history)} previous turn(s) for conversation '{conversation_id}'")
+                for past_turn in reversed(history):
+                    p_ctx = past_turn.get("context", {})
+                    if not driver_id and p_ctx.get("driver_id"):
+                        driver_id = p_ctx["driver_id"]
+                    if not session_id and p_ctx.get("session_id"):
+                        session_id = p_ctx["session_id"]
+                    for k in ("grand_prix", "season", "driver_name", "driver_id", "session_id"):
+                        if k in p_ctx and k not in ctx:
+                            ctx[k] = p_ctx[k]
+        except Exception as mem_err:
+            logger.warning(f"[StrategyPlanner] Error retrieving conversation history: {mem_err}")
 
     # 0. Fast-path check for unmodeled physical variables in what-if scenarios
     query_type = classify_strategy_query(question)
@@ -717,41 +746,70 @@ def run_strategy_planner(
                 f"by the pit strategy simulation engine. Only pit-timing and tyre compound counterfactuals "
                 f"can be simulated."
             )
-            return {
+            res = {
                 "status": "success",
                 "query_type": "strategy_whatif",
                 "is_modeled": False,
                 "unmodeled_variable": unmodeled,
                 "question": question,
                 "driver_id": driver_id,
-                "driver_name": None,
+                "driver_name": ctx.get("driver_name"),
                 "session_id": session_id,
-                "grand_prix": None,
-                "season": None,
-                "executive_summary": f"• Unmodeled Variable: '{unmodeled}' is not supported by the strategy simulation engine.\n• Supported Scenarios: Pit stop timing (lap numbers) and tyre compound choices.",
+                "grand_prix": ctx.get("grand_prix"),
+                "season": ctx.get("season"),
+                "executive_summary": f"- Unmodeled Variable: '{unmodeled}' is not supported by the strategy simulation engine.\n- Supported Scenarios: Pit stop timing (lap numbers) and tyre compound choices.",
                 "whatif_simulation": {
                     "is_modeled": False,
                     "unmodeled_variable": unmodeled,
                     "message": limitation_message
                 },
                 "evidence": {},
+                "conversation_id": conversation_id,
                 "latency_ms": int((time.time() - start_time) * 1000)
             }
+            if conversation_id:
+                try:
+                    from app.agents.memory import conversation_memory
+                    u_id = ctx.get("user_id")
+                    conversation_memory.save_message(
+                        conversation_id=conversation_id,
+                        question=question,
+                        answer=res.get("executive_summary") or "",
+                        context={
+                            "session_id": session_id,
+                            "driver_id": driver_id,
+                            "driver_name": ctx.get("driver_name"),
+                            "grand_prix": ctx.get("grand_prix"),
+                            "season": ctx.get("season"),
+                            "query_type": "strategy_whatif",
+                            "user_id": u_id
+                        },
+                        user_id=u_id
+                    )
+                except Exception:
+                    pass
+            return res
 
-    # 1. Resolve Driver
-    resolved_drv_id, drv_code, drv_name = resolve_driver(question, driver_id)
+    # 1. Resolve Driver (with context fallback for pronouns like 'he' / 'his')
+    resolved_drv_id, drv_code, drv_name = resolve_driver(question, driver_id, ctx)
     if not resolved_drv_id:
-        # Fallback search for any active driver mentioned
-        resolved_drv_id = "verstappen"
-        drv_name = "Max Verstappen"
-        drv_code = "VER"
+        # Fallback to driver from context if available
+        if ctx.get("driver_id"):
+            resolved_drv_id = ctx["driver_id"]
+            drv_name = ctx.get("driver_name", resolved_drv_id.capitalize())
+            drv_code = resolved_drv_id[:3].upper()
+        else:
+            resolved_drv_id = "verstappen"
+            drv_name = "Max Verstappen"
+            drv_code = "VER"
 
-    # 2. Resolve Session
-    res_session_id, grand_prix, season = resolve_session_and_event(question, session_id, context)
+    # 2. Resolve Session (with context fallback)
+    res_session_id, grand_prix, season = resolve_session_and_event(question, session_id, ctx)
     if not res_session_id:
         return {
             "status": "error",
             "query_type": "unknown",
+            "conversation_id": conversation_id,
             "message": "Could not identify a Grand Prix or session for this strategy query. Please name the circuit or event (e.g. Dutch GP 2024)."
         }
 
@@ -781,4 +839,29 @@ def run_strategy_planner(
 
     res["latency_ms"] = int((time.time() - start_time) * 1000)
     res["status"] = "success"
+    res["conversation_id"] = conversation_id
+
+    # Persist turn into conversation memory
+    if conversation_id:
+        try:
+            from app.agents.memory import conversation_memory
+            u_id = ctx.get("user_id")
+            conversation_memory.save_message(
+                conversation_id=conversation_id,
+                question=question,
+                answer=res.get("executive_summary") or "",
+                context={
+                    "session_id": res.get("session_id"),
+                    "driver_id": res.get("driver_id"),
+                    "driver_name": res.get("driver_name"),
+                    "grand_prix": res.get("grand_prix"),
+                    "season": res.get("season"),
+                    "query_type": res.get("query_type"),
+                    "user_id": u_id
+                },
+                user_id=u_id
+            )
+        except Exception as save_err:
+            logger.warning(f"[StrategyPlanner] Error saving message to conversation memory: {save_err}")
+
     return res

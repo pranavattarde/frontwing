@@ -200,8 +200,13 @@ class BaseF1Tool(ABC):
             f"Validation:\n{validation_status}\n\n"
             f"============================"
         )
-        print(debug_block)
-        logger.info(f"\n{debug_block}")
+        try:
+            print(debug_block)
+            logger.info(f"\n{debug_block}")
+        except Exception:
+            safe_block = debug_block.encode("ascii", errors="replace").decode("ascii")
+            print(safe_block)
+            logger.info(f"\n{safe_block}")
 
     def validate_and_execute(self, inputs: Dict[str, Any], question: str = "") -> Any:
         """Validates input payload properties. If required params are missing, returns missing_data.

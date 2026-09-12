@@ -839,8 +839,8 @@ class TelemetryTool(BaseF1Tool):
                 sec_lines.append(f"- {sec_label}: Both drivers posted virtually identical pace ({ta:.3f}s vs {tb:.3f}s).")
 
             sector_breakdown[sec_k]["faster_driver"] = sec_winner
-            sector_breakdown[sec_k]["winner_badge"] = f"🏆 {sec_winner.upper()} FASTER" if sec_winner != "Equal" else "EQUAL"
-            winner_disp = f"🏆 {sec_winner.upper()} FASTER" if sec_winner != "Equal" else "Equal"
+            sector_breakdown[sec_k]["winner_badge"] = f"{sec_winner.upper()} FASTER" if sec_winner != "Equal" else "EQUAL"
+            winner_disp = f"{sec_winner.upper()} FASTER" if sec_winner != "Equal" else "Equal"
             table_rows.append(f"| **{sec_label}** | {ta:.3f}s | {tb:.3f}s | {sec_delta_disp} | **{winner_disp}** | {short_why} |")
 
         # Top speed & throttle summary rows
@@ -869,9 +869,9 @@ class TelemetryTool(BaseF1Tool):
         strong_sectors = a_wins if fast_drv == drv_a else b_wins
         strong_sectors_str = ", ".join(strong_sectors) if strong_sectors else "all sectors"
         bullet_summary = (
-            f"• Overall Result: {fast_drv} held a {margin:.3f}s advantage on personal best laps (Lap {fast_lap}: {fast_t:.3f}s vs {slow_t:.3f}s).\n"
-            f"• Sector Dominance: {perf_summary}\n"
-            f"• Key Factor: {fast_drv} gained decisive time in {strong_sectors_str} through higher corner apex speeds and throttle commitment."
+            f"- Overall Result: {fast_drv} held a {margin:.3f}s advantage on personal best laps (Lap {fast_lap}: {fast_t:.3f}s vs {slow_t:.3f}s).\n"
+            f"- Sector Dominance: {perf_summary}\n"
+            f"- Key Factor: {fast_drv} gained decisive time in {strong_sectors_str} through higher corner apex speeds and throttle commitment."
         )
 
         table_markdown = (
@@ -1452,7 +1452,7 @@ class TelemetryTool(BaseF1Tool):
                     "benchmark_time": s1_b,
                     "delta": s1_delta,
                     "faster_driver": s1_winner,
-                    "winner_badge": f"🏆 {s1_winner.upper()} FASTER"
+                    "winner_badge": f"{s1_winner.upper()} FASTER"
                 })
             if s2_a and s2_b:
                 s2_delta = round(s2_a - s2_b, 3)
@@ -1463,7 +1463,7 @@ class TelemetryTool(BaseF1Tool):
                     "benchmark_time": s2_b,
                     "delta": s2_delta,
                     "faster_driver": s2_winner,
-                    "winner_badge": f"🏆 {s2_winner.upper()} FASTER"
+                    "winner_badge": f"{s2_winner.upper()} FASTER"
                 })
             if s3_a and s3_b:
                 s3_delta = round(s3_a - s3_b, 3)
@@ -1474,7 +1474,7 @@ class TelemetryTool(BaseF1Tool):
                     "benchmark_time": s3_b,
                     "delta": s3_delta,
                     "faster_driver": s3_winner,
-                    "winner_badge": f"🏆 {s3_winner.upper()} FASTER"
+                    "winner_badge": f"{s3_winner.upper()} FASTER"
                 })
 
             speed_trace_pts_b = []
