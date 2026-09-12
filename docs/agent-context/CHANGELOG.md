@@ -1,3 +1,45 @@
+## Session 035 -- 2026-09-12 -- LangSmith Tracing Integration Across LangGraph, Tools & LLM Providers + Automated GitHub Push
+
+### What Was Changed
+- **LangSmith Tracing Environment & SDK Configuration (`.env`, `config.py`)**:
+  - Installed `langsmith` SDK in `ai_services/venv`.
+  - Configured `LANGCHAIN_TRACING_V2=true`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT="FrontWing"`, `LANGCHAIN_ENDPOINT="https://api.smith.langchain.com"`.
+  - Implemented bidirectional environment variable synchronization in `app/core/config.py` supporting both `LANGCHAIN_*` and `LANGSMITH_*` keys with graceful offline fallback.
+- **Descriptive LangGraph Node Renaming (`planner.py`)**:
+  - Renamed generic node identifiers in `StateGraph(AgentState)` to legible, descriptive names:
+    - `plan_node` (Strategy Planner)
+    - `execute_node` (Tool Execution Pipeline)
+    - `reflect_node` (Consistency & Completeness Reflection)
+    - `judge_node` (Factual Evaluation & Scoring)
+    - `context_builder_node` (Synthesis Context Assembler)
+    - `synthesize_node` (Chief Engineer Synthesis)
+  - Updated graph edges, conditional edge router `should_reflect_loop` (`"execute_node"` / `"judge_node"`), and entry point.
+- **Distinct Tool Call Tracing (`registry.py`)**:
+  - Enhanced `ToolRegistry.register` and `_wrap_tool_with_tracing` to wrap every registered tool (`race_results_tool`, `telemetry_tool`, `scoring_tool`, `simulation_tool`, `strategy_tool`, `explain_mode_tool`, `knowledge_tool`, `investigation_tool`) with `@traceable(run_type="tool", name=tool.name)`.
+  - Captured input parameters and output evidence as dedicated `[TOOL]` spans nested under the active LangGraph node.
+- **LLM Provider Tracing for Gemini & Groq (`providers.py`)**:
+  - Implemented `@traceable(run_type="llm")` decorators on `GeminiProvider` (`Gemini_generate_plan`, `Gemini_generate_response`) and `GroqProvider` (`Groq_generate_plan`, `Groq_generate_response`).
+  - Added input formatters (`_format_gemini_inputs`, `_format_groq_inputs`) and output formatters (`_format_llm_outputs`) capturing system/user messages, completions, model names (`gemini-2.5-flash`, `openai/gpt-oss-120b`), provider pills (`google_genai`, `groq`), token usage, and latency.
+- **Feature Area Tagging**:
+  - `general-query`: General Race Engineer StateGraph invocations in `run_ai_race_engineer`.
+  - `strategy-engineer`: Strategy planner pipeline in `run_strategy_planner`, `strategy_analysis_node`, and `strategy_whatif_node`.
+  - `ghost-battle`: 3D telemetry pipeline in `get_ghost_battle_data`.
+- **Automated GitHub Push Protocol (`RULES_AND_GOTCHAS.md`)**:
+  - Documented Entry 020: Every implementation and session handoff must be committed and pushed to GitHub automatically.
+
+### Verification
+- **Test Suite**: All 59/59 pytest domain tests passing across `ai_services/tests/`.
+- **Live Trace 1 (Race Engineer)**:
+  - Query: *"Who won the 2024 British Grand Prix and what was the podium?"*
+  - Trace ID: `01a095db-277b-74e0-9c56-16a68cf39181`
+  - 11 spans captured: `LangGraph` root, `plan_node`, `[LLM] Gemini_generate_plan`, `execute_node`, `[TOOL] race_results_tool`, `reflect_node`, `judge_node`, `context_builder_node`, `synthesize_node`, `[LLM] Gemini_generate_response`.
+- **Live Trace 2 (Strategy Engineer)**:
+  - Query: *"What if Norris pitted on lap 25 at 2024 Dutch GP?"*
+  - Trace ID: `01a095db-75ee-7ce2-9743-7b16e5491e18`
+  - Spans captured: `strategy_planner_workflow` -> `strategy_whatif_node` -> `strategy_tool` + `simulation_tool`.
+
+---
+
 ## Session 034 -- 2026-09-12 -- Dedicated 3D Ghost Battle Tab with FastF1 Telemetry, Three.js & Multi-Car Sync
 
 ### What Was Changed

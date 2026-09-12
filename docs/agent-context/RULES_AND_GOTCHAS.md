@@ -336,3 +336,23 @@ All tests under `ai_services/tests/` are organized into 8 domain-focused modules
 
 **5. Future/In-Progress Season Verification:**
 - **RULE:** Do not assume a season or race is completed just because its date is on the event calendar. Always verify `session.results` is not empty before exposing the GP in `/ghost-battle/available-gps`.
+
+---
+
+## Entry 020 — 2026-09-12 — Automated GitHub Push Protocol & LangSmith Full-Pipeline Observability
+
+**1. Mandatory Automated GitHub Push Protocol:**
+- **RULE:** From Session 035 onward, EVERY single implementation, feature addition, bug fix, or agent session handoff MUST be automatically committed and pushed to GitHub (`git add -A && git commit -m "..." && git push origin <branch>`).
+- **Why:** Never leave uncommitted or unpushed work on local disk. Automated synchronization ensures repo integrity, allows remote CI/CD triggers, and prevents session handoff data divergence across development environments. Future agents MUST keep this in mind and execute automatic git push before concluding their turn.
+
+**2. LangSmith Tracing Architecture & Span Conventions:**
+- **Configuration Synchronization:** `ai_services/app/core/config.py` automatically synchronizes `LANGCHAIN_TRACING_V2=true`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT="FrontWing"`, and `LANGCHAIN_ENDPOINT="https://api.smith.langchain.com"`. Both `LANGCHAIN_*` and legacy `LANGSMITH_*` environment variable keys are supported interchangeably.
+- **Tool Span Convention:** Every tool (`race_results_tool`, `telemetry_tool`, `scoring_tool`, `simulation_tool`, `strategy_tool`, `explain_mode_tool`, etc.) is wrapped during registration in `ToolRegistry.register` with `@traceable(run_type="tool", name=tool.name)`. This captures exact input parameters, output payload, and duration without manual instrumentation.
+- **LLM Span Convention:** In `providers.py`, `GeminiProvider` and `GroqProvider` methods are decorated with `@traceable(run_type="llm")` using `_format_gemini_inputs`/`_format_groq_inputs` and `_format_llm_outputs`. This structures the trace with `messages` in input, `generations` in output, `ls_provider`, `ls_model_name`, token usage, and real execution latency so LangSmith renders them natively as LLM playground/trace cards.
+- **LangGraph Node Naming:** Node identifiers in `StateGraph(AgentState)` must always use explicit descriptive names (`plan_node`, `execute_node`, `reflect_node`, `judge_node`, `context_builder_node`, `synthesize_node`). Never revert to generic single-word names (`plan`, `execute`).
+- **Feature Area Tagging:** Every trace must carry its designated feature area tag:
+  - General Race Engineer investigations: `tags=["general-query"]`
+  - Strategy Engineer simulations & analysis: `tags=["strategy-engineer"]`
+  - 3D Ghost Battle telemetry pipeline: `tags=["ghost-battle"]`
+- **Graceful Fallback:** If `LANGCHAIN_API_KEY` is missing or LangSmith is unreachable, tracing decorators degrade gracefully to local execution with zero crashes.
+

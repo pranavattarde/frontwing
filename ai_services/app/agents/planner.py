@@ -1407,8 +1407,8 @@ def should_reflect_loop(state: AgentState) -> str:
     next_step = state.get("next_step_idx", 0)
     
     if next_step < len(plan) and reflection_count < 2:
-        return "execute"
-    return "judge"
+        return "execute_node"
+    return "judge_node"
 
 
 # =====================================================================
@@ -2178,37 +2178,37 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
 
 workflow = StateGraph(AgentState)
 
-# Add nodes
-workflow.add_node("plan", plan_node)
-workflow.add_node("execute", execute_node)
-workflow.add_node("reflect", reflect_node)
-workflow.add_node("judge", judge_node)
-workflow.add_node("context_builder", context_builder_node)
-workflow.add_node("synthesize", synthesize_node)
+# Add nodes with clear descriptive names for LangSmith trace viewer
+workflow.add_node("plan_node", plan_node)
+workflow.add_node("execute_node", execute_node)
+workflow.add_node("reflect_node", reflect_node)
+workflow.add_node("judge_node", judge_node)
+workflow.add_node("context_builder_node", context_builder_node)
+workflow.add_node("synthesize_node", synthesize_node)
 
 # Set entry point
-workflow.set_entry_point("plan")
+workflow.set_entry_point("plan_node")
 
-# Connect plan directly to execute
-workflow.add_edge("plan", "execute")
+# Connect plan_node directly to execute_node
+workflow.add_edge("plan_node", "execute_node")
 
-# Connect execute to reflect
-workflow.add_edge("execute", "reflect")
+# Connect execute_node to reflect_node
+workflow.add_edge("execute_node", "reflect_node")
 
-# Conditional loop from reflect back to execute or forward to judge
+# Conditional loop from reflect_node back to execute_node or forward to judge_node
 workflow.add_conditional_edges(
-    "reflect",
+    "reflect_node",
     should_reflect_loop,
     {
-        "execute": "execute",
-        "judge": "judge"
+        "execute_node": "execute_node",
+        "judge_node": "judge_node"
     }
 )
 
-# Connect judge to context_builder, and context_builder to synthesize
-workflow.add_edge("judge", "context_builder")
-workflow.add_edge("context_builder", "synthesize")
-workflow.add_edge("synthesize", END)
+# Connect judge_node to context_builder_node, and context_builder_node to synthesize_node
+workflow.add_edge("judge_node", "context_builder_node")
+workflow.add_edge("context_builder_node", "synthesize_node")
+workflow.add_edge("synthesize_node", END)
 
 # Compile graph
 compiled_graph = workflow.compile()
@@ -2219,7 +2219,8 @@ def run_ai_race_engineer(
     session_id: Optional[str] = None,
     driver_id: Optional[str] = None,
     history: Optional[List[Dict[str, Any]]] = None,
-    context: Optional[Dict[str, Any]] = None
+    context: Optional[Dict[str, Any]] = None,
+    tags: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """Top-level function to execute the Chief Race Engineer StateGraph.
     
@@ -2233,6 +2234,7 @@ def run_ai_race_engineer(
         driver_id = driver_id or q_dict.get("driver_id")
         history = history or q_dict.get("history")
         context = context or q_dict.get("context")
+        tags = tags or q_dict.get("tags")
         
     initial_state = {
         "question": question,
@@ -2256,9 +2258,20 @@ def run_ai_race_engineer(
         "collaboration_graph": []
     }
     
+    # LangSmith tracing configuration with feature tagging
+    active_tags = list(tags) if tags else ["general-query"]
+    trace_config = {
+        "tags": active_tags,
+        "metadata": {
+            "feature_area": "general-query",
+            "session_id": session_id or "auto",
+            "driver_id": driver_id or "auto"
+        }
+    }
+    
     # Run graph
     try:
-        final_state = compiled_graph.invoke(initial_state)
+        final_state = compiled_graph.invoke(initial_state, config=trace_config)
         
         # Log structured request diagnostics
         trace = final_state.get("intelligence_trace", {})

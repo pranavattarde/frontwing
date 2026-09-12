@@ -1,11 +1,40 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-09-12 by Antigravity (Session 034 - Dedicated 3D Ghost Battle Tab with FastF1 Telemetry, Three.js & Multi-Car Sync)
-> Audit method: Dedicated `/ghost-battle` tab verified end-to-end with real browser subagent and screenshots; Three.js 3D track ribbon, start/finish gantry, and team-colored car meshes rendered in full 3D space; 4-step selection deck (Year -> Completed GP -> Driver/Team multi-select -> Generate); FastF1 Python service + Express backend API with Redis caching; 3 distinct combinations independently verified with visual proof (British GP H2H, Dutch GP Team Selection, Monza 6-Driver Multi-Car Battle); Frontend build passing cleanly with 0 errors (`npm run build` in 15.02s).
+> Last updated: 2026-09-12 by Antigravity (Session 035 - LangSmith Tracing Across LangGraph, Tools & LLM Providers + Automated GitHub Push)
+> Audit method: Verified live trace ID 01a095db-277b-74e0-9c56-16a68cf39181 in LangSmith 'FrontWing' project; confirmed all 6 LangGraph nodes (plan_node, execute_node, reflect_node, judge_node, context_builder_node, synthesize_node) properly nested; verified distinct [TOOL] race_results_tool, strategy_tool, simulation_tool spans with input parameters and output visible; verified [LLM] spans for Gemini and Groq with prompt messages, completions, model names, token usage, and latency; verified feature area tagging (general-query, strategy-engineer, ghost-battle); automated GitHub push protocol active; 59/59 pytest domain tests passing cleanly.
 
 ---
 
 ## 1. What Works Right Now
+
+### LangSmith Tracing Across Full LangGraph Pipeline, Tools & LLM Providers (SESSION 035 VERIFIED LIVE)
+- **Environment Synchronization & SDK Integration**:
+  - `ai_services/.env` and `app/core/config.py` configured with `LANGCHAIN_TRACING_V2=true`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT="FrontWing"`, `LANGCHAIN_ENDPOINT="https://api.smith.langchain.com"`.
+  - Bidirectional environment variable synchronization between `LANGCHAIN_*` and legacy `LANGSMITH_*` keys with graceful offline fallback.
+- **Descriptive LangGraph Node Architecture (`planner.py`)**:
+  - Renamed all generic graph nodes to legible, clear identifiers for LangSmith's trace viewer:
+    - `plan_node` (Strategy Planner)
+    - `execute_node` (Tool Execution Pipeline)
+    - `reflect_node` (Consistency & Completeness Reflection)
+    - `judge_node` (Factual Evaluation & Scoring)
+    - `context_builder_node` (Synthesis Context Assembler)
+    - `synthesize_node` (Chief Engineer Synthesis)
+  - Updated graph edges, conditional edge router `should_reflect_loop` (`"execute_node"` / `"judge_node"`), and entry point.
+- **Distinct Tool Call Tracing (run_type = "tool") (`registry.py`)**:
+  - `ToolRegistry.register` and `_wrap_tool_with_tracing` wrap all registered tools (`race_results_tool`, `telemetry_tool`, `scoring_tool`, `simulation_tool`, `strategy_tool`, `explain_mode_tool`, `knowledge_tool`, `investigation_tool`).
+  - Automatically captures exact input parameters (`inputs`) and output evidence payloads as dedicated `[TOOL]` spans nested under the calling node.
+- **LLM Provider Spans for Gemini & Groq (run_type = "llm") (`providers.py`)**:
+  - Decorated `GeminiProvider` (`Gemini_generate_plan`, `Gemini_generate_response`) and `GroqProvider` (`Groq_generate_plan`, `Groq_generate_response`) with `@traceable(run_type="llm")`.
+  - Transforms input arguments into standard chat messages `[{"role": "system", ...}, {"role": "user", ...}]` and captures assistant completions `{"generations": [{"text": ...}], "llm_output": {...}}` with model names (`gemini-2.5-flash`, `openai/gpt-oss-120b`), provider pills (`google_genai`, `groq`), token usage, and latency.
+- **Feature Area Tagging**:
+  - `general-query`: General Race Engineer StateGraph invocations (`run_ai_race_engineer`).
+  - `strategy-engineer`: Strategy planner pipeline (`strategy_planner_workflow`), `strategy_analysis_node`, and `strategy_whatif_node`.
+  - `ghost-battle`: FastF1 3D telemetry and position pipeline (`ghost_battle_3d_pipeline`).
+- **Live Trace Verification**:
+  - Live query: *"Who won the 2024 British Grand Prix and what was the podium?"* -> Trace ID `01a095db-277b-74e0-9c56-16a68cf39181` (11 spans: LangGraph root, plan_node, Gemini_generate_plan, execute_node, race_results_tool, reflect_node, judge_node, context_builder_node, synthesize_node, Gemini_generate_response).
+  - Live Strategy query: *"What if Norris pitted on lap 25 at 2024 Dutch GP?"* -> Strategy Trace ID `01a095db-75ee-7ce2-9743-7b16e5491e18` (`strategy_planner_workflow` -> `strategy_whatif_node` -> `strategy_tool` + `simulation_tool`).
+- **Mandatory Automated GitHub Push Protocol**:
+  - Entry 020 in `RULES_AND_GOTCHAS.md`: Every implementation and session handoff is automatically pushed to GitHub (`origin/main`).
 
 ### Dedicated 3D Ghost Battle Tab with FastF1 Telemetry & Three.js (SESSION 034 VERIFIED LIVE)
 - **Standalone 3D Architecture (`/ghost-battle`)**:

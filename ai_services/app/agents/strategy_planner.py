@@ -17,6 +17,14 @@ from app.core.db import execute_query
 from app.tools.registry import tool_registry
 from app.agents.nlp_parser import F1_DRIVER_ALIAS_MAP, F1_CIRCUIT_ALIAS_MAP, preprocess_text
 
+try:
+    from langsmith import traceable
+except ImportError:
+    def traceable(*args, **kwargs):
+        def decorator(f):
+            return f
+        return decorator
+
 
 # Unmodeled vehicle dynamics and setup parameters that SimulationTool cannot simulate
 UNMODELED_VARIABLES = [
@@ -222,6 +230,7 @@ def resolve_session_and_event(question: str, session_hint: Optional[str] = None,
     return session_id, gp, year
 
 
+@traceable(name="strategy_analysis_node", run_type="chain", tags=["strategy-engineer"])
 def run_strategy_analysis(
     question: str,
     session_id: str,
@@ -508,6 +517,7 @@ def run_strategy_analysis(
     }
 
 
+@traceable(name="strategy_whatif_node", run_type="chain", tags=["strategy-engineer"])
 def run_strategy_whatif(
     question: str,
     session_id: str,
@@ -696,6 +706,7 @@ def run_strategy_whatif(
     }
 
 
+@traceable(name="strategy_planner_workflow", run_type="chain", tags=["strategy-engineer"])
 def run_strategy_planner(
     question: str,
     session_id: Optional[str] = None,

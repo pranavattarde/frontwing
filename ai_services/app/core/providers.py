@@ -22,6 +22,73 @@ try:
 except ImportError:
     HAS_GROQ = False
 
+# LangSmith LLM span tracing support
+try:
+    from langsmith import traceable
+    from langsmith.run_helpers import get_current_run_tree
+    HAS_LANGSMITH = True
+except ImportError:
+    HAS_LANGSMITH = False
+    def traceable(*args, **kwargs):
+        def decorator(f):
+            return f
+        return decorator
+    def get_current_run_tree():
+        return None
+
+
+def _format_gemini_inputs(inputs: Dict[str, Any]) -> Dict[str, Any]:
+    sys_inst = inputs.get("system_instruction") or ""
+    contents = inputs.get("contents") or ""
+    messages = []
+    if sys_inst:
+        messages.append({"role": "system", "content": str(sys_inst)})
+    if contents:
+        messages.append({"role": "user", "content": str(contents)})
+    return {
+        "messages": messages,
+        "model": os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    }
+
+
+def _format_groq_inputs(inputs: Dict[str, Any]) -> Dict[str, Any]:
+    sys_inst = inputs.get("system_instruction") or ""
+    contents = inputs.get("contents") or ""
+    messages = []
+    if sys_inst:
+        messages.append({"role": "system", "content": str(sys_inst)})
+    if contents:
+        messages.append({"role": "user", "content": str(contents)})
+    return {
+        "messages": messages,
+        "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+    }
+
+
+def _format_llm_outputs(outputs: Any) -> Dict[str, Any]:
+    if isinstance(outputs, tuple) and len(outputs) == 2:
+        raw_or_parsed, metrics = outputs
+        text_str = json.dumps(raw_or_parsed) if isinstance(raw_or_parsed, dict) else str(raw_or_parsed)
+        p_toks = metrics.get("prompt_tokens", 250) if isinstance(metrics, dict) else 250
+        c_toks = metrics.get("completion_tokens", 100) if isinstance(metrics, dict) else 100
+        provider_name = metrics.get("llm_provider", "unknown") if isinstance(metrics, dict) else "unknown"
+        model_name = metrics.get("llm_model", "unknown") if isinstance(metrics, dict) else "unknown"
+        est_cost = metrics.get("estimated_cost", 0.0) if isinstance(metrics, dict) else 0.0
+        return {
+            "generations": [{"text": text_str}],
+            "llm_output": {
+                "model_name": model_name,
+                "provider": provider_name,
+                "token_usage": {
+                    "prompt_tokens": p_toks,
+                    "completion_tokens": c_toks,
+                    "total_tokens": p_toks + c_toks
+                },
+                "estimated_cost": est_cost
+            }
+        }
+    return {"generations": [{"text": str(outputs)}]}
+
 def _get_llm_cache(cache_key: str) -> Optional[Any]:
     if not settings.LLM_CACHE_ENABLED:
         return None
@@ -123,6 +190,13 @@ class BaseLLMProvider(ABC):
 # =====================================================================
 
 class GeminiProvider(BaseLLMProvider):
+    @traceable(
+        run_type="llm",
+        name="Gemini_generate_plan",
+        process_inputs=_format_gemini_inputs,
+        process_outputs=_format_llm_outputs,
+        metadata={"ls_provider": "google_genai"}
+    )
     def generate_plan(self, system_instruction: str, contents: str, timeout_seconds: float = 30.0) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         if not HAS_GEMINI:
             raise LLMProviderError("Gemini SDK ('google-genai') is not installed.")
@@ -170,6 +244,13 @@ class GeminiProvider(BaseLLMProvider):
                 raise LLMTimeoutError(f"Gemini provider timed out: {e}")
             raise LLMProviderError(f"Gemini execution failed: {e}")
 
+    @traceable(
+        run_type="llm",
+        name="Gemini_generate_response",
+        process_inputs=_format_gemini_inputs,
+        process_outputs=_format_llm_outputs,
+        metadata={"ls_provider": "google_genai"}
+    )
     def generate_response(self, system_instruction: str, contents: str, response_mime_type: str = "text/plain", timeout_seconds: float = 30.0) -> Tuple[str, Dict[str, Any]]:
         if not HAS_GEMINI:
             raise LLMProviderError("Gemini SDK ('google-genai') is not installed.")
@@ -219,6 +300,13 @@ class GeminiProvider(BaseLLMProvider):
 # =====================================================================
 
 class GroqProvider(BaseLLMProvider):
+    @traceable(
+        run_type="llm",
+        name="Groq_generate_plan",
+        process_inputs=_format_groq_inputs,
+        process_outputs=_format_llm_outputs,
+        metadata={"ls_provider": "groq"}
+    )
     def generate_plan(self, system_instruction: str, contents: str, timeout_seconds: float = 30.0) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         if not HAS_GROQ:
             raise LLMProviderError("Groq SDK ('groq') is not installed.")
@@ -292,6 +380,13 @@ class GroqProvider(BaseLLMProvider):
                 raise LLMTimeoutError(f"Groq provider timed out: {e}")
             raise LLMProviderError(f"Groq execution failed: {e}")
 
+    @traceable(
+        run_type="llm",
+        name="Groq_generate_response",
+        process_inputs=_format_groq_inputs,
+        process_outputs=_format_llm_outputs,
+        metadata={"ls_provider": "groq"}
+    )
     def generate_response(self, system_instruction: str, contents: str, response_mime_type: str = "text/plain", timeout_seconds: float = 30.0) -> Tuple[str, Dict[str, Any]]:
         if not HAS_GROQ:
             raise LLMProviderError("Groq SDK ('groq') is not installed.")

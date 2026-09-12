@@ -19,6 +19,14 @@ if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
+try:
+    from langsmith import traceable
+except ImportError:
+    def traceable(*args, **kwargs):
+        def decorator(f):
+            return f
+        return decorator
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 CACHE_DIR = str(PROJECT_ROOT / "ai_services" / "cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -268,6 +276,7 @@ def normalize_and_center_3d(points, target_radius=100.0):
     return transformed, float(scale), [float(center[0]), float(center[1]), float(center[2])]
 
 
+@traceable(name="ghost_battle_3d_pipeline", run_type="chain", tags=["ghost-battle"])
 def get_ghost_battle_data(session_id: str, driver_ids: list):
     """
     Fetches fastest valid lap telemetry (including X/Y/Z) for selected drivers,

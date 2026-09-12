@@ -339,6 +339,28 @@ class BaseF1Tool(ABC):
         return None  # Unknown parameter — never invent
 
 
+def _wrap_tool_with_tracing(tool: BaseF1Tool) -> BaseF1Tool:
+    """Wraps tool.execute with LangSmith @traceable(run_type='tool') for observability."""
+    if getattr(tool, "_is_langsmith_traced", False):
+        return tool
+    
+    orig_execute = tool.execute
+    tool_name = tool.name
+    
+    try:
+        from langsmith import traceable
+        @traceable(run_type="tool", name=tool_name)
+        def traced_execute(inputs: Dict[str, Any], *args, **kwargs) -> Any:
+            return orig_execute(inputs, *args, **kwargs)
+            
+        tool.execute = traced_execute
+        tool._is_langsmith_traced = True
+    except Exception as e:
+        logger.debug(f"[ToolRegistry] Could not wrap tool '{tool_name}' with LangSmith tracing: {e}")
+        
+    return tool
+
+
 class ToolRegistry:
     """Registry that registers and retrieves all F1 tools."""
     
@@ -346,20 +368,21 @@ class ToolRegistry:
         self._tools: Dict[str, BaseF1Tool] = {}
         
     def register(self, tool: BaseF1Tool) -> None:
-        """Registers a tool in the registry."""
+        """Registers a tool in the registry and attaches LangSmith tool tracing."""
         if tool.name in self._tools:
             raise ValueError(f"Tool with name '{tool.name}' is already registered.")
+        _wrap_tool_with_tracing(tool)
         self._tools[tool.name] = tool
         
     def get_tool(self, name: str) -> BaseF1Tool:
-        """Retrieves a registered tool by its name."""
+        """Retrieves a registered tool by its name with tracing guaranteed."""
         if name not in self._tools:
             raise KeyError(f"Tool with name '{name}' is not registered.")
-        return self._tools[name]
+        return _wrap_tool_with_tracing(self._tools[name])
         
     def list_tools(self) -> List[BaseF1Tool]:
         """Returns a list of all registered tools."""
-        return list(self._tools.values())
+        return [_wrap_tool_with_tracing(t) for t in self._tools.values()]
 
 
 # Global instance of the tool registry
