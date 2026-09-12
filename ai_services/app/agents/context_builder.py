@@ -50,10 +50,7 @@ def normalize_evidence_item(tool_name: str, payload: Any, question: str = "") ->
         "investigation_tool": "incident",
         "race_results_tool": "historical_results",
         "driver_database_tool": "database",
-        "constructor_database_tool": "database",
-        "standings_tool": "historical_results",
-        "historical_results_tool": "historical_results",
-        "historical_data_tool": "historical_results"
+        "constructor_database_tool": "database"
     }
     
     category = category_map.get(tool_name, "general")

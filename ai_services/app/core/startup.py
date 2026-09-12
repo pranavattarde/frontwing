@@ -101,9 +101,7 @@ def run_startup_health_checks() -> Dict[str, Any]:
         "investigation_tool",
         "race_results_tool",
         "driver_database_tool",
-        "constructor_database_tool",
-        "standings_tool",
-        "historical_results_tool"
+        "constructor_database_tool"
     ]
     registered_tools = [t.name for t in tool_registry.list_tools()]
     missing_tools = [t for t in PLANNER_REFERENCED_TOOLS if t not in registered_tools]

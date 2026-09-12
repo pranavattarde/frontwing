@@ -1,3 +1,27 @@
+## Session 037 -- 2026-09-12 -- Part 1: StandingsTool Decommission & Future Scope, Part 2: Historical Tools Tech Debt Purged, Part 3: Ghost Battle Dialogue & Driver DNA Assessment
+
+### What Was Changed
+- **Part 1: StandingsTool Audit & Decommission (`StandingsTool`, `adapters.py`)**:
+  - Audited PostgreSQL database coverage across seasons: 2025 has only 6 rounds ingested (Rounds 1, 2, 3, 4, 7, 15; missing 5, 6, 8, 9, 10), 2026 has 8 of 11 rounds, and 2024 grouped by constructor duplicates drivers changing teams (Max Verstappen appears twice: 376 pts under `red_bull_racing` and 25 pts under `red_bull`).
+  - Sprint race points (8 to 1) and fastest lap bonus points (1 pt) are not modeled in `race_results`.
+  - Computing standings on-the-fly across 24 rounds via FastF1 takes >120s, exceeding request timeout limits.
+  - Returning partial sums violates Entry 001 ("Fake Data Is The #1 Bug - Never fabricate or return partial success data").
+  - Formally decommissioned `StandingsTool` (`standings_tool`) from active tool registry and marked as an out-of-scope future feature requiring an offline Ergast/OpenF1 standings sync pipeline.
+- **Part 2: Dead Historical Tools Tech Debt Purged (`adapters.py`, `registry.py`, `startup.py`, `planner.py`, `context_builder.py`, `investigation_correlator.py`)**:
+  - Audited `HistoricalDataTool` (`historical_data_tool`) and `HistoricalResultsTool` (`historical_results_tool`). Both were legacy prototypes executing raw SQL or `LIMIT 20` on local `race_results`.
+  - No pre-FastF1 historical database (1950-2017) exists in the database.
+  - All race history queries are covered with session resolution and live FastF1 fallbacks by `race_results_tool`.
+  - Deleted both tool classes from `adapters.py`, unregistered from global registry, removed validation checks in `registry.py`, removed from `PLANNER_REFERENCED_TOOLS` in `startup.py`, cleaned engineer mappings in `planner.py`, and removed from `context_builder.py` and `investigation_correlator.py`.
+- **Part 3: Assessment of Future Feature Concepts (Ghost Battle Dialogue & Driver DNA / Live Copilot)**:
+  - Researched data granularity, technical architecture, and implementation scope for upcoming roadmap features.
+
+### Verification
+- `test_tool_cleanup.py`: Verified 11 core tools registered, 0 missing tools, `startup.py` system health diagnostic `healthy`, and `race_results_tool` active.
+- `ai_services/tests/test_tool_registry.py`: 6/6 tests passed.
+- `ai_services/tests/test_race_results.py` and `test_ghost_battle_service.py`: Tested against active clean registry.
+
+---
+
 ## Session 036 -- 2026-09-12 -- FIX W: Ghost Battle Selection UI Redesign, F1 Dropdown Styling, 3D Low-Poly Car Silhouettes, Geometric Badges & Dynamic 2026 Grid
 
 ### What Was Changed

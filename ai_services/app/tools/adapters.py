@@ -1598,57 +1598,6 @@ class TelemetryTool(BaseF1Tool):
 
 
 
-# =====================================================================
-# 4. Historical Data Tool Adapter
-# =====================================================================
-class HistoricalDataTool(BaseF1Tool):
-    @property
-    def name(self) -> str:
-        return "historical_data_tool"
-        
-    @property
-    def description(self) -> str:
-        return (
-            "Performs general SQL database queries against F1 database tables (constructors, "
-            "drivers, races, sessions, race_results, stints, laps) to retrieve "
-            "historical context. Requires input: sql_query (str) or session_id (str)."
-        )
-        
-    @property
-    def input_schema(self) -> Dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "sql_query": {"type": "string"},
-                "session_id": {"type": "string"},
-                "driver_id": {"type": "string"}
-            }
-        }
-        
-    def execute(self, inputs: Dict[str, Any]) -> Any:
-        query = inputs.get("sql_query")
-        session_id = inputs.get("session_id")
-        driver_id = inputs.get("driver_id")
-        
-        if query:
-            q_lower = query.lower()
-            if any(kw in q_lower for kw in ["insert", "update", "delete", "drop", "alter"]):
-                raise ValueError("Query rejected. Only read-only operations are allowed.")
-            return execute_query(query, fetch=True)
-            
-        if session_id:
-            if driver_id:
-                return execute_query(
-                    "SELECT * FROM race_results WHERE session_id = %s AND driver_id = %s",
-                    (session_id, driver_id), fetch=True
-                )
-            return execute_query(
-                "SELECT * FROM race_results WHERE session_id = %s ORDER BY position",
-                (session_id,), fetch=True
-            )
-            
-        return {"status": "missing_parameters", "error": "Query parameters missing."}
-
 
 # =====================================================================
 # 5. Explain Mode Tool Adapter
@@ -2296,161 +2245,11 @@ class ConstructorDatabaseTool(BaseF1Tool):
         return {"constructors": []}
 
 
-# =====================================================================
-# 12. Standings Tool Adapter
-# =====================================================================
-class StandingsTool(BaseF1Tool):
-    @property
-    def name(self) -> str:
-        return "standings_tool"
-        
-    @property
-    def description(self) -> str:
-        return (
-            "Retrieves driver or constructor championship standings for a given year (int) or season. "
-            "Optional inputs: year (int), standings_type (str, either 'driver' or 'constructor')."
-        )
-        
-    @property
-    def input_schema(self) -> Dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "year": {"type": "integer"},
-                "standings_type": {"type": "string", "enum": ["driver", "constructor"]}
-            }
-        }
-        
-    def execute(self, inputs: Dict[str, Any]) -> Any:
-        year = inputs.get("year")
-        st_type = inputs.get("standings_type", "driver")
-        
-        if not year:
-            try:
-                res = execute_query("SELECT MAX(year) as max_year FROM races", fetch=True)
-                if res and res[0]["max_year"]:
-                    year = int(res[0]["max_year"])
-            except Exception:
-                pass
-        if not year:
-            from app.core.session_resolver import get_current_f1_season
-            year = get_current_f1_season()
-            
-        if st_type == "constructor":
-            sql = """
-                SELECT c.name as constructor_name, SUM(r.points) as total_points
-                FROM race_results r
-                JOIN constructors c ON r.constructor_id = c.id
-                JOIN sessions s ON r.session_id = s.id
-                JOIN races rc ON s.race_id = rc.id
-                WHERE rc.year = %s AND s.type = 'Race'
-                GROUP BY c.name
-                ORDER BY total_points DESC
-            """
-            try:
-                standings = execute_query(sql, (year,), fetch=True)
-                if standings:
-                    for idx, item in enumerate(standings):
-                        item["position"] = idx + 1
-                    return {"year": year, "standings_type": "constructor", "standings": standings}
-            except Exception:
-                pass
-                
-            return {"year": year, "standings_type": "constructor", "standings": []}
-        else:
-            sql = """
-                SELECT d.first_name, d.last_name, d.code, SUM(r.points) as total_points, c.name as team_name
-                FROM race_results r
-                JOIN drivers d ON r.driver_id = d.id
-                LEFT JOIN constructors c ON r.constructor_id = c.id
-                JOIN sessions s ON r.session_id = s.id
-                JOIN races rc ON s.race_id = rc.id
-                WHERE rc.year = %s AND s.type = 'Race'
-                GROUP BY d.id, d.first_name, d.last_name, d.code, c.name
-                ORDER BY total_points DESC
-            """
-            try:
-                standings = execute_query(sql, (year,), fetch=True)
-                if standings:
-                    for idx, item in enumerate(standings):
-                        item["position"] = idx + 1
-                    return {"year": year, "standings_type": "driver", "standings": standings}
-            except Exception:
-                pass
-                
-            return {"year": year, "standings_type": "driver", "standings": []}
-
-
-# =====================================================================
-# 13. Historical Results Tool Adapter
-# =====================================================================
-class HistoricalResultsTool(BaseF1Tool):
-    @property
-    def name(self) -> str:
-        return "historical_results_tool"
-        
-    @property
-    def description(self) -> str:
-        return (
-            "Retrieves past grand prix winners, race results, or historical performance metrics. "
-            "Optional inputs: year (int), circuit_id (str), driver_id (str)."
-        )
-        
-    @property
-    def input_schema(self) -> Dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "year": {"type": "integer"},
-                "circuit_id": {"type": "string"},
-                "driver_id": {"type": "string"}
-            }
-        }
-        
-    def execute(self, inputs: Dict[str, Any]) -> Any:
-        year = inputs.get("year")
-        circuit_id = inputs.get("circuit_id")
-        driver_id = inputs.get("driver_id")
-        
-        sql = """
-            SELECT rc.year, rc.name as race_name, s.type as session_type,
-                   r.position, d.first_name, d.last_name, d.code, c.name as team_name
-            FROM race_results r
-            JOIN drivers d ON r.driver_id = d.id
-            JOIN constructors c ON r.constructor_id = c.id
-            JOIN sessions s ON r.session_id = s.id
-            JOIN races rc ON s.race_id = rc.id
-            WHERE 1=1
-        """
-        params = []
-        if year:
-            sql += " AND rc.year = %s"
-            params.append(year)
-        if circuit_id:
-            sql += " AND rc.circuit_id = %s"
-            params.append(circuit_id)
-        if driver_id:
-            sql += " AND r.driver_id = %s"
-            params.append(driver_id)
-            
-        sql += " ORDER BY rc.year DESC, r.position ASC LIMIT 20"
-        
-        try:
-            results = execute_query(sql, tuple(params) if params else None, fetch=True)
-            if results:
-                return {"historical_results": results}
-        except Exception:
-            pass
-            
-        return {"historical_results": []}
-
-
 # Register all tools globally
 tool_registry.register(ScoringTool())
 tool_registry.register(SimulationTool())
 tool_registry.register(StrategyTool())
 tool_registry.register(TelemetryTool())
-tool_registry.register(HistoricalDataTool())
 tool_registry.register(ExplainModeTool())
 tool_registry.register(ResearchTool())
 tool_registry.register(KnowledgeTool())
@@ -2458,5 +2257,3 @@ tool_registry.register(InvestigationTool())
 tool_registry.register(RaceResultsTool())
 tool_registry.register(DriverDatabaseTool())
 tool_registry.register(ConstructorDatabaseTool())
-tool_registry.register(StandingsTool())
-tool_registry.register(HistoricalResultsTool())

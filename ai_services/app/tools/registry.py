@@ -150,20 +150,6 @@ class BaseF1Tool(ABC):
             if not isinstance(output, dict) or "constructors" not in output or not isinstance(output["constructors"], list):
                 raise ToolValidationError("constructor_database_tool must return dict with list under 'constructors'")
                 
-        elif name == "standings_tool":
-            if not isinstance(output, dict):
-                raise ToolValidationError("standings_tool output must be a dictionary")
-            required = ["year", "standings_type", "standings"]
-            for r in required:
-                if r not in output:
-                    raise ToolValidationError(f"standings_tool missing required field: {r}")
-            if not isinstance(output["standings"], list):
-                raise ToolValidationError("standings_tool standings must be a list")
-                
-        elif name == "historical_results_tool":
-            if not isinstance(output, dict) or "historical_results" not in output or not isinstance(output["historical_results"], list):
-                raise ToolValidationError("historical_results_tool must return dict with list under 'historical_results'")
-                
         elif name == "explain_mode_tool":
             if not isinstance(output, dict):
                 raise ToolValidationError("explain_mode_tool output must be a dictionary")
@@ -186,10 +172,6 @@ class BaseF1Tool(ABC):
                 rows_returned = len(output["drivers"])
             elif "constructors" in output and isinstance(output["constructors"], list):
                 rows_returned = len(output["constructors"])
-            elif "standings" in output and isinstance(output["standings"], list):
-                rows_returned = len(output["standings"])
-            elif "historical_results" in output and isinstance(output["historical_results"], list):
-                rows_returned = len(output["historical_results"])
                 
         debug_block = (
             f"=========== TOOL ===========\n\n"

@@ -409,9 +409,7 @@ def get_engineers_for_tools(tools: List[str]) -> List[str]:
         "investigation_tool": "Investigation Engineer",
         "race_results_tool": "Investigation Engineer",
         "driver_database_tool": "Research Engineer",
-        "constructor_database_tool": "Research Engineer",
-        "standings_tool": "Investigation Engineer",
-        "historical_results_tool": "Research Engineer"
+        "constructor_database_tool": "Research Engineer"
     }
     extracted = []
     for t in tools:
@@ -921,9 +919,7 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
         "investigation_tool": engineer_registry.get_engineer("Investigation Engineer"),
         "race_results_tool": engineer_registry.get_engineer("Investigation Engineer"),
         "driver_database_tool": engineer_registry.get_engineer("Research Engineer"),
-        "constructor_database_tool": engineer_registry.get_engineer("Research Engineer"),
-        "standings_tool": engineer_registry.get_engineer("Investigation Engineer"),
-        "historical_results_tool": engineer_registry.get_engineer("Research Engineer")
+        "constructor_database_tool": engineer_registry.get_engineer("Research Engineer")
     }
     
     def parse_step(step: str):

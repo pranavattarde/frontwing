@@ -1,11 +1,18 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-09-12 by Antigravity (Session 036 - FIX W: Ghost Battle Selection UI Redesign, F1 Dropdown Styling, 3D Low-Poly Car Silhouettes, Geometric Badges & Dynamic 2026 Grid)
-> Audit method: Browser subagent verified live in Chrome on localhost:5173/ghost-battle across 3 seasons (2024 British GP, 2026 Australian GP, 2024 Bahrain GP); verified F1Dropdown renders dark asphalt background (#12151B/#181C24) with F1 red accents (#FF1801) and high-contrast text with zero unstyled white browser-native elements; verified Team selection cards render low-poly 3D car silhouettes in team colors via Three.js/R3F with frameloop="demand" and abstract geometric insignias (no copyrighted logos); verified Driver selection cards render vector helmet avatar silhouettes with team color glows and authentic driver numbers; verified 2026 Season resolution fetches authentic 2026 grid (Audi with Bortoleto/Hulkenberg, Cadillac with Perez/Bottas, Ferrari with Hamilton/Leclerc, Mercedes with Russell/Antonelli); 4/4 test_ghost_battle_service.py tests passed; production build passed in 10.83s.
+> Last updated: 2026-09-12 by Antigravity (Session 037 - Part 1: StandingsTool Decommission & Future Scope, Part 2: Historical Tools Cleanup, Part 3: Ghost Battle Dialogue & Driver DNA Assessment)
+> Audit method: Verified PostgreSQL database contains partial race results (2025 has only 6 rounds, 2026 has 8, missing sprint/fastest-lap points) making cumulative standings calculation partial/distorted; decommissioned StandingsTool from active registry; deleted dead/duplicate HistoricalDataTool and HistoricalResultsTool classes; verified all 11 core tools register cleanly with 100% startup diagnostic health (missing_tools: []); ran unit test suite with 0 failures.
 
 ---
 
 ## 1. What Works Right Now
+
+### Clean Tool Registry & Startup Diagnostics (SESSION 037 VERIFIED)
+- **11 Active Core Tools Registered Globally (`adapters.py`, `registry.py`)**:
+  - `scoring_tool`, `simulation_tool`, `strategy_tool`, `telemetry_tool`, `explain_mode_tool`, `research_tool`, `knowledge_tool`, `investigation_tool`, `race_results_tool`, `driver_database_tool`, `constructor_database_tool`.
+- **Zero Orphaned Tools & 100% Compatibility**:
+  - `startup.py` system health diagnostics confirmed: `Tool registry complete: all planner-referenced tools registered`, `missing_tools: []`, `status: healthy`.
+  - All personas in `planner.py` mapped strictly to active registered tools.
 
 ### Ghost Battle Selection UI & 3D Visual Upgrade (SESSION 036 VERIFIED LIVE)
 - **F1Broadcast Custom Dropdown Component (`F1Dropdown.jsx`)**:
@@ -229,7 +236,23 @@
 
 ---
 
-## 2. What Is Broken Right Now
+## 2. What Is Broken Right Now / Out of Scope
+
+### OUT OF SCOPE FOR CURRENT RELEASE -- Standings / Championship Tool
+- **StandingsTool Decommissioned (`standings_tool`)**:
+  - Audit revealed that PostgreSQL `race_results` across seasons is non-contiguous and partial (2025 has only 6 rounds in DB: Rounds 1, 2, 3, 4, 7, 15; 2026 has 8 rounds; 2024 has 22 rounds but SQL group-by constructor name duplicated drivers changing teams like Max Verstappen).
+  - Sprint race points (8 to 1) and fastest lap bonus points (1 pt) are missing from the `race_results` table schema.
+  - FastF1 provides no season-long standings API; attempting to compute cumulative points across 24 rounds on-the-fly requires downloading all race sessions, taking >120s and exceeding timeout limits.
+  - Returning partial standings sums for queries like *"what are 2025 driver standings after round 10?"* violates Rule 001 ("Fake Data Is The #1 Bug - Never fabricate or return partial success data").
+  - Per project instructions, `StandingsTool` has been explicitly marked out of scope for this release, unregistered from `tool_registry`, and references cleanly removed from `planner.py`, `startup.py`, `context_builder.py`, and `investigation_correlator.py`.
+  - **Documented Future Feature**: Requires dedicated tables (`season_driver_standings`, `season_constructor_standings`) populated via an offline Ergast/OpenF1 sync pipeline.
+
+### RESOLVED TECHNICAL DEBT -- Dead Historical Tools Purged
+- **HistoricalDataTool & HistoricalResultsTool Removed**:
+  - `HistoricalDataTool` (`historical_data_tool`) and `HistoricalResultsTool` (`historical_results_tool`) were unmaintained prototypes querying raw SQL or `LIMIT 20` on local `race_results`.
+  - There is no pre-FastF1 (1950-2017) database table in PostgreSQL.
+  - All historical Grand Prix queries are comprehensively handled by `race_results_tool` (which supports `SessionResolver`, live FastF1 fallbacks, and full classification schemas).
+  - Both dead tools unregistered, classes deleted from `adapters.py`, registry output validations cleaned from `registry.py`, and references purged across `startup.py`, `planner.py`, and `context_builder.py`. Zero orphaned tools remain.
 
 ### HIGH -- Wrong Behavior
 - **Ergast API is dead**: `ergast_collector.py` still calls `https://ergast.com/api/f1`. (FastF1 collector is active and functional for all real ingestion).

@@ -14,7 +14,7 @@ class InvestigationCorrelator:
         
         # Domain extractors
         telemetry_items = [it for it in items if it.get("category") == "telemetry" or it.get("tool") in ["telemetry_tool", "scoring_tool"]]
-        results_items = [it for it in items if it.get("category") in ["historical_results", "incident"] or it.get("tool") in ["race_results_tool", "standings_tool", "investigation_tool", "driver_database_tool", "constructor_database_tool"]]
+        results_items = [it for it in items if it.get("category") in ["historical_results", "incident"] or it.get("tool") in ["race_results_tool", "investigation_tool", "driver_database_tool", "constructor_database_tool"]]
         regulations_items = [it for it in items if it.get("category") in ["regulations", "definitions"] or it.get("tool") in ["knowledge_tool", "research_tool", "explain_mode_tool"]]
         strategy_items = [it for it in items if it.get("category") == "strategy" or it.get("tool") in ["simulation_tool", "strategy_tool"]]
         
