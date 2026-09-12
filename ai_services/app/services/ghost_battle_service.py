@@ -57,7 +57,9 @@ TEAM_COLORS = {
     'kick sauber': '#52E252',
     'alfa romeo': '#C92D4B',
     'haas': '#B6BABD',
-    'haas f1 team': '#B6BABD'
+    'haas f1 team': '#B6BABD',
+    'audi': '#F50537',
+    'cadillac': '#909090'
 }
 
 def get_team_color(team_name: str, raw_color: str = None) -> str:
@@ -82,6 +84,7 @@ def get_available_years():
     FastF1 supports rich telemetry for 2018 through current season.
     """
     now = datetime.datetime.now(datetime.timezone.utc)
+    now_naive = now.replace(tzinfo=None)
     current_year = now.year
     
     # Check current season: does it have at least one completed event?
@@ -91,12 +94,13 @@ def get_available_years():
             schedule = fastf1.get_event_schedule(y, include_testing=False)
             if schedule is not None and not schedule.empty:
                 # Check if at least one event has passed
-                past_events = schedule[schedule['EventDate'] <= now]
+                # Use timezone-naive datetime for pandas EventDate compatibility
+                past_events = schedule[schedule['EventDate'] <= now_naive]
                 if not past_events.empty:
                     years.append(y)
         except Exception:
             # If current year schedule fails, fallback to standard verified years
-            if y <= 2025:
+            if y <= 2026:
                 years.append(y)
     
     if not years:

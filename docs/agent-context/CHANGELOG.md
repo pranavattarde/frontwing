@@ -1,3 +1,46 @@
+## Session 036 -- 2026-09-12 -- FIX W: Ghost Battle Selection UI Redesign, F1 Dropdown Styling, 3D Low-Poly Car Silhouettes, Geometric Badges & Dynamic 2026 Grid
+
+### What Was Changed
+- **F1 Broadcast Custom Dropdown Component (`F1Dropdown.jsx`)**:
+  - Replaced plain unstyled white browser-native `<select>` dropdowns for Season and Completed Grand Prix.
+  - Implemented custom asphalt carbon surface (`#12151B` / `#181C24`) adhering strictly to `design_tokens.css`.
+  - Added F1 signature red (`#FF1801`) focus borders and left-accent indicator bars for selected items.
+  - Added animated SVG chevrons with 180° rotation on open/close.
+  - Built dark popover overlay (`#181C24`) with high-contrast `#FFFFFF` primary text, `#9BA4B5` sublabels (locations, dates, regulations details), and styled dark scrollbars.
+  - Added outside-click dismissal and keyboard accessibility (`Escape`, `Enter`).
+- **Low-Poly 3D Car Silhouettes for Team Cards (`TeamCar3D.jsx`)**:
+  - Implemented an original stylized low-poly F1 car mesh using `@react-three/fiber` and `three` (chassis tub, cockpit/airbox, halo safety structure, front wing mainplane/endplates, rear wing assembly with DRS flap, and 4 cylinder wheels).
+  - Colored dynamically with each team's factual primary and secondary color scheme (e.g. Ferrari red + yellow, Mercedes teal + silver, McLaren papaya + blue, Aston Martin green + lime, Red Bull navy + red, Audi red + titan, Cadillac gold + charcoal).
+  - Uses `frameloop="demand"` when idle for zero CPU/GPU overhead, dynamically switching to interactive 3/4 tilt rotation on mouse hover.
+  - Graceful SVG wireframe fallback if WebGL context creation fails.
+- **Abstract Geometric Team Badges (`TeamBadge.jsx`)**:
+  - Designed original geometric insignias (racing shield, octagon, diamond, aerodynamic crescent, winged crest, delta arrow, high-tech chevron, hex-rings) with team monograms (`SF`, `MB`, `RBR`, `MCL`, `AMR`, `ALP`, `WIL`, `RB`, `HAS`, `SAU`, `AUD`, `CAD`).
+  - STRICTLY NO copyrighted official team logos, trademarked symbols, or sponsor decals.
+- **Stylized Vector Driver Avatars (`DriverAvatar.jsx`)**:
+  - Replaced plain text pills with an original vector driver silhouette (aerodynamic helmet with visor glare, collarbone contour, and circular carbon asphalt base).
+  - Dynamically color-coded with the driver's team accent color and glow filter (`feDropShadow`).
+  - STRICTLY NO copyrighted driver photographs.
+  - Displays real driver number (`#44`, `#16`, `#1`, etc.), 3-letter code, full name, and team name as factual text.
+- **Dynamic 2026 Grid Resolution & Backend Fix (`ghost_battle_service.py`)**:
+  - Fixed timezone-naive vs timezone-aware date comparison bug in `get_available_years()`, restoring 2026 Season to available years.
+  - Invalidate Redis cache key `cache:ghost_battle:years`.
+  - Added Audi (`#F50537`) and Cadillac (`#909090`) to `TEAM_COLORS` fallback dictionary.
+  - Verified dynamic 2026 grid resolution via `/ghost-battle/drivers-teams?session_id=2026_australian_gp_race` returning 11 teams (including Audi with Bortoleto/Hulkenberg, Cadillac with Perez/Bottas, Ferrari with Hamilton/Leclerc, and Mercedes with Russell/Antonelli).
+  - Added unit test suite `ai_services/tests/test_ghost_battle_service.py` (4/4 passed).
+
+### Verification
+- **Browser Visual Verification via Browser Subagent**:
+  - `year_dropdown_open_1789221288990.png`: Confirmed Year dropdown opens as a dark F1 theme menu showing 2026, 2025, 2024, etc., with red border and high-contrast text against dark asphalt background.
+  - `gp_dropdown_open_1789221318612.png`: Confirmed Grand Prix dropdown opens as a dark menu with round numbers, GP names, track locations, and event dates.
+  - `2024_british_gp_selection_1789221341761.png`: Confirmed 2024 British GP with styled dropdowns, 3D team cards, and driver pills.
+  - `2026_australian_gp_selection_1789221443842.png`: Confirmed 2026 Season with `[2026 GRID ACTIVE]` badge, 11 teams including Audi and Cadillac, and Hamilton at Ferrari.
+  - `2026_australian_gp_drivers_grid_1789223147828.png`: Confirmed 2026 driver cards showing vector helmet avatars, numbers (#44, #12, #5, #11, etc.), and codes.
+  - `driver_cards_2024_grid_1789222708384.png`: Confirmed 2024 driver grid with glowing cyan active selection states.
+- **Build Verification**: `npm run build` completed with zero errors in 10.83s.
+- **Python Unit Tests**: `pytest tests/test_ghost_battle_service.py` (4 passed).
+
+---
+
 ## Session 035 -- 2026-09-12 -- LangSmith Tracing Integration Across LangGraph, Tools & LLM Providers + Automated GitHub Push
 
 ### What Was Changed

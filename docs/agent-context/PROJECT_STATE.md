@@ -1,11 +1,37 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-09-12 by Antigravity (Session 035 - LangSmith Tracing Across LangGraph, Tools & LLM Providers + Automated GitHub Push)
-> Audit method: Verified live trace ID 01a095db-277b-74e0-9c56-16a68cf39181 in LangSmith 'FrontWing' project; confirmed all 6 LangGraph nodes (plan_node, execute_node, reflect_node, judge_node, context_builder_node, synthesize_node) properly nested; verified distinct [TOOL] race_results_tool, strategy_tool, simulation_tool spans with input parameters and output visible; verified [LLM] spans for Gemini and Groq with prompt messages, completions, model names, token usage, and latency; verified feature area tagging (general-query, strategy-engineer, ghost-battle); automated GitHub push protocol active; 59/59 pytest domain tests passing cleanly.
+> Last updated: 2026-09-12 by Antigravity (Session 036 - FIX W: Ghost Battle Selection UI Redesign, F1 Dropdown Styling, 3D Low-Poly Car Silhouettes, Geometric Badges & Dynamic 2026 Grid)
+> Audit method: Browser subagent verified live in Chrome on localhost:5173/ghost-battle across 3 seasons (2024 British GP, 2026 Australian GP, 2024 Bahrain GP); verified F1Dropdown renders dark asphalt background (#12151B/#181C24) with F1 red accents (#FF1801) and high-contrast text with zero unstyled white browser-native elements; verified Team selection cards render low-poly 3D car silhouettes in team colors via Three.js/R3F with frameloop="demand" and abstract geometric insignias (no copyrighted logos); verified Driver selection cards render vector helmet avatar silhouettes with team color glows and authentic driver numbers; verified 2026 Season resolution fetches authentic 2026 grid (Audi with Bortoleto/Hulkenberg, Cadillac with Perez/Bottas, Ferrari with Hamilton/Leclerc, Mercedes with Russell/Antonelli); 4/4 test_ghost_battle_service.py tests passed; production build passed in 10.83s.
 
 ---
 
 ## 1. What Works Right Now
+
+### Ghost Battle Selection UI & 3D Visual Upgrade (SESSION 036 VERIFIED LIVE)
+- **F1Broadcast Custom Dropdown Component (`F1Dropdown.jsx`)**:
+  - Solved broken unstyled white browser-native `<select>` dropdowns for Year and Grand Prix.
+  - Custom dark asphalt surface (`#12151B` / `#181C24`) adhering strictly to `design_tokens.css`.
+  - Signature F1 red (`#FF1801`) focus borders, active checkmarks, and left-accent indicator bars.
+  - High-contrast text (`#FFFFFF`), sublabels with circuit locations and race dates, and smooth SVG chevron animations.
+  - Outside click dismissal, keyboard navigation (`Escape`, `Enter`).
+- **Low-Poly 3D Car Silhouettes (`TeamCar3D.jsx`)**:
+  - Original low-poly generic F1 car mesh rendered via Three.js and `@react-three/fiber` (chassis tub, cockpit/airbox, halo safety bar, sidepods, front wing mainplane/endplates, rear wing with DRS flap, and 4 wheels).
+  - Dynamically colored with team's factual primary & secondary colors (e.g. Ferrari red + yellow, Mercedes teal + silver, McLaren papaya + blue, Audi red + titan, Cadillac gold + charcoal).
+  - High-performance `frameloop="demand"` when idle (0% CPU/GPU overhead), switching to interactive smooth 3/4 tilt rotation on hover.
+  - SVG wireframe fallback if WebGL context is unavailable.
+- **Abstract Geometric Team Badges (`TeamBadge.jsx`)**:
+  - Original geometric insignias (racing shield, octagon, diamond, aerodynamic crescent, winged crest, delta arrow, high-tech chevron, hex-rings) with team monograms (`SF`, `MB`, `RBR`, `MCL`, `AMR`, `ALP`, `WIL`, `RB`, `HAS`, `SAU`, `AUD`, `CAD`).
+  - STRICTLY NO copyrighted official team logos, trademarked symbols, or sponsor decals.
+- **Stylized Vector Driver Avatars (`DriverAvatar.jsx`)**:
+  - Replaced plain text pills with an original vector driver silhouette (aerodynamic helmet with visor glare, collarbone contour, and circular carbon asphalt base).
+  - Dynamically color-coded with the driver's team accent color and glow filter (`feDropShadow`).
+  - STRICTLY NO copyrighted driver photographs.
+  - Displays real driver number (`#44`, `#16`, `#1`, etc.), 3-letter code, full name, and team name as factual text.
+- **Dynamic 2026 Grid Resolution & Backend Fix (`ghost_battle_service.py`)**:
+  - Fixed timezone-naive date comparison in `get_available_years()`, restoring 2026 Season to available years.
+  - Added Audi (`#F50537`) and Cadillac (`#909090`) to `TEAM_COLORS` fallback dictionary.
+  - Verified dynamic 2026 grid resolution via `/ghost-battle/drivers-teams?session_id=2026_australian_gp_race` returning 11 teams (including Audi with Bortoleto/Hulkenberg, Cadillac with Perez/Bottas, Ferrari with Hamilton/Leclerc, and Mercedes with Russell/Antonelli).
+  - Added unit test suite `ai_services/tests/test_ghost_battle_service.py` (4/4 passed).
 
 ### LangSmith Tracing Across Full LangGraph Pipeline, Tools & LLM Providers (SESSION 035 VERIFIED LIVE)
 - **Environment Synchronization & SDK Integration**:
