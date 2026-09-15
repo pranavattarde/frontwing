@@ -1,15 +1,18 @@
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+
 const MOMENT_ICONS = {
-  incident: "\u26A0",
-  strategy: "\u25C6",
-  overtake: "\u25B8"
+  incident: "⚠",
+  strategy: "◆",
+  overtake: "▸"
 };
+
 const MOMENT_COLORS = {
-  incident: "text-f1-red border-f1-red/20 bg-f1-red/5",
-  strategy: "text-teammate-yellow border-teammate-yellow/20 bg-teammate-yellow/5",
-  overtake: "text-drs-cyan border-drs-cyan/20 bg-drs-cyan/5"
+  incident: "text-accent-danger border-accent-danger/30 bg-accent-danger/10",
+  strategy: "text-timing-yellow border-timing-yellow/30 bg-timing-yellow/10",
+  overtake: "text-accent-primary border-accent-primary/30 bg-accent-primary/10"
 };
+
 export function RaceStoryCard({
   title,
   summary,
@@ -21,73 +24,105 @@ export function RaceStoryCard({
   variant = "featured"
 }) {
   const isFeatured = variant === "featured";
-  return <motion.article
-    className={cn(
-      "evidence-card overflow-hidden",
-      isFeatured ? "p-6" : "p-4"
-    )}
-    initial={{ opacity: 0, y: 12 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-  >{
-    /* Source Outlet Badge & Title */
-  }{sourceOutlet && (
-    <div className="flex items-center justify-between gap-2 mb-2 text-[10px] font-mono">
-      <span className="text-drs-cyan/90 uppercase tracking-wider px-2 py-0.5 rounded border border-drs-cyan/30 bg-drs-cyan/10">
-        {sourceOutlet}
-      </span>
-      {sourceUrl && /^https?:\/\//i.test(sourceUrl.trim()) && (
-        <a
-          href={sourceUrl.trim()}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-text-muted hover:text-drs-cyan transition-colors flex items-center gap-1"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <span>SOURCE ↗</span>
-        </a>
+
+  return (
+    <motion.article
+      className={cn(
+        "bg-surface-base border border-border-subtle rounded card-interactive overflow-hidden flex flex-col justify-between",
+        isFeatured ? "p-6" : "p-4"
       )}
-    </div>
-  )}<h3
-    className={cn(
-      "text-text-primary font-semibold mb-3",
-      isFeatured ? "text-h1" : "text-h2"
-    )}
-  >{title}</h3>{
-    /* Narrative */
-  }<p className="text-body text-text-secondary leading-relaxed mb-4">{summary}</p>{
-    /* Key Moments */
-  }{keyMoments && keyMoments.length > 0 && <div className="flex flex-col gap-2 mb-4"><span className="text-mono-meta font-mono text-text-muted uppercase tracking-wider">
-            Key Moments
-          </span><div className="flex flex-col gap-1.5">{keyMoments.map((moment, i) => <motion.button
-    key={i}
-    onClick={() => onMomentClick?.(i)}
-    className={cn(
-      "flex items-center gap-3 px-3 py-2 rounded-card border text-left transition-all duration-[80ms] hover:bg-elevated",
-      MOMENT_COLORS[moment.type]
-    )}
-    initial={{ opacity: 0, x: 8 }}
-    animate={{ opacity: 1, x: 0 }}
-    transition={{ delay: i * 0.05 + 0.1, duration: 0.15 }}
-  ><span className="font-mono text-mono-meta shrink-0">{MOMENT_ICONS[moment.type]}</span><span className="font-mono text-mono-meta text-text-muted shrink-0 w-10">
-                  L{moment.lap}</span><span className="text-sm text-text-secondary">{moment.description}</span></motion.button>)}</div></div>}{
-    /* CTAs: Local debrief and external source */
-  }<div className="flex items-center justify-between flex-wrap gap-3 mt-2 pt-3 border-t border-fw-border/40">{isFeatured && onFullDebrief && <button
-    onClick={onFullDebrief}
-    className="text-mono-meta font-mono text-drs-cyan hover:underline underline-offset-2 transition-colors duration-[80ms]"
-  >
-          INVESTIGATE IN CONSOLE →
-        </button>}
-    {sourceUrl && (
-      <a
-        href={sourceUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-mono-meta font-mono text-text-muted hover:text-text-primary transition-colors flex items-center gap-1"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <span>VERIFY ON {sourceOutlet ? sourceOutlet.toUpperCase() : "ORIGINAL OUTLET"} ↗</span>
-      </a>
-    )}
-  </div></motion.article>;
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+    >
+      <div>
+        {/* Source Outlet Badge & Title */}
+        {sourceOutlet && (
+          <div className="flex items-center justify-between gap-2 mb-2 text-[10px] font-mono">
+            <span className="text-accent-primary uppercase tracking-wider px-2 py-0.5 rounded border border-accent-primary/30 bg-accent-primary/10 font-bold">
+              {sourceOutlet}
+            </span>
+            {sourceUrl && /^https?:\/\//i.test(sourceUrl.trim()) && (
+              <a
+                href={sourceUrl.trim()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-text-muted hover:text-accent-primary transition-colors flex items-center gap-1 font-semibold"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span>SOURCE ↗</span>
+              </a>
+            )}
+          </div>
+        )}
+
+        <h3
+          className={cn(
+            "text-text-primary font-heading font-bold mb-2 tracking-tight",
+            isFeatured ? "text-xl lg:text-2xl" : "text-lg"
+          )}
+        >
+          {title}
+        </h3>
+
+        {/* Narrative */}
+        <p className="text-sm text-text-secondary leading-relaxed mb-4">
+          {summary}
+        </p>
+
+        {/* Key Moments */}
+        {keyMoments && keyMoments.length > 0 && (
+          <div className="flex flex-col gap-2 mb-4">
+            <span className="font-mono text-xs text-text-muted uppercase tracking-wider">
+              KEY MOMENTS
+            </span>
+            <div className="flex flex-col gap-1.5">
+              {keyMoments.map((moment, i) => (
+                <motion.button
+                  key={i}
+                  onClick={() => onMomentClick?.(i)}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2 rounded border text-left transition-all duration-fast hover:bg-surface-raised",
+                    MOMENT_COLORS[moment.type]
+                  )}
+                  initial={{ opacity: 0, x: 8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 + 0.1, duration: 0.15 }}
+                >
+                  <span className="font-mono text-xs shrink-0">{MOMENT_ICONS[moment.type]}</span>
+                  <span className="font-mono text-xs text-text-muted shrink-0 w-10 type-tabular">
+                    L{moment.lap}
+                  </span>
+                  <span className="text-xs text-text-secondary font-sans">{moment.description}</span>
+                </motion.button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* CTAs: Local debrief and external source */}
+      <div className="flex items-center justify-between flex-wrap gap-3 mt-2 pt-3 border-t border-border-subtle">
+        {isFeatured && onFullDebrief && (
+          <button
+            onClick={onFullDebrief}
+            className="font-mono text-xs text-accent-primary hover:text-accent-primary-hover font-bold hover:underline underline-offset-2 transition-colors duration-fast"
+          >
+            INVESTIGATE IN CONSOLE →
+          </button>
+        )}
+        {sourceUrl && (
+          <a
+            href={sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-xs text-text-muted hover:text-text-primary transition-colors flex items-center gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span>VERIFY ON {sourceOutlet ? sourceOutlet.toUpperCase() : "OUTLET"} ↗</span>
+          </a>
+        )}
+      </div>
+    </motion.article>
+  );
 }
