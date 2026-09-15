@@ -11,46 +11,76 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Canvas & Surfaces — Official F1 Broadcast Carbon Theme
-        canvas: 'var(--bg-canvas)',
-        panel: 'var(--bg-panel)',
-        elevated: 'var(--bg-elevated)',
+        // Surfaces — Official F1 Broadcast Carbon Theme
+        canvas: 'var(--surface-canvas)',
+        'surface-canvas': 'var(--surface-canvas)',
+        'surface-base': 'var(--surface-base)',
+        'surface-raised': 'var(--surface-raised)',
+        'surface-overlay': 'var(--surface-overlay)',
+        'surface-subtle': 'var(--surface-subtle)',
+        panel: 'var(--surface-base)',
+        elevated: 'var(--surface-raised)',
+        overlay: 'var(--surface-overlay)',
+
+        // Borders & Dividers
         'fw-border': 'var(--border-subtle)',
         'fw-border-medium': 'var(--border-medium)',
-        'fw-border-active': 'var(--border-active)',
+        'fw-border-active': 'var(--border-strong)',
+        'border-subtle': 'var(--border-subtle)',
+        'border-medium': 'var(--border-medium)',
+        'border-strong': 'var(--border-strong)',
+        'border-focus': 'var(--border-focus)',
         
         // Official F1 Sector Timing Palette
-        'sector-purple': 'var(--sector-purple)',
-        'sector-purple-bg': 'var(--sector-purple-bg)',
-        'sector-purple-border': 'var(--sector-purple-border)',
-        'sector-green': 'var(--sector-green)',
-        'sector-green-bg': 'var(--sector-green-bg)',
-        'sector-green-border': 'var(--sector-green-border)',
-        'sector-yellow': 'var(--sector-yellow)',
-        'sector-yellow-bg': 'var(--sector-yellow-bg)',
-        'sector-yellow-border': 'var(--sector-yellow-border)',
+        'timing-purple': 'var(--timing-purple)',
+        'timing-green': 'var(--timing-green)',
+        'timing-yellow': 'var(--timing-yellow)',
+        'sector-purple': 'var(--timing-purple)',
+        'sector-purple-bg': 'var(--timing-purple-subtle)',
+        'sector-purple-border': 'var(--timing-purple-border)',
+        'sector-green': 'var(--timing-green)',
+        'sector-green-bg': 'var(--timing-green-subtle)',
+        'sector-green-border': 'var(--timing-green-border)',
+        'sector-yellow': 'var(--timing-yellow)',
+        'sector-yellow-bg': 'var(--timing-yellow-subtle)',
+        'sector-yellow-border': 'var(--timing-yellow-border)',
 
         // Typography Colors
         'text-primary': 'var(--text-primary)',
         'text-secondary': 'var(--text-secondary)',
         'text-muted': 'var(--text-muted)',
         'text-dim': 'var(--text-dim)',
+        'text-disabled': 'var(--text-disabled)',
+        'text-accent': 'var(--text-accent)',
 
-        // Accent & Telemetry
-        'f1-red': 'var(--f1-red)',
-        'drs-cyan': 'var(--driver-chaser)',
-        'teammate-yellow': 'var(--driver-defender)',
+        // Accent & Brand (Speed Red)
+        'f1-red': 'var(--accent-primary)',
+        'accent-primary': 'var(--accent-primary)',
+        'accent-hover': 'var(--accent-primary-hover)',
+        'accent-active': 'var(--accent-primary-active)',
+        'accent-danger': 'var(--accent-danger)',
+        'accent-warning': 'var(--accent-warning)',
+        'accent-success': 'var(--accent-success)',
+        'drs-cyan': 'var(--accent-primary)',
+        'teammate-yellow': 'var(--timing-yellow)',
 
-        // Tire Compounds
-        'tire-soft': '#FF2B49',
-        'tire-medium': '#FFD600',
-        'tire-hard': '#FFFFFF',
-        'tire-inter': '#00D26A',
-        'tire-wet': '#0D6EFD',
+        // Tyre Compounds
+        'tyre-soft': 'var(--tyre-soft)',
+        'tyre-medium': 'var(--tyre-medium)',
+        'tyre-hard': 'var(--tyre-hard)',
+        'tyre-inter': 'var(--tyre-inter)',
+        'tyre-wet': 'var(--tyre-wet)',
+        'tire-soft': 'var(--tyre-soft)',
+        'tire-medium': 'var(--tyre-medium)',
+        'tire-hard': 'var(--tyre-hard)',
+        'tire-inter': 'var(--tyre-inter)',
+        'tire-wet': 'var(--tyre-wet)',
       },
       fontFamily: {
-        f1: ['Titillium Web', 'Barlow Condensed', 'Outfit', 'sans-serif'],
-        sans: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
+        display: ['Barlow Condensed', 'Titillium Web', 'Outfit', 'sans-serif'],
+        f1: ['Barlow Condensed', 'Titillium Web', 'Outfit', 'sans-serif'],
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        body: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
         mono: ['JetBrains Mono', 'Roboto Mono', 'monospace'],
       },
       fontSize: {

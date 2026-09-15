@@ -1,82 +1,194 @@
 /* ==========================================================================
-   FrontWing F1 Broadcast Design System — Design Tokens
-   Stage 1 & 2: Official Formula 1 Color Palette, Carbon Surfaces & Typography
+   FrontWing Formula 1 Broadcast Design System — Semantic Design Tokens
+   Rebuilt from official Formula 1 broadcast graphics, timing towers & telemetry.
+   Zero hardcoded hex values in components — all styles reference these tokens.
    ========================================================================== */
 
 :root {
-  /* --------------------------------------------------
-     1. Brand & Identity
-     -------------------------------------------------- */
-  --f1-red: #FF1801;             /* Formula 1 Signature Warm Racing Red */
-  --f1-red-hover: #E01500;
-  --f1-red-bg: rgba(255, 24, 1, 0.12);
-  --f1-red-border: rgba(255, 24, 1, 0.35);
+  /* --------------------------------------------------------------------------
+     1. Surface Tokens (Near-black technical asphalt & carbon dark slate)
+     -------------------------------------------------------------------------- */
+  --surface-canvas: #0B0C10;             /* Page root background: deepest technical asphalt */
+  --surface-base: #15151E;               /* Main card & container background: F1 Carbon Dark Slate */
+  --surface-raised: #1C1D29;             /* Step 1 elevated: nested panels, table headers, hover */
+  --surface-overlay: #252738;            /* Step 2 elevated: modals, popovers, dropdowns, tooltips */
+  --surface-subtle: rgba(255, 255, 255, 0.03); /* Translucent surface wash / row striping */
+  --surface-hover: rgba(255, 255, 255, 0.05);  /* Hover state overlay */
+  --surface-active: rgba(255, 255, 255, 0.08); /* Active / pressed surface state */
 
-  /* --------------------------------------------------
-     2. Broadcast Asphalt & Carbon Surfaces
-     -------------------------------------------------- */
-  --bg-canvas: #0B0D10;          /* Pure Broadcast Asphalt Carbon Black */
-  --bg-panel: #12151B;           /* Matte Charcoal Module Surface */
-  --bg-elevated: #181C24;        /* Elevated Card / Modal / Popover */
-  --bg-overlay: rgba(11, 13, 16, 0.88);
-  --bg-glass: rgba(18, 21, 27, 0.75);
+  /* Backwards-compatibility aliases */
+  --bg-canvas: var(--surface-canvas);
+  --bg-panel: var(--surface-base);
+  --bg-elevated: var(--surface-raised);
+  --bg-overlay: var(--surface-overlay);
+  --bg-glass: rgba(21, 21, 30, 0.85);
 
-  /* --------------------------------------------------
-     3. High-Contrast Broadcast Dividers & Borders
-     -------------------------------------------------- */
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-medium: rgba(255, 255, 255, 0.16);
-  --border-active: #2C3240;
-  --border-accent: rgba(255, 24, 1, 0.5);
+  /* --------------------------------------------------------------------------
+     2. Border & Divider Tokens
+     -------------------------------------------------------------------------- */
+  --border-subtle: rgba(255, 255, 255, 0.08);  /* Subtle boundary between modules */
+  --border-medium: rgba(255, 255, 255, 0.16);  /* Standard container borders, input outlines */
+  --border-strong: rgba(255, 255, 255, 0.28);  /* Interactive hover & active border states */
+  --border-focus: #E10600;                     /* Focus-visible ring: signature broadcast beacon */
+  --border-accent: rgba(225, 6, 0, 0.50);      /* Red glowing border accent */
+  --border-active: var(--border-strong);
 
-  /* --------------------------------------------------
-     4. Official F1 Sector Timing Conventions
-     -------------------------------------------------- */
-  /* Purple: Outright Fastest Sector of the Entire Session */
-  --sector-purple: #B138DD;
-  --sector-purple-bg: rgba(177, 56, 221, 0.16);
-  --sector-purple-border: rgba(177, 56, 221, 0.45);
+  /* --------------------------------------------------------------------------
+     3. Accent & Brand Tokens (Official Formula 1 Speed Red PMS 485C)
+     -------------------------------------------------------------------------- */
+  --accent-primary: #E10600;                   /* Formula 1 Speed Red */
+  --accent-primary-hover: #B50500;             /* Deepened velocity red on hover */
+  --accent-primary-active: #8F0400;            /* Compressed red on active mouse press */
+  --accent-primary-subtle: rgba(225, 6, 0, 0.12); /* Translucent red pill/tag wash */
+  --accent-primary-border: rgba(225, 6, 0, 0.35); /* Translucent red border */
 
-  /* Green: Personal Best Sector for this Driver */
-  --sector-green: #00D26A;
-  --sector-green-bg: rgba(0, 210, 106, 0.16);
-  --sector-green-border: rgba(0, 210, 106, 0.45);
+  --accent-danger: #E10600;                    /* Red flag / critical warning / failure */
+  --accent-danger-subtle: rgba(225, 6, 0, 0.12);
+  --accent-warning: #FFD600;                   /* Yellow flag / caution / moderate wear */
+  --accent-warning-subtle: rgba(255, 214, 0, 0.14);
+  --accent-success: #00D26A;                   /* Green flag / verified / optimal */
+  --accent-success-subtle: rgba(0, 210, 106, 0.14);
 
-  /* Yellow: Slower Sector / Normal */
-  --sector-yellow: #FFD600;
-  --sector-yellow-bg: rgba(255, 214, 0, 0.14);
-  --sector-yellow-border: rgba(255, 214, 0, 0.45);
+  /* Backwards-compatibility aliases */
+  --f1-red: var(--accent-primary);
+  --f1-red-hover: var(--accent-primary-hover);
+  --f1-red-bg: var(--accent-primary-subtle);
+  --f1-red-border: var(--accent-primary-border);
 
-  /* --------------------------------------------------
-     5. Head-to-Head Ghost Driver Contrast
-     -------------------------------------------------- */
-  --driver-chaser: #00E5FF;      /* Chaser / Driver A: Electric Neon Cyan */
-  --driver-chaser-bg: rgba(0, 229, 255, 0.12);
-  --driver-chaser-border: rgba(0, 229, 255, 0.35);
+  /* --------------------------------------------------------------------------
+     4. Text & Content Hierarchy
+     -------------------------------------------------------------------------- */
+  --text-primary: #FFFFFF;                     /* 100% pure white: times, numbers, titles */
+  --text-secondary: #9499A5;                   /* High-legibility technical grey: body copy */
+  --text-muted: #606675;                       /* Slate grey: captions, column headers, units */
+  --text-dim: #3E4553;                         /* Low-contrast divider labels */
+  --text-disabled: #3D4250;                    /* Locked or inactive controls */
+  --text-inverse: #0B0C10;                     /* Dark text on light badges */
+  --text-accent: #E10600;                      /* Highlighted brand text */
 
-  --driver-defender: #FFD600;    /* Defender / Driver B: Electric Neon Yellow */
-  --driver-defender-bg: rgba(255, 214, 0, 0.12);
-  --driver-defender-border: rgba(255, 214, 0, 0.35);
+  /* --------------------------------------------------------------------------
+     5. Official Timing Tower Status Conventions
+     -------------------------------------------------------------------------- */
+  /* Purple: Outright session best lap or sector */
+  --timing-purple: #B138DD;
+  --timing-purple-subtle: rgba(177, 56, 221, 0.16);
+  --timing-purple-border: rgba(177, 56, 221, 0.45);
 
-  /* --------------------------------------------------
-     6. Typography & Font Families
-     -------------------------------------------------- */
-  --font-f1-display: 'Titillium Web', 'Barlow Condensed', 'Outfit', sans-serif;
-  --font-f1-sans: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-f1-mono: 'JetBrains Mono', 'Roboto Mono', monospace;
+  /* Green: Personal best lap or sector */
+  --timing-green: #00D26A;
+  --timing-green-subtle: rgba(0, 210, 106, 0.16);
+  --timing-green-border: rgba(0, 210, 106, 0.45);
 
-  /* --------------------------------------------------
-     7. Text Contrast Hierarchy
-     -------------------------------------------------- */
-  --text-primary: #FFFFFF;
-  --text-secondary: #9BA4B5;
-  --text-muted: #5E6676;
-  --text-dim: #3E4553;
+  /* Yellow: Slower sector / steady state / caution */
+  --timing-yellow: #FFD600;
+  --timing-yellow-subtle: rgba(255, 214, 0, 0.14);
+  --timing-yellow-border: rgba(255, 214, 0, 0.45);
 
-  /* --------------------------------------------------
-     8. Motion & Transitions
-     -------------------------------------------------- */
-  --ease-f1: cubic-bezier(0.16, 1, 0.3, 1);
-  --duration-fast: 150ms;
-  --duration-normal: 250ms;
+  /* Backwards-compatibility aliases */
+  --sector-purple: var(--timing-purple);
+  --sector-purple-bg: var(--timing-purple-subtle);
+  --sector-purple-border: var(--timing-purple-border);
+  --sector-green: var(--timing-green);
+  --sector-green-bg: var(--timing-green-subtle);
+  --sector-green-border: var(--timing-green-border);
+  --sector-yellow: var(--timing-yellow);
+  --sector-yellow-bg: var(--timing-yellow-subtle);
+  --sector-yellow-border: var(--timing-yellow-border);
+
+  /* --------------------------------------------------------------------------
+     6. Pirelli Tyre Compound Tokens
+     -------------------------------------------------------------------------- */
+  --tyre-soft: #FF1801;                        /* Soft compound: P Zero Red */
+  --tyre-medium: #FFD600;                      /* Medium compound: P Zero Yellow */
+  --tyre-hard: #FFFFFF;                        /* Hard compound: P Zero White */
+  --tyre-inter: #00D26A;                       /* Intermediate compound: Cinturato Green */
+  --tyre-wet: #0090FF;                         /* Full Wet compound: Cinturato Blue */
+
+  --tyre-soft-bg: rgba(255, 24, 1, 0.14);
+  --tyre-medium-bg: rgba(255, 214, 0, 0.14);
+  --tyre-hard-bg: rgba(255, 255, 255, 0.12);
+  --tyre-inter-bg: rgba(0, 210, 106, 0.14);
+  --tyre-wet-bg: rgba(0, 144, 255, 0.14);
+
+  /* Spelling aliases */
+  --tire-soft: var(--tyre-soft);
+  --tire-medium: var(--tyre-medium);
+  --tire-hard: var(--tyre-hard);
+  --tire-inter: var(--tyre-inter);
+  --tire-wet: var(--tyre-wet);
+
+  /* --------------------------------------------------------------------------
+     7. Spacing Scale
+     -------------------------------------------------------------------------- */
+  --space-3xs: 2px;
+  --space-2xs: 4px;
+  --space-xs: 6px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
+  --space-4xl: 48px;
+  --space-5xl: 64px;
+
+  /* --------------------------------------------------------------------------
+     8. Border Radius Scale
+     -------------------------------------------------------------------------- */
+  --radius-none: 0px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* --------------------------------------------------------------------------
+     9. Elevation & Shadow Scale
+     -------------------------------------------------------------------------- */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.65);
+  --shadow-xl: 0 16px 36px rgba(0, 0, 0, 0.8);
+  --shadow-glow-red: 0 0 16px rgba(225, 6, 0, 0.35);
+  --shadow-glow-purple: 0 0 16px rgba(177, 56, 221, 0.35);
+  --shadow-glow-green: 0 0 16px rgba(0, 210, 106, 0.35);
+
+  /* --------------------------------------------------------------------------
+     10. Z-Index Scale
+     -------------------------------------------------------------------------- */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-fixed: 300;
+  --z-modal: 500;
+  --z-popover: 600;
+  --z-tooltip: 700;
+
+  /* --------------------------------------------------------------------------
+     11. Typography Font Families
+     -------------------------------------------------------------------------- */
+  --font-display: 'Barlow Condensed', 'Titillium Web', 'Outfit', -apple-system, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Roboto Mono', monospace;
+
+  /* Backwards-compatibility aliases */
+  --font-f1-display: var(--font-display);
+  --font-f1-sans: var(--font-body);
+  --font-f1-mono: var(--font-mono);
+
+  /* --------------------------------------------------------------------------
+     12. Motion, Durations & Easing Tokens (Mechanical & High-Precision)
+     -------------------------------------------------------------------------- */
+  --motion-fast: 120ms;                        /* Hover states, micro-transitions */
+  --motion-normal: 240ms;                      /* Panel reveals, state toggles */
+  --motion-slow: 400ms;                        /* Modal popups, route changes */
+
+  --ease-mechanical: cubic-bezier(0.2, 0.0, 0.0, 1.0); /* Sharp, mechanical deceleration */
+  --ease-snappy: cubic-bezier(0.25, 1, 0.5, 1);        /* Snappy responsive curve */
+  --ease-f1: var(--ease-mechanical);
+
+  --duration-fast: var(--motion-fast);
+  --duration-normal: var(--motion-normal);
 }
