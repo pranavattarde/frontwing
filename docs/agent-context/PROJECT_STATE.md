@@ -1,11 +1,40 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-09-15 by Antigravity (Session 040 - Full Performance Audit & Optimization: Cold-Cache Instrumentation, Tool Concurrency, Database Indexing, Async Backfill Verification, Session Cache Invalidation, and 63% Frontend 3D Code-Splitting)
-> Audit method: Measured 5 representative queries end-to-end with cold cache breakdowns (Planning LLM, Entity Resolution, Tools, Synthesis LLM); parallelized independent tools in LangGraph via ThreadPoolExecutor (-2,064ms on Telemetry Comparison, -21,395ms on Strategy Analysis); ran PostgreSQL EXPLAIN ANALYZE on laps (31.8k rows), telemetry_metadata (7.9k rows), stints (2.3k rows), created composite index idx_telemetry_meta_session_driver dropping execution time by 58.4%; stress-tested async backfill Fix O with 3 concurrent requests (1 job spawned in 4.12ms total, 0 duplicate workers); implemented session-indexed Redis cache invalidation on /sessions/load; code-split Three.js/Fiber/Drei reducing initial frontend JS bundle from 1,496 kB to 552 kB (-63.1%). All 63 pytest tests and 14 Node security tests passed.
+> Last updated: 2026-09-15 by Antigravity (Session 041 - Formula 1 Broadcast Visual Identity & Design-System Rebuild: F1 Broadcast Palette, Semantic Tokens, Tabular Typography Scale, Original Connected FW Logo & Motion System)
+> Audit method: Researched and extracted official colors from formula1.com, F1 broadcast telemetry graphics, and Pirelli motorsport technical specifications; completely replaced design_tokens.css with a 100% semantic token layer (surfaces, borders, accents, timing statuses, tyre compounds, spacing 2px–64px, radius 0px–full, shadows, z-index, and mechanical motion); aligned tailwind.config.js; wired up complete Barlow Condensed, Inter, and JetBrains Mono fonts; implemented tabular figure alignments (.type-tabular); designed original connected FW speed mark and wordmark SVG component (FrontWingLogo.jsx); implemented mechanical transitions and consistent interactive states; created showcase page (/design-system) and verified live via browser subagent with 4 screenshots. All 14 security tests passing.
 
 ---
 
 ## 1. What Works Right Now
+
+### Formula 1 Broadcast Visual Identity & Design System (SESSION 041 VERIFIED LIVE)
+- **Extracted Broadcast Color Palette & Semantic Tokens (`design_tokens.css`, `tailwind.config.js`)**:
+  - Replaced legacy electric-blue/cyan theme with authentic Formula 1 broadcast palette:
+    - `--surface-canvas`: `#0B0C10` (Root near-black asphalt canvas).
+    - `--surface-base`: `#15151E` (F1 Carbon Dark Slate card and container background).
+    - `--surface-raised`: `#1C1D29` (Step 1 elevated: headers, active tabs, nested panels).
+    - `--surface-overlay`: `#252738` (Step 2 elevated: modals, popovers, dropdowns).
+    - `--surface-subtle`: `rgba(255, 255, 255, 0.03)` (Row striping and background washes).
+    - `--border-subtle`: `rgba(255, 255, 255, 0.08)`, `--border-medium`: `rgba(255, 255, 255, 0.16)`, `--border-strong`: `rgba(255, 255, 255, 0.28)`.
+    - `--accent-primary`: `#E10600` (Official Formula 1 Speed Red PMS 485C) with hover (`#B50500`) and active (`#8F0400`).
+    - Timing Tower Statuses: `--timing-purple` (`#B138DD` Session Best), `--timing-green` (`#00D26A` Personal Best), `--timing-yellow` (`#FFD600` Slower/Caution).
+    - Pirelli Tyre Compounds: Soft `[S]` (`#FF1801`), Medium `[M]` (`#FFD600`), Hard `[H]` (`#FFFFFF`), Intermediate `[I]` (`#00D26A`), Wet `[W]` (`#0090FF`).
+  - Zero raw color names or hardcoded cyan in design tokens.
+- **Broadcast Condensed Typography & Tabular Figures (`index.html`, `index.css`)**:
+  - Wired Google Fonts: `Barlow Condensed` (400–900 normal & italic for broadcast displays and titles), `Inter` (400–700 for body reading), and `JetBrains Mono` (400–700 for data readouts).
+  - Defined full type scale: `.type-display` (36px italic), `.type-h1` (28px italic), `.type-h2` (22px italic), `.type-h3` (18px bold), `.type-h4` (15px semibold), `.type-body` (14px), `.type-body-sm` (13px), `.type-caption` (11px uppercase tracked).
+  - Monospace / Tabular numbers via `.type-tabular` and `.tabular-timing` (`font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1;`). Guaranteed vertical decimal and colon alignment in timing columns.
+  - Replaced cyan focus rings with broadcast red beacons (`outline: 2px solid var(--border-focus); outline-offset: 2px;`) for keyboard accessibility.
+- **Original FrontWing Connected "FW" Speed Mark (`FrontWingLogo.jsx`)**:
+  - 100% original React SVG component supporting `variant="mark" | "full"` and `size="sm" | "md" | "lg" | "xl" | number`.
+  - 13° forward-slanted aerodynamic front-wing geometry where the upper wing plane projects forward and the mid plane bridges seamlessly into the W dual-cascade elements, terminating in a sharp trailing wingtip bevel.
+  - Fully compliant with trademark constraints: zero negative space "1"s, zero parallel speed-line stripe cuts from the official F1 logo.
+- **Mechanical Motion & Interactive Component System (`index.css`)**:
+  - Precise mechanical easing curves (`--ease-mechanical: cubic-bezier(0.2, 0.0, 0.0, 1.0)`) and calibrated durations (120ms hover, 240ms panel reveal, 400ms route transition).
+  - Consistent interactive states for `.btn-f1-primary`, `.btn-f1-secondary`, `.btn-f1-ghost`, `.input-f1`, `.card-interactive`, and tyre badges.
+- **Design System Showcase Page (`DesignSystemShowcase.jsx`, `/design-system`)**:
+  - Mounted dedicated showcase route showing every token swatch, full typography scale, tabular digit comparison table, FW logos at multiple sizes, and interactive states.
+  - Verified live in browser with subagent screenshots (`ds_showcase_top`, `ds_showcase_middle`, `ds_showcase_bottom`, `ds_showcase_interactive`).
 
 ### Full Performance Optimization & Concurrency Baseline (SESSION 040 VERIFIED)
 - **Cold-Cache Latency Instrumentation & Measurements (`scratch/measure_performance.py`)**:

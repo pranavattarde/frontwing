@@ -414,4 +414,20 @@ All tests under `ai_services/tests/` are organized into 8 domain-focused modules
 - **Gotcha:** A static import of `GhostBattle3D` in `App.jsx` inflated the initial application JavaScript bundle to 1,496.28 kB (1.5 MB!) for every single user on the homepage or text debrief pages.
 - **Protocol:** Always use `React.lazy(() => import(...))` with `<Suspense>` fallbacks for 3D pages, and configure Rollup `manualChunks` in `vite.config.js` to isolate `three-vendor`. This reduced the initial app bundle to 552.27 kB (-63.1% reduction).
 
+---
 
+## Entry 023 — 2026-09-15 — Formula 1 Broadcast Visual Identity, Semantic Tokens & Tabular Timing Alignment
+
+**1. Semantic Design Tokens Exclusively (Zero Raw Color Names in Components):**
+- **RULE:** All frontend components MUST consume semantic CSS variables (`--surface-base`, `--surface-raised`, `--border-subtle`, `--accent-primary`, `--timing-purple`, etc.) defined in `design_tokens.css`. Never use raw color names (like `--f1-red`, `--cyan`, `--gray-900`) or hardcoded hex codes (`#00E5FF`, `#FF1801`) inside component files.
+- **Why:** Semantic tokens allow instant global theme calibrations, maintain strict contrast compliance for broadcast readability, and eliminate color drift across independent widgets.
+
+**2. Tabular Numerical Figures For Timing & Deltas:**
+- **RULE:** Any display of lap times (e.g. `1:28.952`), sector times (e.g. `24.112s`), deltas (e.g. `+0.486s`), top speeds, or grid positions MUST use tabular numbers via `font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1;` (class `.type-tabular` / `.tabular-timing`).
+- **Gotcha:** Proportional fonts render digits with variable character widths (e.g. "1" is significantly narrower than "8"). In timing towers and delta comparison tables, proportional fonts cause numbers to jitter and misalign across rows, breaking broadcast alignment standards.
+
+**3. Original Logo Geometry Constraints:**
+- **RULE:** Do NOT trace or replicate the official Formula 1 logo's negative-space numeral "1", parallel speed-line stripe cuts, or official team marks. FrontWing's identity is an original, forward-slanted connected "FW" aerodynamic front-wing mark that conveys speed through continuous multi-plane geometry.
+
+**4. Visible Focus-Visible Beacons for Keyboard Navigation:**
+- **RULE:** Never remove `:focus-visible` outlines or hide focus rings. In the F1 broadcast system, focus rings use a high-visibility 2px solid beacon in `--border-focus` (`#E10600`) with a 2px offset, ensuring complete accessibility compliance.

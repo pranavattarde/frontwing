@@ -1,3 +1,42 @@
+## Session 041 -- 2026-09-15 -- Visual Identity & Design-System Rebuild: F1 Broadcast Palette, Semantic Tokens, Tabular Typography, Connected FW Logo & Motion System
+
+### What Was Changed
+- **Step 1: Formula 1 Palette Research & Hex Extraction**:
+  - Researched and extracted official colors from `formula1.com`, F1 broadcast telemetry graphics, and Pirelli motorsport technical specifications.
+  - Documented exact hex values across: Page canvas (`#0B0C10`), Surface Base / F1 Carbon Dark Slate (`#15151E`), Elevated Raised (`#1C1D29`), Elevated Overlay (`#252738`), Subtle surface wash (`rgba(255,255,255,0.03)`), Border Subtle (`rgba(255,255,255,0.08)`), Border Medium (`rgba(255,255,255,0.16)`), Border Strong (`rgba(255,255,255,0.28)`), Focus Beacon (`#E10600`), Official Speed Red (`#E10600` PMS 485C), Hover (`#B50500`), Active (`#8F0400`), Timing Purple (`#B138DD`), Timing Green (`#00D26A`), Timing Yellow (`#FFD600`), and Pirelli tyre compounds (Soft `#FF1801`, Medium `#FFD600`, Hard `#FFFFFF`, Inter `#00D26A`, Wet `#0090FF`).
+- **Step 2: Rebuild design_tokens.css from Scratch & Tailwind Alignment (`design_tokens.css`, `tailwind.config.js`)**:
+  - Completely replaced `design_tokens.css` with a pure semantic architecture (Surfaces, Borders, Accents, Timing, Tyres, Spacing scale 2px–64px, Radius scale 0px–full, Elevation shadows, Z-index scale, and Motion durations).
+  - Aligned `frontend/tailwind.config.js` colors and font families to reference semantic CSS variables directly, eliminating raw color names and hardcoded cyan values.
+  - Committed and pushed to `origin/main` (`24cee41`).
+- **Step 3: Broadcast Typography System & Tabular Numerals (`index.html`, `index.css`)**:
+  - Wired up Google Fonts with complete weight ranges: `Barlow Condensed` (400–900 normal and italic for broadcast displays/headings), `Inter` (400–700 for body reading), and `JetBrains Mono` (400–700 with tabular numbers for technical figures).
+  - Defined full typography utility classes: `.type-display` (36px italic), `.type-h1` (28px italic), `.type-h2` (22px italic), `.type-h3` (18px bold), `.type-h4` (15px semibold), `.type-body` (14px), `.type-body-sm` (13px), `.type-caption` (11px tracked uppercase).
+  - Implemented `.type-tabular` and `.tabular-timing` (`font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1;`), guaranteeing perfect vertical decimal and colon alignment for lap times and deltas.
+  - Replaced legacy cyan focus rings with high-visibility 2px solid broadcast red beacons (`--border-focus: #E10600`).
+  - Committed and pushed to `origin/main` (`231f3bf`).
+- **Step 4: Original FrontWing Connected "FW" Speed Mark (`FrontWingLogo.jsx`)**:
+  - Engineered a 100% original React SVG component `FrontWingLogo.jsx` supporting `variant="mark" | "full"` and `size="sm" | "md" | "lg" | "xl" | number`.
+  - Design geometry: 13° forward-slanted aerodynamic front-wing architecture where the F upper plane sweeps forward and its mid plane bridges seamlessly into the W dual-cascade elements, terminating in a sharp trailing wingtip bevel.
+  - Adheres strictly to the non-infringement constraint: zero negative-space "1"s, zero parallel speed stripe cuts from the official F1 logo.
+  - Committed and pushed to `origin/main` (`c9a2f25`).
+- **Step 5: Motion Tokens & Interactive Component States (`index.css`)**:
+  - Implemented mechanical easing tokens (`--ease-mechanical: cubic-bezier(0.2, 0.0, 0.0, 1.0)`, `--motion-fast: 120ms`, `--motion-normal: 240ms`, `--motion-slow: 400ms`).
+  - Created consistent interactive component states for `.btn-f1-primary`, `.btn-f1-secondary`, `.btn-f1-ghost`, `.input-f1`, `.card-interactive`, and tyre badges (`.badge-tyre-soft`, etc.).
+  - Committed and pushed to `origin/main` (`f45c756`).
+- **Verification Showcase Page & Live Browser Testing (`DesignSystemShowcase.jsx`, `App.jsx`)**:
+  - Created showcase route `/design-system` presenting the complete token layer, logo suite at all sizes, typography scale, tabular digit comparison table, and interactive states playground.
+  - Verified live in browser using subagent with 4 high-resolution screenshots (`ds_showcase_top`, `ds_showcase_middle`, `ds_showcase_bottom`, `ds_showcase_interactive`).
+  - Verified 14/14 automated backend security tests passing.
+  - Committed and pushed to `origin/main` (`cc1e7a5`).
+
+### Verification
+- `npm run build` in `frontend/`: 0 errors, 2,517 modules transformed.
+- `npm test` in `backend/`: 14/14 tests passed (0 failures) in 2.1s.
+- `browser_subagent` visual verification: Verified logo rendering, surface contrast, timing colors, tabular alignment, and hover interactions at `http://localhost:5173/design-system`.
+- Appended `Entry 023` to `RULES_AND_GOTCHAS.md`.
+
+---
+
 ## Session 040 -- 2026-09-15 -- Performance Audit & Optimization Pass: Tool Concurrency, Database Indexing, Async Backfill Verification, Cache Invalidation & Frontend 3D Code-Splitting
 
 ### What Was Changed
