@@ -136,13 +136,214 @@
     background-color: rgba(255, 255, 255, 0.02);
   }
 
+  /* Interactive Button System */
+  .btn-f1-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: var(--accent-primary);
+    color: #FFFFFF;
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    font-style: italic;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background-color var(--motion-fast) var(--ease-mechanical),
+                transform var(--motion-fast) var(--ease-mechanical),
+                box-shadow var(--motion-fast) var(--ease-mechanical);
+  }
+  .btn-f1-primary:hover {
+    background-color: var(--accent-primary-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-glow-red);
+  }
+  .btn-f1-primary:active {
+    background-color: var(--accent-primary-active);
+    transform: scale(0.98);
+    box-shadow: none;
+  }
+  .btn-f1-primary:focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 2px;
+  }
+  .btn-f1-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .btn-f1-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: var(--surface-raised);
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    font-style: italic;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-medium);
+    cursor: pointer;
+    transition: background-color var(--motion-fast) var(--ease-mechanical),
+                border-color var(--motion-fast) var(--ease-mechanical),
+                transform var(--motion-fast) var(--ease-mechanical);
+  }
+  .btn-f1-secondary:hover {
+    background-color: var(--surface-overlay);
+    border-color: var(--border-strong);
+    color: #FFFFFF;
+    transform: translateY(-1px);
+  }
+  .btn-f1-secondary:active {
+    background-color: var(--surface-base);
+    transform: scale(0.98);
+  }
+  .btn-f1-secondary:focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 2px;
+  }
+  .btn-f1-secondary:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+    transform: none;
+  }
+
+  .btn-f1-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 600;
+    font-style: italic;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: color var(--motion-fast) var(--ease-mechanical),
+                background-color var(--motion-fast) var(--ease-mechanical),
+                transform var(--motion-fast) var(--ease-mechanical);
+  }
+  .btn-f1-ghost:hover {
+    color: var(--text-primary);
+    background-color: var(--surface-subtle);
+  }
+  .btn-f1-ghost:active {
+    transform: scale(0.98);
+  }
+  .btn-f1-ghost:focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 2px;
+  }
+  .btn-f1-ghost:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* Interactive Input System */
+  .input-f1 {
+    width: 100%;
+    background-color: var(--surface-base);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 13px;
+    padding: 8px 12px;
+    transition: border-color var(--motion-fast) var(--ease-mechanical),
+                box-shadow var(--motion-fast) var(--ease-mechanical);
+  }
+  .input-f1::placeholder {
+    color: var(--text-muted);
+  }
+  .input-f1:hover {
+    border-color: var(--border-strong);
+  }
+  .input-f1:focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 1px;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 8px rgba(225, 6, 0, 0.25);
+  }
+  .input-f1:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background-color: var(--surface-canvas);
+  }
+
+  /* Interactive Card System */
+  .card-interactive {
+    background-color: var(--surface-base);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    transition: border-color var(--motion-fast) var(--ease-mechanical),
+                transform var(--motion-fast) var(--ease-mechanical),
+                box-shadow var(--motion-fast) var(--ease-mechanical);
+  }
+  .card-interactive:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+  .card-interactive:focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 2px;
+  }
+
+  /* Tyre Compound Badges */
+  .badge-tyre-soft {
+    background-color: var(--tyre-soft-bg);
+    color: var(--tyre-soft);
+    border: 1px solid rgba(255, 24, 1, 0.4);
+  }
+  .badge-tyre-medium {
+    background-color: var(--tyre-medium-bg);
+    color: var(--tyre-medium);
+    border: 1px solid rgba(255, 214, 0, 0.4);
+  }
+  .badge-tyre-hard {
+    background-color: var(--tyre-hard-bg);
+    color: var(--tyre-hard);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+  }
+  .badge-tyre-inter {
+    background-color: var(--tyre-inter-bg);
+    color: var(--tyre-inter);
+    border: 1px solid rgba(0, 210, 106, 0.4);
+  }
+  .badge-tyre-wet {
+    background-color: var(--tyre-wet-bg);
+    color: var(--tyre-wet);
+    border: 1px solid rgba(0, 144, 255, 0.4);
+  }
+
   /* Skeleton shimmer base */
   .skeleton {
     background: linear-gradient(
       90deg,
-      #12151B 0%,
-      #1C2028 40%,
-      #12151B 80%
+      #15151E 0%,
+      #252738 40%,
+      #15151E 80%
     );
     background-size: 200% 100%;
     animation: skeleton-shimmer 1.5s linear infinite;
