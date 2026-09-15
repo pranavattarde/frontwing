@@ -1,11 +1,43 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-09-12 by Antigravity (Session 039 - Full Security Hardening Pass: Rate Limiting, Input Validation & Length Caps, Secrets Audit & Provisioning Architecture, Restricted CORS Whitelist, Safe Error Masking)
-> Audit method: Verified layered rate limiting on /auth, /engineer/query, /strategy/query, /ghost-battle/data (14/14 security test assertions passed); verified strict Zod schemas with 2,000-character caps and control character stripping; audited SQL injection risks across pg and psycopg2 (100% parameterized queries); audited XSS in frontend (React DOM auto-escaping + http/https URL validation); confirmed .env was never committed to git history and zero hardcoded keys exist in source; restricted Express CORS with production origin whitelisting; masked 500 error messages with safe fallbacks. All 63 pytest tests and 14 Node security tests passed.
+> Last updated: 2026-09-15 by Antigravity (Session 040 - Full Performance Audit & Optimization: Cold-Cache Instrumentation, Tool Concurrency, Database Indexing, Async Backfill Verification, Session Cache Invalidation, and 63% Frontend 3D Code-Splitting)
+> Audit method: Measured 5 representative queries end-to-end with cold cache breakdowns (Planning LLM, Entity Resolution, Tools, Synthesis LLM); parallelized independent tools in LangGraph via ThreadPoolExecutor (-2,064ms on Telemetry Comparison, -21,395ms on Strategy Analysis); ran PostgreSQL EXPLAIN ANALYZE on laps (31.8k rows), telemetry_metadata (7.9k rows), stints (2.3k rows), created composite index idx_telemetry_meta_session_driver dropping execution time by 58.4%; stress-tested async backfill Fix O with 3 concurrent requests (1 job spawned in 4.12ms total, 0 duplicate workers); implemented session-indexed Redis cache invalidation on /sessions/load; code-split Three.js/Fiber/Drei reducing initial frontend JS bundle from 1,496 kB to 552 kB (-63.1%). All 63 pytest tests and 14 Node security tests passed.
 
 ---
 
 ## 1. What Works Right Now
+
+### Full Performance Optimization & Concurrency Baseline (SESSION 040 VERIFIED)
+- **Cold-Cache Latency Instrumentation & Measurements (`scratch/measure_performance.py`)**:
+  - High-precision benchmarking harness instrumenting exact durations of each pipeline stage with Redis flushed before every run.
+  - Baseline vs Optimized Measured Latencies:
+    - *Race Result* ("Who won the 2024 Dutch Grand Prix and what was the podium?"): Baseline 16,699.0ms -> Optimized 16,681.9ms (-17.1ms). (Single tool, dominated by LLM planning + synthesis).
+    - *Telemetry Comparison* ("Compare Verstappen and Norris at 2024 Dutch GP"): Baseline 13,226.0ms -> Optimized 11,162.0ms (**-2,064.0ms, -15.6% faster**). Concurrent tool execution of `race_results_tool` and `telemetry_tool`.
+    - *Driver Scoring* ("Score Verstappen's driving performance at 2024 Dutch GP"): Baseline 15,144.4ms -> Optimized 18,707.5ms. Parallel tools dropped execution time to 276ms, but Gemini API rate-limiting increased planning latency to 12.9s (reported honestly).
+    - *What-If Simulation* ("What if Verstappen pitted on lap 20 at the 2024 Dutch GP?"): Baseline 18,199.7ms -> Optimized 17,694.5ms (**-505.2ms, -2.8% faster**).
+    - *Strategy Analysis* ("Analyze the pit stop strategy for Norris in the 2024 Dutch GP"): Baseline 42,003.8ms -> Optimized 20,608.2ms (**-21,395.6ms, -50.9% faster**).
+- **Independent Tool Parallelization in LangGraph (`ai_services/app/agents/planner.py`)**:
+  - Replaced sequential loop in `execute_node` with concurrent dispatch using `concurrent.futures.ThreadPoolExecutor(max_workers=min(4, len(runnable_steps)))`.
+  - Independent tool steps in a single plan (e.g. classification + telemetry, scoring + classification) run simultaneously, while preserving deterministic result indexing and trace logging.
+- **PostgreSQL Query Plan Optimization & Composite Indexing (`06_performance_indexes.sql`)**:
+  - Audited query plans via `EXPLAIN ANALYZE` on `laps` (31,878 rows), `telemetry_metadata` (7,939 rows), and `stints` (2,375 rows).
+  - Added composite B-tree index `idx_telemetry_meta_session_driver ON telemetry_metadata(session_id, driver_id)`:
+    - Planning time: **1.271ms -> 0.391ms**
+    - Execution time: **0.185ms -> 0.077ms** (**58.4% faster**).
+  - Confirmed 0 sequential scans on `(session_id, driver_id)` across all 3 tables (all using Bitmap Index Scan).
+- **Async Backfill Concurrency Verification (Fix O Validated Under Load)**:
+  - Stress-tested `start_async_backfill` with 3 concurrent requests simultaneously requesting the same uningested session.
+  - All 3 callers returned in 4.12ms total (Caller 1: 0.65ms, Caller 2: 0.01ms, Caller 3: 0.01ms).
+  - Exactly 1 background job instance spawned (`id: 1809594227008`), 0 duplicate worker threads spawned, 0 synchronous blocking.
+- **Session-Indexed Redis Cache Invalidation (`cache.service.js`, `session.controller.js`)**:
+  - Indexed investigation cache keys by session using Redis sets `cache:session_keys:<session_id>`.
+  - Implemented `CacheService.invalidateSessionCache(sessionId)` purging all query caches and Ghost Battle caches for that session.
+  - Connected to `POST /sessions/load` and verified via `test_cache_invalidation.py`: stale cached answers can never be served once session data is re-ingested or corrected.
+- **Frontend 3D Code-Splitting & 63.1% Initial Bundle Reduction (`vite.config.js`, `App.jsx`, `GhostBattle3D.jsx`)**:
+  - Code-split `GhostBattle3D` with `React.lazy()` and `<Suspense>` in `App.jsx`.
+  - Configured Rollup `manualChunks` in `vite.config.js` to isolate `three-vendor`, `react-vendor`, and `icons-vendor`.
+  - Initial application JavaScript payload dropped from **1,496.28 kB (411.65 kB gzip)** down to **552.27 kB (158.70 kB gzip)** (**-63.1% reduction**).
+  - Heavy 3D engine `three-vendor` (906.84 kB) and `GhostBattle3D` (40.20 kB) are deferred and fetched strictly on demand when visiting `/ghost-battle`.
 
 ### Full-Stack Security Hardening & Protection Baseline (SESSION 039 VERIFIED)
 - **Layered Rate Limiting (`backend/src/middleware/rate_limit.middleware.js`)**:

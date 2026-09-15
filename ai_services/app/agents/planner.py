@@ -1018,7 +1018,8 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
     failed_tools = []
     params_sent = {}
     
-    print("========== EXECUTION ==========")
+    runnable_steps = []
+    print("========== PREPARING EXECUTION ==========")
     for idx, step in enumerate(plan):
         name, args = parse_step(step)
         
@@ -1162,9 +1163,6 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
             
         params_sent[name] = args
         
-        print(f"Tool {idx + 1}")
-        print("START")
-        
         # Match to specialized Persona
         if name in engineers:
             engineer = engineers[name]
@@ -1188,8 +1186,6 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
             print(f"Reason:\n{e}")
             failed_tools.append(name)
             errors.append(f"Tool {name} is not registered.")
-            if idx < len(plan) - 1:
-                print("------------------")
             continue
 
         # Strictly check missing required parameters from the schema
@@ -1205,27 +1201,95 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
             print("SKIPPED")
             print(f"Reason:\nMissing required parameter: {missing_param}")
             skipped_tools.append(name)
-            if idx < len(plan) - 1:
-                print("------------------")
             continue
 
-        # Sequential Execution
+        runnable_steps.append((idx, step, name, args, engineer))
+
+    # Helper function to execute a single step
+    def _execute_single_step(step_tuple):
+        s_idx, s_step, s_name, s_args, s_engineer = step_tuple
         t_start = time.time()
+        try:
+            res = s_engineer.execute(state, s_args, s_name)
+            dur = int((time.time() - t_start) * 1000)
+            return {
+                "idx": s_idx,
+                "step": s_step,
+                "name": s_name,
+                "args": s_args,
+                "engineer": s_engineer,
+                "result": res,
+                "duration_ms": dur,
+                "timestamp": int(time.time() * 1000),
+                "error": None
+            }
+        except Exception as ex:
+            dur = int((time.time() - t_start) * 1000)
+            tb_str = traceback.format_exc()
+            return {
+                "idx": s_idx,
+                "step": s_step,
+                "name": s_name,
+                "args": s_args,
+                "engineer": s_engineer,
+                "result": None,
+                "duration_ms": dur,
+                "timestamp": int(time.time() * 1000),
+                "error": ex,
+                "tb": tb_str
+            }
+
+    print(f"========== EXECUTION ({len(runnable_steps)} tools) ==========")
+    for s_idx, s_step, s_name, s_args, s_engineer in runnable_steps:
         streaming_events.append({
             "event": "tool_started",
             "timestamp": int(time.time() * 1000),
-            "details": f"Engineer '{engineer.name}' started executing step: '{step}'."
+            "details": f"Engineer '{s_engineer.name}' started executing step: '{s_step}'."
         })
-        
-        try:
-            res = engineer.execute(state, args, name)
-            
+
+    # Parallelize independent tool execution when multiple steps are planned
+    if len(runnable_steps) > 1:
+        logger.info(f"[Chief Race Engineer] Parallelizing {len(runnable_steps)} independent tools via ThreadPoolExecutor: {[s[2] for s in runnable_steps]}")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(4, len(runnable_steps))) as executor:
+            execution_results = list(executor.map(_execute_single_step, runnable_steps))
+    elif len(runnable_steps) == 1:
+        execution_results = [_execute_single_step(runnable_steps[0])]
+    else:
+        execution_results = []
+
+    # Sort results by original step index to preserve deterministic order
+    execution_results.sort(key=lambda x: x["idx"])
+
+    # Process and record results
+    for item in execution_results:
+        s_idx = item["idx"]
+        s_step = item["step"]
+        s_name = item["name"]
+        s_args = item["args"]
+        s_engineer = item["engineer"]
+        res = item["result"]
+        duration_ms = item["duration_ms"]
+        timestamp = item["timestamp"]
+        ex = item["error"]
+
+        print(f"Tool {s_idx + 1}: {s_name}")
+        print("START")
+
+        if ex:
+            err_msg = f"Engineer '{s_engineer.name}' failed executing tool '{s_name}': {ex}"
+            logger.error(f"[Chief Race Engineer] Engineer execution crash: {err_msg}\n{item['tb']}")
+            print("FAILED")
+            print(f"Reason:\n{ex}")
+            errors.append(err_msg)
+            failed_tools.append(s_name)
+            trace.setdefault("recovery_steps", []).append(f"Auto-recovery: omitted failed engineer {s_engineer.name}")
+        else:
             # Check if tool returned immediate async backfilling status
             if isinstance(res, dict) and res.get("status") == "backfilling":
                 job = res.get("job") or {}
-                sess_key = args.get("session_id") or session_id or "session"
+                sess_key = s_args.get("session_id") or session_id or "session"
                 msg = f"Telemetry data for session '{sess_key}' is currently downloading and processing in the background."
-                logger.info(f"[Chief Race Engineer] Tool '{name}' returned backfilling status. Returning async status payload immediately.")
+                logger.info(f"[Chief Race Engineer] Tool '{s_name}' returned backfilling status. Returning async status payload immediately.")
                 return {
                     "status": "backfilling",
                     "session_id": sess_key,
@@ -1233,8 +1297,8 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
                     "job": job,
                     "progress_pct": res.get("progress_pct", 10),
                     "stage": res.get("stage", "Downloading telemetry from FastF1..."),
-                    "tools_used": executed_tools + [name],
-                    "evidence": {name: res},
+                    "tools_used": executed_tools + [s_name],
+                    "evidence": {s_name: res},
                     "confidence": 100.0,
                     "investigation_report": {
                         "Executive Summary": msg,
@@ -1251,28 +1315,25 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
 
             # Verify structured output
             if not isinstance(res, (dict, list)):
-                raise ValueError(f"Tool '{name}' did not return structured evidence.")
+                raise ValueError(f"Tool '{s_name}' did not return structured evidence.")
                 
-            evidence[name] = res
-            tools_used.append(name)
-            executed_tools.append(name)
-            trace.setdefault("evidence_graph", {})[name] = list(res.keys()) if isinstance(res, dict) else ["data_value"]
-            
-            duration_ms = int((time.time() - t_start) * 1000)
-            timestamp = int(time.time() * 1000)
+            evidence[s_name] = res
+            tools_used.append(s_name)
+            executed_tools.append(s_name)
+            trace.setdefault("evidence_graph", {})[s_name] = list(res.keys()) if isinstance(res, dict) else ["data_value"]
             
             # Timelines logs
             eng_log = {
-                "engineer": engineer.name,
-                "role": engineer.role,
+                "engineer": s_engineer.name,
+                "role": s_engineer.role,
                 "duration_ms": duration_ms,
                 "timestamp": timestamp
             }
             trace.setdefault("timelines", {}).setdefault("engineers", []).append(eng_log)
             
             ev_log = {
-                "evidence_key": name,
-                "source_tool": name,
+                "evidence_key": s_name,
+                "source_tool": s_name,
                 "timestamp": timestamp
             }
             trace.setdefault("timelines", {}).setdefault("evidence", []).append(ev_log)
@@ -1280,24 +1341,13 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
             streaming_events.append({
                 "event": "tool_finished",
                 "timestamp": timestamp,
-                "details": f"Engineer '{engineer.name}' finished executing tool '{name}' successfully in {duration_ms}ms."
+                "details": f"Engineer '{s_engineer.name}' finished executing tool '{s_name}' successfully in {duration_ms}ms."
             })
             
             print("SUCCESS")
             print("Evidence Stored")
-            
-        except Exception as ex:
-            tb_str = traceback.format_exc()
-            err_msg = f"Engineer '{engineer.name}' failed executing tool '{name}': {ex}"
-            logger.error(f"[Chief Race Engineer] Engineer execution crash: {err_msg}\n{tb_str}")
-            print("FAILED")
-            print(f"Reason:\n{ex}")
-            errors.append(err_msg)
-            failed_tools.append(name)
-            trace.setdefault("recovery_steps", []).append(f"Auto-recovery: omitted failed engineer {engineer.name}")
-            
-        if idx < len(plan) - 1:
-            print("------------------")
+
+        print("------------------")
             
     print("================================")
     

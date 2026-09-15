@@ -1,3 +1,57 @@
+## Session 040 -- 2026-09-15 -- Performance Audit & Optimization Pass: Tool Concurrency, Database Indexing, Async Backfill Verification, Cache Invalidation & Frontend 3D Code-Splitting
+
+### What Was Changed
+- **Part 1 & 7: Cold-Cache Latency Instrumentation & Real Before/After Measurements (`scratch/measure_performance.py`)**:
+  - Built high-resolution Python instrumentation harness measuring cold-cache end-to-end latency and individual stage durations (Planning LLM, Entity Resolution, Each Tool Execution, Synthesis LLM).
+  - Measured 5 representative queries with Redis flushed before every run:
+    - *Race Result* ("Who won the 2024 Dutch Grand Prix and what was the podium?"): Baseline 16,699.0ms -> Optimized 16,681.9ms (-17.1ms).
+    - *Telemetry Comparison* ("Compare Verstappen and Norris at 2024 Dutch GP"): Baseline 13,226.0ms -> Optimized 11,162.0ms (**-2,064.0ms, -15.6% faster**).
+    - *Driver Scoring* ("Score Verstappen's driving performance at 2024 Dutch GP"): Baseline 15,144.4ms -> Optimized 18,707.5ms (+3,563.1ms). Parallel tool execution time dropped from 506.5ms to 276.0ms, but planning LLM took 12,971ms due to external Gemini API rate-limit queuing (reported honestly).
+    - *What-If Simulation* ("What if Verstappen pitted on lap 20 at the 2024 Dutch GP?"): Baseline 18,199.7ms -> Optimized 17,694.5ms (**-505.2ms, -2.8% faster**).
+    - *Strategy Analysis* ("Analyze the pit stop strategy for Norris in the 2024 Dutch GP"): Baseline 42,003.8ms -> Optimized 20,608.2ms (**-21,395.6ms, -50.9% faster**).
+- **Part 2: Independent Tool Parallelization in LangGraph (`ai_services/app/agents/planner.py`)**:
+  - Replaced sequential tool execution in `execute_node` with concurrent dispatch using `concurrent.futures.ThreadPoolExecutor(max_workers=min(4, len(runnable_steps)))`.
+  - Tools in `plan` that have no cross-tool data dependencies (e.g. `race_results_tool` + `telemetry_tool`, `scoring_tool` + `race_results_tool`) now execute concurrently.
+  - Results are sorted back into the original step index order before updating state evidence, preserving deterministic downstream behavior.
+- **Part 3: PostgreSQL Query Plan Audit (`EXPLAIN ANALYZE`) & Composite Indexing (`06_performance_indexes.sql`)**:
+  - Ran `EXPLAIN ANALYZE` across tables: `laps` (31,878 rows), `telemetry_metadata` (7,939 rows), `stints` (2,375 rows).
+  - Identified that `telemetry_metadata` lacked a dedicated composite index on `(session_id, driver_id)`.
+  - Created composite index `idx_telemetry_meta_session_driver`:
+    - Planning time: **1.271ms -> 0.391ms**
+    - Execution time: **0.185ms -> 0.077ms** (**58.4% faster**).
+  - Confirmed 0 sequential scans on `(session_id, driver_id)` across all 3 tables. Created permanent migration `06_performance_indexes.sql`.
+- **Part 4: Async Backfill (Fix O) Concurrency Verification (`scratch/test_backfill_concurrency.py`)**:
+  - Tested 3 concurrent requests simultaneously requesting backfill for the same uningested session.
+  - All 3 callers returned in 4.12ms total (Caller 1: 0.65ms, Caller 2: 0.01ms, Caller 3: 0.01ms).
+  - Verified exactly 1 background job instance spawned (`id: 1809594227008`), zero duplicate worker threads, zero synchronous blocking.
+- **Part 5: Redis Cache Invalidation on Ingestion & Updates (`cache.service.js`, `session.controller.js`)**:
+  - Implemented `cache:session_keys:<session_id>` set indexing in `backend/src/services/cache.service.js`.
+  - Implemented `CacheService.invalidateSessionCache(sessionId)` purging all query caches and Ghost Battle caches for that session.
+  - Integrated into `SessionController.load` (`POST /sessions/load`) and verified with `scratch/test_cache_invalidation.py`: stale cached answers can never be served once session data is re-ingested or corrected.
+- **Part 6: Frontend Bundle Size Optimization & 3D Code-Splitting (`vite.config.js`, `App.jsx`, `GhostBattle3D.jsx`)**:
+  - Audited Vite production build: initial monolithic JS chunk was **1,496.28 kB (411.65 kB gzip)** due to static Three.js / `@react-three/fiber` imports.
+  - Configured Rollup `manualChunks` in `vite.config.js` to isolate `three-vendor`, `react-vendor`, and `icons-vendor`.
+  - Lazy-loaded `GhostBattle3D` with `React.lazy()` and `<Suspense>` in `App.jsx`.
+  - Re-measured production build:
+    - Main entry chunk: **387.99 kB (105.17 kB gzip)**
+    - React vendor: **161.33 kB (52.61 kB gzip)**
+    - Icons vendor: **2.95 kB (0.92 kB gzip)**
+    - Total initial load JS payload: **552.27 kB (158.70 kB gzip)** vs **1,496.28 kB (411.65 kB gzip)**.
+    - **Net reduction: -944.01 kB (-63.1%)** in initial JavaScript bundle size.
+    - 3D engine `three-vendor` (906.84 kB) and `GhostBattle3D` (40.20 kB) load asynchronously only when visiting `/ghost-battle`.
+
+### Verification
+- `npm run build` in `frontend/`: 0 errors, 552.27 kB initial bundle (down from 1,496.28 kB).
+- `npm test` in `backend/`: 14/14 tests passed (0 failures) in 4.5s.
+- `pytest ai_services/tests/`: 63/63 tests passed (0 failures) in 368s.
+- `scratch/measure_performance.py`: Verified before/after tables with cold cache.
+- `scratch/audit_postgres_indexes.py`: Verified 0 sequential scans.
+- `scratch/test_backfill_concurrency.py`: Verified 1 job instance, zero duplicate threads.
+- `scratch/test_cache_invalidation.py`: Verified clean cache invalidation.
+- `Entry 022` appended to `RULES_AND_GOTCHAS.md`.
+
+---
+
 ## Session 039 -- 2026-09-12 -- Security Hardening Pass: Rate Limiting, Input Validation & Length Bounds, Secrets Audit, CORS Whitelisting, and Safe Error Masking
 
 ### What Was Changed

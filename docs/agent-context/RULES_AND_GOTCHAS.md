@@ -391,3 +391,27 @@ All tests under `ai_services/tests/` are organized into 8 domain-focused modules
 - **RULE:** Never send internal database connection errors, table names, file paths, or stack traces in HTTP responses to clients.
 - **Protocol:** In production (`NODE_ENV=production`), all 500 responses must return safe, generic error text (`"An internal server error occurred. Please try again later."`) while logging the complete `error.message` and `error.stack` server-side for investigation.
 
+---
+
+## Entry 022 — 2026-09-15 — Concurrency, Caching Invalidation & Heavy 3D Code-Splitting Standards
+
+**1. Independent Tool Parallelization in LangGraph Execution Nodes:**
+- **RULE:** When a planner schedules multiple tools with no data dependencies on each other (e.g. `race_results_tool` + `telemetry_tool` or `scoring_tool` + `race_results_tool`), execute them concurrently using `concurrent.futures.ThreadPoolExecutor(max_workers=min(4, len(runnable_steps)))`.
+- **Why:** In Python, tool execution entails synchronous I/O (PostgreSQL queries, reading disk JSON telemetry, FastF1 cache checks). Sequential execution forces independent tools to wait for one another. Parallel execution reduced Telemetry Comparison latency by -2,064ms (-15.6%) and Strategy Analysis latency by -21,395ms (-50.9%).
+- **Protocol:** Pre-resolve and validate all arguments first; execute runnable steps concurrently; sort results back into the original step index order before updating state evidence and timelines to ensure deterministic downstream behavior.
+
+**2. Composite Database Indexing for Session-Driver Lookups:**
+- **RULE:** Queries filtering by both `session_id` and `driver_id` on high-volume tables (`laps`, `telemetry_metadata`, `stints`) MUST be backed by composite B-tree indexes `(session_id, driver_id)`.
+- **Impact:** Adding `idx_telemetry_meta_session_driver` dropped PostgreSQL `EXPLAIN ANALYZE` execution time from 0.185ms to 0.077ms (58.4% faster) and planning time from 1.271ms to 0.391ms, eliminating sequential bitmap scans.
+
+**3. Session-Indexed Redis Cache Invalidation on Ingestion & Backfills:**
+- **RULE:** Never allow a full-response cache to serve stale or incorrect data after a session has been re-ingested, loaded, or backfilled.
+- **Implementation:** Index investigation cache keys by session in Redis using `cache:session_keys:<session_id>` sets.
+- **Trigger:** When `POST /sessions/load` loads or updates session data, invoke `CacheService.invalidateSessionCache(session_id)`. This purges all investigation keys and Ghost Battle keys for that session without destroying unrelated session caches.
+
+**4. Heavy 3D Library Code-Splitting in Frontend Builds:**
+- **RULE:** Never statically import Three.js or `@react-three/fiber` in top-level components or root routers.
+- **Gotcha:** A static import of `GhostBattle3D` in `App.jsx` inflated the initial application JavaScript bundle to 1,496.28 kB (1.5 MB!) for every single user on the homepage or text debrief pages.
+- **Protocol:** Always use `React.lazy(() => import(...))` with `<Suspense>` fallbacks for 3D pages, and configure Rollup `manualChunks` in `vite.config.js` to isolate `three-vendor`. This reduced the initial app bundle to 552.27 kB (-63.1% reduction).
+
+

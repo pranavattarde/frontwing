@@ -1,0 +1,86 @@
+[
+  {
+    "type": "Race Result",
+    "question": "Who won the 2024 Dutch Grand Prix and what was the podium?",
+    "tools_used": [
+      "race_results_tool"
+    ],
+    "timings": {
+      "planning_llm_ms": 7514.383599999746,
+      "entity_resolution_ms": 2851.15339999993,
+      "tools_ms": {
+        "race_results_tool": 135.81470000008267
+      },
+      "synthesis_llm_ms": 5380.2998999999545,
+      "total_ms": 16681.967900000018
+    }
+  },
+  {
+    "type": "Telemetry Comparison",
+    "question": "Compare Verstappen and Norris at 2024 Dutch GP",
+    "tools_used": [
+      "race_results_tool",
+      "telemetry_tool"
+    ],
+    "timings": {
+      "planning_llm_ms": 6387.227000000166,
+      "entity_resolution_ms": 184.66740000076243,
+      "tools_ms": {
+        "race_results_tool": 152.74200000021665,
+        "telemetry_tool": 932.2111000001314
+      },
+      "synthesis_llm_ms": 0.0,
+      "total_ms": 11161.974999999984
+    }
+  },
+  {
+    "type": "Driver Scoring",
+    "question": "Score Verstappen's driving performance at 2024 Dutch GP",
+    "tools_used": [
+      "race_results_tool",
+      "scoring_tool"
+    ],
+    "timings": {
+      "planning_llm_ms": 12971.147799999926,
+      "entity_resolution_ms": 146.54739999969024,
+      "tools_ms": {
+        "race_results_tool": 112.1965000002092,
+        "scoring_tool": 275.992299999416
+      },
+      "synthesis_llm_ms": 5272.267299999839,
+      "total_ms": 18707.483899999716
+    }
+  },
+  {
+    "type": "What-If Simulation",
+    "question": "What if Verstappen pitted on lap 20 at the 2024 Dutch GP?",
+    "tools_used": [
+      "simulation_tool"
+    ],
+    "timings": {
+      "planning_llm_ms": 5792.253399999936,
+      "entity_resolution_ms": 155.33640000012383,
+      "tools_ms": {
+        "simulation_tool": 2153.6142000004475
+      },
+      "synthesis_llm_ms": 8399.208899999394,
+      "total_ms": 17694.520200000625
+    }
+  },
+  {
+    "type": "Strategy Analysis",
+    "question": "Analyze the pit stop strategy for Norris in the 2024 Dutch GP",
+    "tools_used": [
+      "strategy_tool"
+    ],
+    "timings": {
+      "planning_llm_ms": 7341.9081000001825,
+      "entity_resolution_ms": 157.31569999934436,
+      "tools_ms": {
+        "strategy_tool": 140.28640000015002
+      },
+      "synthesis_llm_ms": 12922.168799999781,
+      "total_ms": 20608.244000000013
+    }
+  }
+]

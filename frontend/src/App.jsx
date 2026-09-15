@@ -1,18 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { BriefingRoom } from "./pages/BriefingRoom";
 import { InvestigationThread } from "./pages/InvestigationThread";
 import { RaceBriefing } from "./pages/RaceBriefing";
 import { StrategyPlayground } from "./pages/StrategyPlayground";
 import { StrategyEngineer } from "./pages/StrategyEngineer";
-import { GhostBattle } from "./pages/GhostBattle";
-import { GhostBattle3D } from "./pages/GhostBattle3D";
 import { Sidebar } from "./components/Sidebar";
 import { CommandPalette } from "./components/CommandPalette";
 import { SearchOverlay } from "./components/SearchOverlay";
 import { NotificationContainer } from "./components/Notification";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { generateId } from "./lib/utils";
+
+// Lazy-load heavy 3D Three.js dependencies so they do not bloat initial page bundle
+const GhostBattle3D = lazy(() => import("./pages/GhostBattle3D"));
+const GhostBattle = lazy(() => import("./pages/GhostBattle"));
 
 export default function App() {
   const [isCommandOpen, setIsCommandOpen] = useState(false);
@@ -75,8 +77,22 @@ export default function App() {
               <Route path="/strategy-engineer" element={<StrategyEngineer />} />
               <Route path="/race/:raceId" element={<RaceBriefing />} />
               <Route path="/strategy/:raceId" element={<StrategyPlayground />} />
-              <Route path="/ghost-battle" element={<GhostBattle3D />} />
-              <Route path="/ghost-battle/:raceId" element={<GhostBattle3D />} />
+              <Route
+                path="/ghost-battle"
+                element={
+                  <Suspense fallback={<div className="flex-1 flex items-center justify-center text-text-muted font-mono text-xs p-12">LOADING_3D_ENGINE // INITIALIZING_TRACK...</div>}>
+                    <GhostBattle3D />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/ghost-battle/:raceId"
+                element={
+                  <Suspense fallback={<div className="flex-1 flex items-center justify-center text-text-muted font-mono text-xs p-12">LOADING_3D_ENGINE // INITIALIZING_TRACK...</div>}>
+                    <GhostBattle3D />
+                  </Suspense>
+                }
+              />
             </Routes>
           </div>
         </div>

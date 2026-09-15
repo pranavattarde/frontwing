@@ -81,8 +81,42 @@ class CacheService {
         EX: ttl,
       });
       console.log(`[Cache Set] Cached response for question: "${question.substring(0, 50)}..." (TTL: ${ttl}s)`);
+
+      // Index cache key by session to enable targeted invalidation on re-ingestion
+      if (session && session !== 'global') {
+        const cleanSession = session.trim().toLowerCase();
+        await redisClient.sAdd(`cache:session_keys:${cleanSession}`, key);
+        await redisClient.expire(`cache:session_keys:${cleanSession}`, ttl);
+      }
     } catch (err) {
       console.warn('[Cache Warning] Failed to set Redis cache:', err.message);
+    }
+  }
+
+  static async invalidateSessionCache(sessionId) {
+    if (!redisClient.isOpen || !sessionId) {
+      return 0;
+    }
+    try {
+      const cleanSession = sessionId.trim().toLowerCase();
+      const sessionKeys = await redisClient.sMembers(`cache:session_keys:${cleanSession}`);
+      let count = 0;
+      if (sessionKeys && sessionKeys.length > 0) {
+        await redisClient.del(sessionKeys);
+        await redisClient.del(`cache:session_keys:${cleanSession}`);
+        count += sessionKeys.length;
+      }
+      // Invalidate Ghost Battle cached roster and telemetry data for this session
+      const ghostBattleKeys = await redisClient.keys(`*ghost_battle*${cleanSession}*`);
+      if (ghostBattleKeys && ghostBattleKeys.length > 0) {
+        await redisClient.del(ghostBattleKeys);
+        count += ghostBattleKeys.length;
+      }
+      console.log(`[Cache Invalidation] Purged ${count} cached items for session "${cleanSession}".`);
+      return count;
+    } catch (err) {
+      console.warn(`[Cache Warning] Failed to invalidate cache for session ${sessionId}:`, err.message);
+      return 0;
     }
   }
 
@@ -95,6 +129,10 @@ class CacheService {
       if (keys && keys.length > 0) {
         await redisClient.del(keys);
         console.log(`[Cache Invalidation] Flushed ${keys.length} investigation cache keys.`);
+      }
+      const sessionIndexKeys = await redisClient.keys('cache:session_keys:*');
+      if (sessionIndexKeys && sessionIndexKeys.length > 0) {
+        await redisClient.del(sessionIndexKeys);
       }
     } catch (err) {
       console.warn('[Cache Warning] Failed to clear investigation cache:', err.message);

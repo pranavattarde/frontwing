@@ -628,3 +628,5 @@ export function GhostBattle3D() {
     </div>
   );
 }
+
+export default GhostBattle3D;

@@ -1,3 +1,5 @@
+const { CacheService } = require('../services/cache.service');
+
 class SessionController {
   static async load(req, res) {
     try {
@@ -22,6 +24,14 @@ class SessionController {
       }
 
       const data = await response.json();
+
+      // Invalidate stale cached responses for this session so updated data is served immediately
+      if (data && data.session_id) {
+        await CacheService.invalidateSessionCache(data.session_id);
+      } else {
+        await CacheService.clearInvestigationCache();
+      }
+
       return res.json(data);
     } catch (error) {
       console.error('[SessionController] Error in session load handler:', error.message, error.stack);

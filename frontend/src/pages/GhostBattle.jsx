@@ -54,3 +54,5 @@ export function GhostBattle() {
     className="mt-2"
   /></main></div>;
 }
+
+export default GhostBattle;
