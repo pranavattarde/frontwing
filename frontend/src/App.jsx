@@ -11,6 +11,7 @@ import { SearchOverlay } from "./components/SearchOverlay";
 import { NotificationContainer } from "./components/Notification";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { generateId } from "./lib/utils";
+import { DesignSystemShowcase } from "./pages/DesignSystemShowcase";
 
 // Lazy-load heavy 3D Three.js dependencies so they do not bloat initial page bundle
 const GhostBattle3D = lazy(() => import("./pages/GhostBattle3D"));
@@ -77,6 +78,7 @@ export default function App() {
               <Route path="/strategy-engineer" element={<StrategyEngineer />} />
               <Route path="/race/:raceId" element={<RaceBriefing />} />
               <Route path="/strategy/:raceId" element={<StrategyPlayground />} />
+              <Route path="/design-system" element={<DesignSystemShowcase />} />
               <Route
                 path="/ghost-battle"
                 element={
