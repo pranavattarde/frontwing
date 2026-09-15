@@ -144,21 +144,14 @@ export function Sidebar({ className }) {
     return location.pathname.startsWith(path);
   };
 
+  useEffect(() => {
+    const handleToggle = () => setIsMobileOpen((prev) => !prev);
+    window.addEventListener("toggle-sidebar", handleToggle);
+    return () => window.removeEventListener("toggle-sidebar", handleToggle);
+  }, []);
+
   return (
     <>
-      {/* Mobile Sidebar Toggle Button */}
-      <button
-        onClick={() => setIsMobileOpen((prev) => !prev)}
-        className={cn(
-          "lg:hidden fixed bottom-4 left-4 z-50 p-3 rounded-full bg-surface-raised border border-border-strong text-accent-primary hover:border-accent-primary shadow-xl backdrop-blur-md transition-all active:scale-95",
-          isMobileOpen && "hidden"
-        )}
-        aria-label="Toggle Navigation Sidebar"
-      >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
 
       {/* Backdrop for mobile */}
       {isMobileOpen && (

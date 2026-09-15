@@ -15,7 +15,7 @@ export function ScoreCard({ data, className }) {
       key: "pace",
       name: "Pace Index",
       score: data.pace_score,
-      color: "#00E5FF", // DRS Cyan
+      color: "#E10600", // F1 Speed Red
       desc: "Fastest clean laps vs grid/teammate optimal",
       details: data.breakdown?.pace ? [
         { label: "Optimal Lap", val: data.breakdown.pace.optimal_lap ? `${data.breakdown.pace.optimal_lap.toFixed(3)}s` : "N/A" },
@@ -27,7 +27,7 @@ export function ScoreCard({ data, className }) {
       key: "consistency",
       name: "Consistency",
       score: data.consistency_score,
-      color: "#00E676", // Neon Green
+      color: "#00D2BE", // Timing Green
       desc: "Flying lap variance excluding neutralizations",
       details: data.breakdown?.consistency ? [
         { label: "Lap Variance", val: data.breakdown.consistency.lap_variance ? `σ² ${data.breakdown.consistency.lap_variance.toFixed(3)}` : "N/A" },
@@ -39,7 +39,7 @@ export function ScoreCard({ data, className }) {
       key: "racecraft",
       name: "Racecraft",
       score: data.racecraft_score,
-      color: "#FFB800", // Electric Amber
+      color: "#FF8000", // Sector Orange
       desc: "Grid-to-flag delta and track combat efficiency",
       details: data.breakdown?.racecraft ? [
         { label: "Grid Position", val: data.breakdown.racecraft.grid_position ? `P${data.breakdown.racecraft.grid_position}` : "N/A" },
@@ -51,7 +51,7 @@ export function ScoreCard({ data, className }) {
       key: "strategy",
       name: "Strategy Execution",
       score: data.strategy_score,
-      color: "#D500F9", // Neon Purple
+      color: "#B138DD", // Sector Purple
       desc: "Pit window timing and undercut conversion",
       details: data.breakdown?.strategy ? [
         { label: "Undercut Success", val: data.breakdown.strategy.undercut_success ? "YES" : "NO" },
@@ -62,7 +62,7 @@ export function ScoreCard({ data, className }) {
       key: "tire",
       name: "Tyre Management",
       score: data.tire_score,
-      color: "#FFD600", // Neon Yellow
+      color: "#FFD600", // Timing Yellow
       desc: "Degradation slope vs session grid median",
       details: data.breakdown?.tire ? [
         { label: "Driver Deg", val: data.breakdown.tire.deg_slope ? `${data.breakdown.tire.deg_slope.toFixed(4)} s/lap` : "N/A" },
@@ -73,20 +73,20 @@ export function ScoreCard({ data, className }) {
 
   const getScoreColor = (score) => {
     if (typeof score !== "number") return "text-text-muted";
-    if (score >= 80) return "text-[#00E676]";
-    if (score >= 60) return "text-[#00E5FF]";
-    if (score >= 40) return "text-[#FFB800]";
-    return "text-[#FF1801]";
+    if (score >= 80) return "text-timing-green";
+    if (score >= 60) return "text-text-primary";
+    if (score >= 40) return "text-timing-yellow";
+    return "text-accent-danger";
   };
 
   return (
-    <div className={cn("evidence-card border border-fw-border bg-panel/70 rounded-card p-5 flex flex-col gap-4 font-sans backdrop-blur-md", className)}>
+    <div className={cn("border border-border-subtle bg-surface-base rounded p-5 flex flex-col gap-4 font-sans shadow-sm", className)}>
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-fw-border pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle pb-3">
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#00E5FF] animate-pulse" />
-            <span className="font-mono text-[10px] text-drs-cyan tracking-widest uppercase">
+            <span className="w-2 h-2 rounded-full bg-accent-primary animate-pulse" />
+            <span className="font-mono text-xs text-accent-primary font-bold tracking-widest uppercase">
               DRIVER_SCORECARD // {driverId}
             </span>
           </div>
@@ -94,10 +94,10 @@ export function ScoreCard({ data, className }) {
         </div>
 
         {/* Composite Score Gauge */}
-        <div className="flex items-center gap-3 bg-canvas/60 px-3.5 py-1.5 rounded-card border border-fw-border">
+        <div className="flex items-center gap-3 bg-surface-raised px-3.5 py-1.5 rounded border border-border-subtle">
           <div className="flex flex-col text-right">
-            <span className="text-[9px] font-mono text-text-muted uppercase tracking-wider">Composite Index</span>
-            <span className={cn("text-xl font-mono font-bold tabular-nums", getScoreColor(data.composite_score))}>
+            <span className="text-[10px] font-mono text-text-muted uppercase tracking-wider">Composite Index</span>
+            <span className={cn("text-xl font-mono font-bold type-tabular", getScoreColor(data.composite_score))}>
               {compositeScore}
               <span className="text-xs text-text-muted font-normal"> / 100</span>
             </span>
@@ -113,20 +113,20 @@ export function ScoreCard({ data, className }) {
           return (
             <div
               key={dim.key}
-              className="flex flex-col gap-2 p-3 rounded-card bg-canvas/40 border border-fw-border/60 hover:border-fw-border transition-colors"
+              className="flex flex-col gap-2 p-3 rounded bg-surface-raised border border-border-subtle hover:border-border-medium transition-colors"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: dim.color }} />
-                  <span className="text-xs font-semibold text-text-primary tracking-wide">{dim.name}</span>
+                  <span className="text-xs font-bold text-text-primary tracking-wide">{dim.name}</span>
                 </div>
-                <span className={cn("font-mono text-xs font-bold tabular-nums", getScoreColor(dim.score))}>
+                <span className={cn("font-mono text-xs font-bold type-tabular", getScoreColor(dim.score))}>
                   {scoreDisplay}
                 </span>
               </div>
 
               {/* Progress Bar */}
-              <div className="w-full h-1.5 rounded-full bg-elevated overflow-hidden">
+              <div className="w-full h-1.5 rounded-full bg-surface-base overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-700 ease-out"
                   style={{
@@ -140,11 +140,11 @@ export function ScoreCard({ data, className }) {
 
               {/* Sub-parameters */}
               {showDetails && dim.details.length > 0 && (
-                <div className="mt-1 pt-2 border-t border-fw-border/40 grid grid-cols-2 gap-1.5 text-[9px] font-mono">
+                <div className="mt-1 pt-2 border-t border-border-subtle grid grid-cols-2 gap-1.5 text-[10px] font-mono type-tabular">
                   {dim.details.map((d, i) => (
                     <div key={i} className="flex justify-between gap-1 text-text-muted">
                       <span>{d.label}:</span>
-                      <span className="text-text-primary font-medium">{d.val}</span>
+                      <span className="text-text-primary font-bold">{d.val}</span>
                     </div>
                   ))}
                 </div>
@@ -155,11 +155,11 @@ export function ScoreCard({ data, className }) {
       </div>
 
       {/* Footer Controls */}
-      <div className="flex items-center justify-between pt-2 border-t border-fw-border/40 text-[10px] font-mono">
+      <div className="flex items-center justify-between pt-2 border-t border-border-subtle text-xs font-mono">
         <span className="text-text-muted">Formula Model: FastF1 Real Ingestion Data</span>
         <button
           onClick={() => setShowDetails(!showDetails)}
-          className="text-drs-cyan hover:text-drs-cyan-hover transition-colors font-mono uppercase tracking-wider"
+          className="text-accent-primary hover:underline transition-colors font-mono uppercase tracking-wider font-bold"
         >
           {showDetails ? "[- HIDE MATHEMATICAL PARAMETERS]" : "[+ SHOW MATHEMATICAL PARAMETERS]"}
         </button>

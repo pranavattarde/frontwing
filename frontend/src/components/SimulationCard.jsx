@@ -35,19 +35,19 @@ export function SimulationCard({ data, className }) {
   const projTimeFormatted = data.projected_total_time_seconds ? formatSecs(data.projected_total_time_seconds) : "N/A";
 
   const getPosBadgeColor = (delta) => {
-    if (delta > 0) return "text-[#00E676] bg-[#00E676]/10 border-[#00E676]/30";
-    if (delta < 0) return "text-[#FF1801] bg-[#FF1801]/10 border-[#FF1801]/30";
-    return "text-text-muted bg-canvas/60 border-fw-border";
+    if (delta > 0) return "text-timing-green bg-timing-green/10 border-timing-green/30";
+    if (delta < 0) return "text-accent-danger bg-accent-danger/10 border-accent-danger/30";
+    return "text-text-muted bg-surface-base border-border-subtle";
   };
 
   return (
-    <div className={cn("evidence-card border border-fw-border bg-panel/70 rounded-card p-5 flex flex-col gap-4 font-sans backdrop-blur-md", className)}>
+    <div className={cn("border border-border-subtle bg-surface-base rounded p-5 flex flex-col gap-4 font-sans shadow-sm", className)}>
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-fw-border pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle pb-3">
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#FF1801] animate-pulse" />
-            <span className="font-mono text-[10px] text-drs-cyan tracking-widest uppercase">
+            <span className="w-2 h-2 rounded-full bg-accent-primary animate-pulse" />
+            <span className="font-mono text-xs text-accent-primary font-bold tracking-widest uppercase">
               WHAT_IF_SIMULATION // {driverId}
             </span>
           </div>
@@ -56,7 +56,7 @@ export function SimulationCard({ data, className }) {
 
         {/* Strategy Badge */}
         {data.recommended_strategy && (
-          <div className="px-3 py-1 rounded-card bg-drs-cyan/10 border border-drs-cyan/30 text-drs-cyan font-mono text-[10px] uppercase tracking-wider font-bold">
+          <div className="px-3 py-1 rounded bg-surface-raised border border-border-subtle text-text-primary font-mono text-[11px] uppercase tracking-wider font-bold">
             STRATEGY: {data.recommended_strategy}
           </div>
         )}
@@ -65,13 +65,13 @@ export function SimulationCard({ data, className }) {
       {/* Main KPI Comparison Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
         {/* 1. Pit Window Shift */}
-        <div className="p-3.5 rounded-card bg-canvas/50 border border-fw-border flex flex-col justify-between">
-          <span className="text-[9px] font-mono text-text-muted uppercase tracking-wider">Pit Stop Shift</span>
-          <div className="flex items-baseline gap-2 my-1.5">
+        <div className="p-3.5 rounded bg-surface-raised border border-border-subtle flex flex-col justify-between">
+          <span className="text-[10px] font-mono text-text-muted uppercase tracking-wider">Pit Stop Shift</span>
+          <div className="flex items-baseline gap-2 my-1.5 type-tabular">
             <span className="text-sm font-mono text-text-muted line-through">Lap {actualPit}</span>
             <span className="text-sm text-text-muted">→</span>
             <span className="text-lg font-mono font-bold text-text-primary">
-              Lap {simPit} <span className="text-xs text-drs-cyan font-normal">({compound})</span>
+              Lap {simPit} <span className="text-xs text-timing-yellow font-normal">({compound})</span>
             </span>
           </div>
           <span className="text-[10px] text-text-muted font-mono">
@@ -82,28 +82,28 @@ export function SimulationCard({ data, className }) {
         </div>
 
         {/* 2. Track Position Delta */}
-        <div className="p-3.5 rounded-card bg-canvas/50 border border-fw-border flex flex-col justify-between">
-          <span className="text-[9px] font-mono text-text-muted uppercase tracking-wider">Track Position</span>
-          <div className="flex items-baseline gap-2.5 my-1.5">
-            <span className="text-2xl font-mono font-bold text-text-primary tabular-nums">
+        <div className="p-3.5 rounded bg-surface-raised border border-border-subtle flex flex-col justify-between">
+          <span className="text-[10px] font-mono text-text-muted uppercase tracking-wider">Track Position</span>
+          <div className="flex items-baseline gap-2.5 my-1.5 type-tabular">
+            <span className="text-2xl font-mono font-bold text-text-primary">
               P{projPos}
             </span>
-            <span className={cn("text-xs font-mono font-bold px-2 py-0.5 rounded border tabular-nums", getPosBadgeColor(posChange))}>
+            <span className={cn("text-xs font-mono font-bold px-2 py-0.5 rounded border", getPosBadgeColor(posChange))}>
               {posChange > 0 ? `+${posChange} POS` : posChange < 0 ? `${posChange} POS` : "0 (UNCHANGED)"}
             </span>
           </div>
-          <span className="text-[10px] text-text-muted font-mono">
+          <span className="text-[10px] text-text-muted font-mono type-tabular">
             Actual Finish: P{actualPos}
           </span>
         </div>
 
         {/* 3. Net Race Time Delta */}
-        <div className="p-3.5 rounded-card bg-canvas/50 border border-fw-border flex flex-col justify-between">
-          <span className="text-[9px] font-mono text-text-muted uppercase tracking-wider">Net Time Gain / Delta</span>
-          <div className="flex items-baseline gap-1 my-1.5">
+        <div className="p-3.5 rounded bg-surface-raised border border-border-subtle flex flex-col justify-between">
+          <span className="text-[10px] font-mono text-text-muted uppercase tracking-wider">Net Time Gain / Delta</span>
+          <div className="flex items-baseline gap-1 my-1.5 type-tabular">
             <span className={cn(
-              "text-2xl font-mono font-bold tabular-nums",
-              isPositiveGain ? "text-[#00E676]" : isNegativeGain ? "text-[#FF1801]" : "text-text-primary"
+              "text-2xl font-mono font-bold",
+              isPositiveGain ? "text-timing-green" : isNegativeGain ? "text-accent-danger" : "text-text-primary"
             )}>
               {isPositiveGain ? `+${netGainSec.toFixed(3)}s` : `${netGainSec.toFixed(3)}s`}
             </span>
@@ -115,29 +115,29 @@ export function SimulationCard({ data, className }) {
       </div>
 
       {/* Detailed Diagnostics Table */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-card bg-canvas/30 border border-fw-border/60 text-xs font-mono">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded bg-surface-raised border border-border-subtle text-xs font-mono type-tabular">
         <div className="flex flex-col">
-          <span className="text-[9px] text-text-muted uppercase">Actual Race Time</span>
+          <span className="text-[10px] text-text-muted uppercase">Actual Race Time</span>
           <span className="text-text-primary font-bold">{actualTimeFormatted}</span>
         </div>
         <div className="flex flex-col">
-          <span className="text-[9px] text-text-muted uppercase">Simulated Total Time</span>
+          <span className="text-[10px] text-text-muted uppercase">Simulated Total Time</span>
           <span className="text-text-primary font-bold">{projTimeFormatted}</span>
         </div>
         <div className="flex flex-col">
-          <span className="text-[9px] text-text-muted uppercase">Traffic Loss Bottleneck</span>
-          <span className="text-drs-cyan font-bold">{data.traffic_loss !== undefined ? `${data.traffic_loss.toFixed(3)}s` : "0.000s"}</span>
+          <span className="text-[10px] text-text-muted uppercase">Traffic Loss Bottleneck</span>
+          <span className="text-timing-yellow font-bold">{data.traffic_loss !== undefined ? `${data.traffic_loss.toFixed(3)}s` : "0.000s"}</span>
         </div>
         <div className="flex flex-col">
-          <span className="text-[9px] text-text-muted uppercase">Pit Lane Transit Loss</span>
+          <span className="text-[10px] text-text-muted uppercase">Pit Lane Transit Loss</span>
           <span className="text-text-secondary font-bold">{data.pit_loss !== undefined ? `${data.pit_loss.toFixed(1)}s` : "23.3s"}</span>
         </div>
       </div>
 
       {/* Physics / Trace Notes */}
       {showDetails && (
-        <div className="flex flex-col gap-1.5 p-3 rounded-card bg-canvas/60 border border-fw-border text-[10px] font-mono text-text-muted">
-          <div className="text-text-primary font-semibold uppercase tracking-wider">Physics & Traffic Model:</div>
+        <div className="flex flex-col gap-1.5 p-3 rounded bg-surface-raised border border-border-subtle text-[11px] font-mono text-text-muted">
+          <div className="text-text-primary font-bold uppercase tracking-wider">Physics & Traffic Model:</div>
           <div>• Base pace & tire wear regression: Calibrated per-driver clean flying lap model.</div>
           <div>• Dirty air & traffic penalty: Dynamic bottleneck cap applied when trailing competitor within DRS/dirty air window.</div>
           <div>• Single-pit event guarantee: Seamless stint boundary consolidation.</div>
@@ -145,11 +145,11 @@ export function SimulationCard({ data, className }) {
       )}
 
       {/* Footer Controls */}
-      <div className="flex items-center justify-between pt-2 border-t border-fw-border/40 text-[10px] font-mono">
+      <div className="flex items-center justify-between pt-2 border-t border-border-subtle text-xs font-mono">
         <span className="text-text-muted">Engine: FastF1 1..N Timeline Monte Carlo / Deterministic Physics</span>
         <button
           onClick={() => setShowDetails(!showDetails)}
-          className="text-drs-cyan hover:text-drs-cyan-hover transition-colors font-mono uppercase tracking-wider"
+          className="text-accent-primary hover:underline transition-colors font-mono uppercase tracking-wider font-bold"
         >
           {showDetails ? "[- HIDE SIMULATION NOTES]" : "[+ SHOW SIMULATION NOTES]"}
         </button>

@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+
 export function SimulationResult({
   result,
   variant = "detailed",
@@ -9,36 +10,88 @@ export function SimulationResult({
   const { actual, simulated, delta, confidence, simType } = result;
   const isDetailed = variant === "detailed";
   const posGain = delta.positions;
-  return <motion.div
-    className={cn(
-      "evidence-card border-l-2 border-l-drs-cyan",
-      isDetailed ? "p-5 w-full sm:w-[320px]" : "p-3 w-full"
-    )}
-    initial={{ opacity: 0, y: 8 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-  >{
-    /* Header Row */
-  }<div className="flex justify-between items-center text-mono-meta font-mono mb-3"><span className="text-text-primary font-semibold uppercase tracking-wider">
-          SIMULATION_RESULT // {String(simType || "STRATEGY").toUpperCase()}</span><div className="flex items-center gap-1.5"><span className="text-text-muted">CONFIDENCE:</span><span className="text-tire-inter font-semibold">{confidence}%</span></div></div>{
 
-    /* Main Stats Block */
-  }<div className="flex items-center justify-between gap-4 border-b border-fw-border pb-3"><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">POSITION_DELTA</span><div className="flex items-baseline gap-1.5 mt-0.5"><span className="text-2xl font-semibold font-data text-text-primary">
-              P{simulated.position}</span><span className={cn(
-    "text-xs font-semibold font-mono",
-    posGain > 0 ? "text-tire-inter" : posGain < 0 ? "text-f1-red" : "text-text-muted"
-  )}>{posGain > 0 ? `+${posGain}` : posGain === 0 ? "static" : posGain}</span></div></div><div className="flex flex-col items-end"><span className="text-[9px] font-mono text-text-muted">TIME_DIFFERENCE</span><span className="text-xl font-semibold font-data text-drs-cyan mt-1">{delta.seconds > 0 ? `+${delta.seconds.toFixed(3)}s` : `${delta.seconds.toFixed(3)}s`}</span></div></div>{
-    /* Detail Rows */
-  }{isDetailed && <div className="flex flex-col gap-2 pt-3"><div className="flex justify-between items-center text-mono-meta font-mono"><span className="text-text-muted">ACTUAL_FINISH:</span><span className="text-text-secondary">P{actual.position} ({actual.time.split(".")[0]})</span></div><div className="flex justify-between items-center text-mono-meta font-mono"><span className="text-text-muted">SIMULATED_FINISH:</span><span className="text-text-secondary">P{simulated.position} ({simulated.time.split(".")[0]})</span></div><div className="flex gap-2 mt-2">{onDrillDown && <button
-    onClick={onDrillDown}
-    className="flex-1 py-1.5 border border-fw-border rounded-button text-[10px] font-mono text-text-secondary hover:bg-elevated hover:text-text-primary hover:border-fw-border-active transition-all duration-[80ms]"
-  >
+  return (
+    <motion.div
+      className={cn(
+        "bg-surface-base border border-border-subtle rounded border-l-2 border-l-accent-primary shadow-sm",
+        isDetailed ? "p-5 w-full sm:w-[320px]" : "p-3 w-full"
+      )}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {/* Header Row */}
+      <div className="flex justify-between items-center text-xs font-mono mb-3 border-b border-border-subtle pb-2">
+        <span className="text-text-primary font-bold uppercase tracking-wider flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-accent-primary" />
+          SIMULATION_RESULT // {String(simType || "STRATEGY").toUpperCase()}
+        </span>
+        <div className="flex items-center gap-1.5 type-tabular">
+          <span className="text-text-muted text-[10px]">CONFIDENCE:</span>
+          <span className="text-timing-green font-bold text-xs">{confidence}%</span>
+        </div>
+      </div>
+
+      {/* Main Stats Block */}
+      <div className="flex items-center justify-between gap-4 border-b border-border-subtle pb-3">
+        <div className="flex flex-col">
+          <span className="text-[10px] font-mono text-text-muted">POSITION_DELTA</span>
+          <div className="flex items-baseline gap-1.5 mt-0.5 type-tabular">
+            <span className="text-2xl font-bold font-sans text-text-primary">
+              P{simulated.position}
+            </span>
+            <span
+              className={cn(
+                "text-xs font-bold font-mono",
+                posGain > 0 ? "text-timing-green" : posGain < 0 ? "text-accent-danger" : "text-text-muted"
+              )}
+            >
+              {posGain > 0 ? `+${posGain}` : posGain === 0 ? "static" : posGain}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-end">
+          <span className="text-[10px] font-mono text-text-muted">TIME_DIFFERENCE</span>
+          <span className="text-xl font-bold font-mono text-timing-yellow mt-1 type-tabular">
+            {delta.seconds > 0 ? `+${delta.seconds.toFixed(3)}s` : `${delta.seconds.toFixed(3)}s`}
+          </span>
+        </div>
+      </div>
+
+      {/* Detail Rows */}
+      {isDetailed && (
+        <div className="flex flex-col gap-2 pt-3">
+          <div className="flex justify-between items-center text-xs font-mono type-tabular">
+            <span className="text-text-muted text-[11px]">ACTUAL_FINISH:</span>
+            <span className="text-text-secondary font-medium">P{actual.position} ({actual.time.split(".")[0]})</span>
+          </div>
+          <div className="flex justify-between items-center text-xs font-mono type-tabular">
+            <span className="text-text-muted text-[11px]">SIMULATED_FINISH:</span>
+            <span className="text-text-secondary font-medium">P{simulated.position} ({simulated.time.split(".")[0]})</span>
+          </div>
+          <div className="flex gap-2 mt-2">
+            {onDrillDown && (
+              <button
+                onClick={onDrillDown}
+                className="btn-f1-secondary flex-1 py-1.5 text-xs uppercase"
+              >
                 DRILL_DOWN
-              </button>}{onShareResult && <button
-    onClick={onShareResult}
-    className="py-1.5 px-2.5 border border-fw-border rounded-button text-[10px] font-mono text-text-muted hover:text-text-secondary hover:border-fw-border-active transition-all duration-[80ms]"
-    aria-label="Share simulation result"
-  >
+              </button>
+            )}
+            {onShareResult && (
+              <button
+                onClick={onShareResult}
+                className="btn-f1-secondary py-1.5 px-3 text-xs"
+                aria-label="Share simulation result"
+              >
                 [SHARE]
-              </button>}</div></div>}</motion.div>;
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
 }

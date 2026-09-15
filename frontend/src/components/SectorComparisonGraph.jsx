@@ -8,7 +8,7 @@ export function SectorComparisonGraph({
 }) {
   if (!data || data.length === 0) {
     return (
-      <div className={cn("bg-panel border border-fw-border rounded-card p-4 text-xs font-mono text-text-muted", className)}>
+      <div className={cn("bg-surface-base border border-border-subtle rounded p-4 text-xs font-mono text-text-muted", className)}>
         NO_SECTOR_COMPARISON_DATA
       </div>
     );
@@ -16,20 +16,19 @@ export function SectorComparisonGraph({
 
   const codeA = String(driverCode || "DRIVER A").toUpperCase();
   const codeB = comparativeDriverCode ? String(comparativeDriverCode).toUpperCase() : "BENCHMARK";
-  const vsLabel = `${codeA} vs ${codeB}`;
 
   return (
-    <div className={cn("bg-panel border border-fw-border rounded-card p-4 flex flex-col gap-4 select-none", className)}>
+    <div className={cn("bg-surface-base border border-border-subtle rounded p-4 flex flex-col gap-4 select-none", className)}>
       {/* Header */}
-      <div className="flex justify-between items-center text-mono-meta font-mono border-b border-fw-border pb-2">
-        <span className="text-text-primary font-semibold tracking-wider flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-drs-cyan" />
+      <div className="flex justify-between items-center text-xs font-mono border-b border-border-subtle pb-2.5">
+        <span className="text-text-primary font-bold tracking-wider flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-accent-primary" />
           SECTOR_TIME_COMPARISON // DELTA_ANALYSIS
         </span>
-        <div className="flex items-center gap-2 text-xs font-mono">
-          <span className="text-drs-cyan font-bold">{codeA}</span>
+        <div className="flex items-center gap-2.5 text-xs font-mono">
+          <span className="text-accent-primary font-bold">{codeA}</span>
           <span className="text-text-muted">vs</span>
-          <span className="text-teammate-yellow font-bold">{codeB}</span>
+          <span className="text-timing-yellow font-bold">{codeB}</span>
         </div>
       </div>
 
@@ -46,21 +45,21 @@ export function SectorComparisonGraph({
             <div
               key={s.sector}
               className={cn(
-                "flex flex-col p-3 rounded-card border transition-all relative overflow-hidden",
+                "flex flex-col p-3 rounded border transition-all relative overflow-hidden",
                 isAFaster
-                  ? "border-drs-cyan/40 bg-drs-cyan/5 shadow-[0_0_15px_rgba(0,229,255,0.05)]"
-                  : "border-teammate-yellow/40 bg-teammate-yellow/5 shadow-[0_0_15px_rgba(255,214,0,0.05)]"
+                  ? "border-accent-primary/40 bg-accent-primary/5 shadow-[0_0_15px_rgba(225,6,0,0.05)]"
+                  : "border-timing-yellow/40 bg-timing-yellow/5 shadow-[0_0_15px_rgba(255,214,0,0.05)]"
               )}
             >
               {/* Sector Header & Delta */}
-              <div className="flex justify-between items-center text-mono-meta font-mono mb-2">
+              <div className="flex justify-between items-center text-xs font-mono mb-2">
                 <span className="font-bold text-text-primary text-xs">{s.sector}</span>
                 <span
                   className={cn(
-                    "font-mono text-xs font-bold px-1.5 py-0.5 rounded",
+                    "font-mono text-xs font-bold px-1.5 py-0.5 rounded type-tabular",
                     isAFaster
-                      ? "bg-drs-cyan/15 text-drs-cyan border border-drs-cyan/30"
-                      : "bg-teammate-yellow/15 text-teammate-yellow border border-teammate-yellow/30"
+                      ? "bg-accent-primary/15 text-accent-primary border border-accent-primary/30"
+                      : "bg-timing-yellow/15 text-timing-yellow border border-timing-yellow/30"
                   )}
                 >
                   {deltaStr}
@@ -73,8 +72,8 @@ export function SectorComparisonGraph({
                   className={cn(
                     "text-[10px] font-mono font-bold tracking-wider uppercase px-2 py-0.5 rounded block text-center shadow-xs",
                     isAFaster
-                      ? "bg-drs-cyan/20 text-drs-cyan border border-drs-cyan/40"
-                      : "bg-teammate-yellow/20 text-teammate-yellow border border-teammate-yellow/40"
+                      ? "bg-accent-primary/20 text-accent-primary border border-accent-primary/40"
+                      : "bg-timing-yellow/20 text-timing-yellow border border-timing-yellow/40"
                   )}
                 >
                   {winnerBadgeText}
@@ -82,14 +81,14 @@ export function SectorComparisonGraph({
               </div>
 
               {/* Driver Times Breakdown */}
-              <div className="flex flex-col gap-1 text-[11px] font-mono border-t border-fw-border/60 pt-2 text-text-muted">
+              <div className="flex flex-col gap-1.5 text-[11px] font-mono border-t border-border-subtle/80 pt-2 text-text-muted type-tabular">
                 <div className="flex justify-between items-center">
-                  <span className="text-drs-cyan font-bold">{codeA}:</span>
-                  <span className="text-text-primary font-semibold">{s.driver_time.toFixed(3)}s</span>
+                  <span className="text-accent-primary font-bold">{codeA}:</span>
+                  <span className="text-text-primary font-bold">{s.driver_time.toFixed(3)}s</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-teammate-yellow font-bold">{codeB}:</span>
-                  <span className="text-text-primary font-semibold">{s.benchmark_time.toFixed(3)}s</span>
+                  <span className="text-timing-yellow font-bold">{codeB}:</span>
+                  <span className="text-text-primary font-bold">{s.benchmark_time.toFixed(3)}s</span>
                 </div>
               </div>
             </div>
@@ -99,3 +98,4 @@ export function SectorComparisonGraph({
     </div>
   );
 }
+
