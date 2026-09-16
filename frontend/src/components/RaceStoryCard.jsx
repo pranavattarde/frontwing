@@ -78,45 +78,33 @@ export function RaceStoryCard({
             </span>
             <div className="flex flex-col gap-1.5">
               {keyMoments.map((moment, i) => (
-                <motion.button
+                <div
                   key={i}
-                  onClick={() => onMomentClick?.(i)}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded border text-left transition-all duration-fast hover:bg-surface-raised",
+                    "flex items-center gap-3 px-3 py-2 rounded border text-left",
                     MOMENT_COLORS[moment.type]
                   )}
-                  initial={{ opacity: 0, x: 8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05 + 0.1, duration: 0.15 }}
                 >
                   <span className="font-mono text-xs shrink-0">{MOMENT_ICONS[moment.type]}</span>
                   <span className="font-mono text-xs text-text-muted shrink-0 w-10 type-tabular">
                     L{moment.lap}
                   </span>
                   <span className="text-xs text-text-secondary font-sans">{moment.description}</span>
-                </motion.button>
+                </div>
               ))}
             </div>
           </div>
         )}
       </div>
 
-      {/* CTAs: Local debrief and external source */}
-      <div className="flex items-center justify-between flex-wrap gap-3 mt-2 pt-3 border-t border-border-subtle">
-        {isFeatured && onFullDebrief && (
-          <button
-            onClick={onFullDebrief}
-            className="font-mono text-xs text-accent-primary hover:text-accent-primary-hover font-bold hover:underline underline-offset-2 transition-colors duration-fast"
-          >
-            INVESTIGATE IN CONSOLE →
-          </button>
-        )}
+      {/* External source verification link (Read-only editorial) */}
+      <div className="flex items-center justify-end flex-wrap gap-3 mt-2 pt-3 border-t border-border-subtle">
         {sourceUrl && (
           <a
             href={sourceUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-mono text-xs text-text-muted hover:text-text-primary transition-colors flex items-center gap-1"
+            className="font-mono text-xs text-text-muted hover:text-accent-primary transition-colors flex items-center gap-1 font-semibold"
             onClick={(e) => e.stopPropagation()}
           >
             <span>VERIFY ON {sourceOutlet ? sourceOutlet.toUpperCase() : "OUTLET"} ↗</span>

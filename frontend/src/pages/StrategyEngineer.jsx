@@ -223,7 +223,10 @@ export function StrategyEngineer() {
                     {cat.queries.map((preset) => (
                       <button
                         key={preset}
-                        onClick={() => handleExecuteQuery(preset)}
+                        onClick={() => {
+                          setQuestion(preset);
+                          inputRef.current?.focus();
+                        }}
                         className="p-3 text-left text-xs font-mono rounded bg-surface-raised border border-border-subtle hover:border-border-medium hover:bg-surface-overlay text-text-secondary hover:text-text-primary transition-all group flex items-center justify-between gap-2 shadow-sm"
                       >
                         <span>{preset}</span>
@@ -337,7 +340,10 @@ export function StrategyEngineer() {
               {getContextualSuggestions().map((suggestion) => (
                 <button
                   key={suggestion}
-                  onClick={() => handleExecuteQuery(suggestion)}
+                  onClick={() => {
+                    setQuestion(suggestion);
+                    inputRef.current?.focus();
+                  }}
                   disabled={isLoading}
                   className="btn-f1-secondary text-xs px-3 py-1.5 rounded text-left truncate max-w-full"
                 >

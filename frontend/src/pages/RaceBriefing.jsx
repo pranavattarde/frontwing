@@ -12,44 +12,10 @@ import {
   RACE_INCIDENTS,
   TEAM_METRICS
 } from "@/lib/data";
-import { generateId } from "@/lib/utils";
-import { submitEngineerQuery } from "@/lib/api";
 export function RaceBriefing() {
   const navigate = useNavigate();
   const [selectedTeams, setSelectedTeams] = useState(["mclaren", "redbull", "mercedes", "ferrari"]);
   const [sortKey, setSortKey] = useState("composite");
-  const handleQueryTrigger = async (queryText) => {
-    try {
-      if (typeof window.__fw_notify === "function") {
-        window.__fw_notify({
-          id: "briefing-query",
-          message: `Querying AI Gateway: "${queryText}"`,
-          type: "info",
-          duration: 3e3
-        });
-      }
-      const aiResponse = await submitEngineerQuery(queryText);
-      const generatedId = generateId();
-      const newInvestigation = {
-        id: generatedId,
-        question: queryText,
-        response: aiResponse,
-        timestamp: Date.now()
-      };
-      localStorage.setItem(`frontwing_investigation_${generatedId}`, JSON.stringify(newInvestigation));
-      navigate(`/investigate/${generatedId}`);
-    } catch (error) {
-      console.error("[RaceBriefing] Query failed:", error);
-      if (typeof window.__fw_notify === "function") {
-        window.__fw_notify({
-          id: String(Date.now()),
-          message: `Query failed: ${error.message}`,
-          type: "error",
-          duration: 5e3
-        });
-      }
-    }
-  };
   const breadcrumbs = [
     { label: "Home", href: "/" },
     { label: "Austrian GP Briefing", href: "#" }
@@ -115,12 +81,6 @@ export function RaceBriefing() {
     phases={RACE_PHASES}
     incidents={RACE_INCIDENTS}
     orientation="vertical"
-    onPhaseClick={(phaseIdx) => {
-      const phase = RACE_PHASES[phaseIdx];
-      if (phase) {
-        handleQueryTrigger(`Explain Austrian GP stint timeline phase: ${phase.description}`);
-      }
-    }}
   /></section></div>{
     /* Right Column: Standings & Scores */
   }<div className="flex flex-col gap-6"><span className="text-mono-meta font-mono text-text-muted uppercase tracking-wider block">
@@ -131,7 +91,6 @@ export function RaceBriefing() {
     key={teamMetrics.team.name}
     metrics={teamMetrics}
     variant="summary"
-    onClick={() => handleQueryTrigger(`Analyze constructor station for ${teamMetrics.team.name}`)}
   />)}</div><div className="border-t border-border-subtle pt-6 flex flex-col gap-4"><div className="flex justify-between items-center"><span className="text-mono-meta font-mono text-text-muted uppercase tracking-wider">
                 DRIVER_INTELLIGENCE_METRICS
               </span>{

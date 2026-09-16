@@ -45,6 +45,11 @@ class HeroService {
           hero_subheadline: hero.hero_subheadline,
           sessions: hero.sessions || [],
           suggested_questions: hero.suggested_questions || [],
+          timing_status: hero.timing_status || 'UPCOMING_RACE_WEEKEND',
+          has_telemetry: hero.has_telemetry === true,
+          track_geometry: hero.track_geometry || null,
+          last_race_results: hero.last_race_results || null,
+          countdown_target: hero.countdown_target || null,
           source: hero.source,
           last_updated: hero.last_updated
         };
@@ -118,10 +123,17 @@ class HeroService {
   }
 
   /**
-   * Initialize 5-day scheduled recurring refresh job
+   * Return scheduled refresh cadence in ms (4 hours)
+   */
+  static getRefreshIntervalMs() {
+    return 4 * 60 * 60 * 1000;
+  }
+
+  /**
+   * Initialize 4-hour scheduled recurring refresh job (FIX X)
    */
   static startScheduledJob() {
-    const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
+    const FOUR_HOURS_MS = this.getRefreshIntervalMs();
     
     // Initial check on startup after 5 seconds
     setTimeout(async () => {
@@ -136,15 +148,15 @@ class HeroService {
       }
     }, 5000);
 
-    // Schedule every 5 days
+    // Schedule every 4 hours so the site reflects FastF1 data promptly
     setInterval(async () => {
       try {
-        console.log('[HeroService] Running scheduled 5-day FastF1 schedule update...');
+        console.log('[HeroService] Running scheduled 4-hour FastF1 schedule update...');
         await this.refreshHero();
       } catch (jobErr) {
-        console.error('[HeroService] Scheduled hero refresh job failed:', jobErr.message);
+        console.error('[HeroService] Scheduled 4-hour hero refresh job failed:', jobErr.message);
       }
-    }, FIVE_DAYS_MS);
+    }, FOUR_HOURS_MS);
   }
 }
 

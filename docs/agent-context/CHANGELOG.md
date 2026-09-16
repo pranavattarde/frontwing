@@ -1,3 +1,45 @@
+## Session 042 -- 2026-09-16 -- Core Integrity Fixes: Hero Race Selection & 4-Hour Refresh (FIX X), Authentic Circuit Telemetry Resolution & Madring Street Circuit (FIX Y), Auth Screen Button Wiring (FIX Z), and Complete Audit & Removal of Click-Triggered Agent Invocations (FIX AA)
+
+### What Was Changed
+- **FIX X: Hero Race Selection & 4-Hour FastF1 Refresh Cadence (`hero_service.py`, `hero.service.js`, `BriefingRoom.jsx`)**:
+  - Fixed calendar selection logic: Hero displays the NEXT upcoming race weekend (Round 15 — Azerbaijan Grand Prix at Baku City Circuit) relative to today's real date (2026-09-16), including live countdown timer badge (`STARTS IN: 8D ...`) and official session timetable in both Indian Standard Time (IST, UTC+5:30) and local Baku time.
+  - Separated completed race debrief into its own clearly labeled section on the homepage: `"LAST RACE RESULTS // PODIUM & CLASSIFICATION"`. Displays Round 14 — Spanish Grand Prix • Madrid, Spain (13 Sep 2026), podium finishers (P1 Kimi Antonelli, P2 Max Verstappen, P3 Lando Norris), fastest lap (George Russell, 1:35.587), and top 5 classification table.
+  - Updated scheduled recurring refresh cadence in `backend/src/services/hero.service.js` from every 5 days (`5 * 24 * 60 * 60 * 1000`) to every 4 hours (`4 * 60 * 60 * 1000`), ensuring the site promptly reflects FastF1 championship movements.
+  - Verified scheduled cadence and selection logic with automated test suite `backend/tests/hero_cadence.test.js` and live browser subagent.
+- **FIX Y: Dynamic Venue Circuit Resolution & Authentic Position Telemetry Geometries (`hero_service.py`, `circuitTracks.js`, `circuitTelemetryTracks.json`)**:
+  - Replaced GP-name-only inference with dynamic venue resolution: checks event `Location` and `Country` in conjunction with the championship year (`resolve_circuit_for_event`). Correctly resolves the 2026 Spanish GP to the new Madring street circuit in Madrid (`circuit_key: "madrid"`), rather than defaulting to Barcelona.
+  - Extracted authentic 3D centerline and 2D track path from real 2026 Spanish GP FastF1 position telemetry decimeters `(X, Y, Z)` (fastest lap RUS 1:35.587, 715 points), cached in `ai_services/cache/circuits/madrid_centerline.json` and `circuitTelemetryTracks.json`.
+  - Replaced generic/approximated vector paths across known venues (Madrid, Monza, Silverstone, Zandvoort) with authentic telemetry decimeter geometries.
+  - Disabled fake/approximated fallback shapes for circuits without ingested telemetry (e.g. Baku before Round 15 runs); honestly renders the dedicated placeholder: `TRACK_LAYOUT // PENDING TELEMETRY INGESTION - Authentic geometry will be extracted post-session from FastF1 decimeter telemetry. Synthetic or approximated layouts are disabled.`
+  - Verified with 4 circuits (Madrid, Monza, Silverstone, Baku) in `backend/tests/circuit_geometry.test.js` and live browser subagent.
+- **FIX Z: Wired Up Auth-Required Screen Buttons (`InvestigationThread.jsx`)**:
+  - Wired up "Retry Connection": checks `frontwing_token` in `localStorage`. If unauthenticated, dispatches `frontwing-open-auth-modal` to prompt sign-in/registration. If authenticated (or once user logs in), resets `executedQueriesRef`, clears error state, and re-executes the intended investigation query.
+  - Added event listener for `frontwing-auth-changed` on the auth screen to automatically resume the failed request upon successful sign-in.
+  - Wired up "Go Home": cleans up stuck `frontwing_investigation_${id}` entries from `localStorage`, invokes `navigate("/", { replace: true })`, and provides fallback `window.location.href = "/"` if the router is suspended.
+  - Verified live in browser subagent: clicking "Retry Connection" pops open the auth modal, and clicking "Go Home" navigates cleanly back to `/`.
+- **FIX AA: Audited & Removed All Click-Triggered Agent Invocations (`BriefingRoom.jsx`, `RaceStoryCard.jsx`, `InsightCard.jsx`, `QuestionBar.jsx`, `InvestigationThread.jsx`, `StrategyEngineer.jsx`, `RaceBriefing.jsx`, `CommandPalette.jsx`, `App.jsx`)**:
+  - Conducted full audit of frontend codebase for click-to-query affordances and eliminated all 10 identified sources:
+    1. `BriefingRoom.jsx`: Removed `onFullDebrief`, `onMomentClick`, and `onClick` handlers.
+    2. `RaceStoryCard.jsx`: Removed "INVESTIGATE IN CONSOLE →" button and moment click handlers; converted cards and key moments into clean read-only editorial content linking to external verified sources (`VERIFY ON {OUTLET} ↗`).
+    3. `InsightCard.jsx`: Removed `onClick` and `cursor-pointer`; preserved prominent `VERIFY ↗` source link.
+    4. `QuestionBar.jsx`: Updated `handleSuggestionClick` to prefill the text input (`setValue(suggestion)`) and focus without calling `onSubmit`.
+    5. `InvestigationThread.jsx`: Updated `handleSuggestionClick` to prefill `QuestionBar` via `prefillQuery` state without calling `executeQuery`.
+    6. `StrategyEngineer.jsx`: Updated preset query scenario buttons and continuation suggestion chips to prefill the bottom query input without auto-submitting.
+    7. `RaceBriefing.jsx`: Removed `onPhaseClick` and `TeamCard.onClick` handlers, eliminating direct calls to `submitEngineerQuery`.
+    8. `CommandPalette.jsx`: Replaced query execution commands (`query-sainz`, `query-norris`) with safe workspace navigation commands (`nav-strategy`, `nav-ghost`).
+    9. `App.jsx`: Updated `handleSearchResultClick` to dispatch a prefill event rather than creating a loading investigation.
+  - Verified via browser subagent that clicking suggestion chips on the homepage and Strategy Engineer strictly prefills the input without firing any network requests.
+
+### Verification
+- `npm run build` in `frontend/`: Passed cleanly with 0 errors.
+- `npm test` in `backend/`: 14/14 security and input validation tests passed.
+- `node tests/hero_cadence.test.js`: Verified 4-hour refresh cadence (14,400,000ms), upcoming Azerbaijan GP hero, and separate Madrid Last Race Results.
+- `node tests/circuit_geometry.test.js`: Verified 4 circuits (Madrid, Monza, Silverstone, Baku) with authentic FastF1 decimeter telemetry and honest pending placeholder.
+- `browser_subagent`: Live recording verified all 4 fixes end-to-end (`frontwing_fixes_verify_1789535209563.webp`).
+- Appended Entries 024, 025, and 026 to `RULES_AND_GOTCHAS.md`.
+
+---
+
 ## Session 041 -- 2026-09-15 -- Visual Identity & Design-System Rebuild: F1 Broadcast Palette, Semantic Tokens, Tabular Typography, Connected FW Logo & Motion System
 
 ### What Was Changed

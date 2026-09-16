@@ -431,3 +431,32 @@ All tests under `ai_services/tests/` are organized into 8 domain-focused modules
 
 **4. Visible Focus-Visible Beacons for Keyboard Navigation:**
 - **RULE:** Never remove `:focus-visible` outlines or hide focus rings. In the F1 broadcast system, focus rings use a high-visibility 2px solid beacon in `--border-focus` (`#E10600`) with a 2px offset, ensuring complete accessibility compliance.
+
+---
+
+## Entry 024 — 2026-09-16 — FastF1 Venue & Circuit Resolution: Never Infer Circuit from GP Name Alone
+
+**1. Dynamic Circuit Resolution by Event Location and Year:**
+- **RULE:** NEVER resolve circuit identity or track metadata from the Grand Prix name alone (e.g., assuming "Spanish GP" is always Circuit de Barcelona-Catalunya).
+- **Gotcha:** In 2026, the Spanish Grand Prix moved to the new Madring street circuit in Madrid (`Location: "Madrid"`). Mapping the Spanish GP strictly to Barcelona resulted in rendering the wrong track layout and displaying incorrect circuit statistics.
+- **Protocol:** Always inspect `event.get('Location')` and `event.get('Country')` from FastF1's official event schedule in conjunction with the championship year before binding circuit metadata (`circuit_key`, `name`, `length_km`, `turns`, `lap_record`).
+
+---
+
+## Entry 025 — 2026-09-16 — Authentic FastF1 Telemetry Track Geometry vs Honest Placeholders
+
+**1. Zero Synthetic or Approximated Track Outlines:**
+- **RULE:** Circuit outlines rendered across the product MUST be derived from real track geometry extracted from FastF1 position telemetry decimeters `(X, Y, Z)` for that specific session. Never render generic, hand-approximated, or fallback track shapes (such as falling back to Monza for unmapped tracks).
+- **2. Honest Pending Telemetry Ingestion Placeholder:**
+- **RULE:** If a circuit has no telemetry ingested yet (e.g. an upcoming race weekend before its first session has run, or a brand-new circuit), honestly report `has_telemetry: false` and render the dedicated placeholder: `TRACK_LAYOUT // PENDING TELEMETRY INGESTION - Authentic geometry will be extracted post-session from FastF1 decimeter telemetry. Synthetic or approximated layouts are disabled.`
+
+---
+
+## Entry 026 — 2026-09-16 — Zero Click-Triggered Agent Invocations Protocol
+
+**1. Strict Dedicated Input Surface Requirement:**
+- **RULE:** Investigation agent queries (`/engineer/query`), Strategy Engineer simulations (`/strategy/query`), and Ghost Battle 3D telemetry extractions MUST be invokable ONLY from their own dedicated, conscious human input surface (typed query box, or in Ghost Battle's case the explicit generate button after deliberate multi-step selection).
+- **2. Pre-Fill Without Auto-Submit for Suggestion Chips:**
+- **RULE:** Suggestion chips (e.g. in `QuestionBar.jsx`, `InvestigationThread.jsx`, and `StrategyEngineer.jsx` preset scenarios) MUST prefill the text input field without auto-submitting. The user must consciously press send or Enter to dispatch an agent call.
+- **3. Read-Only Editorial Feeds:**
+- **RULE:** Featured Debriefs and Trending Insights cards are strictly read-only content that link out to verified external sources (`VERIFY ON {OUTLET} ↗`). They must never execute an agent query on card or moment click.

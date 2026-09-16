@@ -238,6 +238,7 @@ export function InvestigationThread() {
   const [abortController, setAbortController] = useState(null);
   const [isSaved, setIsSaved] = useState(false);
   const [questionTitle, setQuestionTitle] = useState("");
+  const [prefillQuery, setPrefillQuery] = useState("");
   const [currentResponse, setCurrentResponse] = useState(null);
   const executedQueriesRef = useRef(/* @__PURE__ */ new Set());
   const inFlightRef = useRef(false);
@@ -623,11 +624,12 @@ export function InvestigationThread() {
   };
   const handleSuggestionClick = (suggestion) => {
     if (isLoading || isStreaming) return;
-    const parentContext = getParentContext();
-    executeQuery(suggestion, null, parentContext);
+    // Prefill the QuestionBar without auto-submitting (Fix AA)
+    setPrefillQuery(suggestion);
   };
   const handleFollowUpSubmit = (query) => {
     if (isLoading || isStreaming || !query.trim()) return;
+    setPrefillQuery("");
     const parentContext = getParentContext();
     setMessages((prev) => [
       ...prev.filter((m) => m.type !== "follow-up"),
@@ -640,6 +642,61 @@ export function InvestigationThread() {
     ]);
     executeQuery(query, null, parentContext);
   };
+
+  const handleRetryConnection = () => {
+    const token = localStorage.getItem("frontwing_token");
+    if (!token) {
+      // Re-trigger auth modal if unauthenticated (Fix Z)
+      window.dispatchEvent(new CustomEvent("frontwing-open-auth-modal"));
+      return;
+    }
+
+    let queryToRun = questionTitle;
+    if (!queryToRun && id) {
+      try {
+        const stored = localStorage.getItem(`frontwing_investigation_${id}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          queryToRun = parsed.question;
+        }
+      } catch {}
+    }
+
+    if (!queryToRun) {
+      queryToRun = "Analyze telemetry delta and strategy for current session";
+    }
+
+    setErrorMsg(null);
+    inFlightRef.current = false;
+    if (id) {
+      executedQueriesRef.current.delete(id);
+    }
+    executeQuery(queryToRun, id);
+  };
+
+  const handleGoHome = () => {
+    if (id) {
+      localStorage.removeItem(`frontwing_investigation_${id}`);
+    }
+    navigate("/", { replace: true });
+    setTimeout(() => {
+      if (window.location.pathname !== "/") {
+        window.location.href = "/";
+      }
+    }, 50);
+  };
+
+  useEffect(() => {
+    const handleAuthChange = () => {
+      const token = localStorage.getItem("frontwing_token");
+      if (token && errorMsg && errorMsg.toLowerCase().includes("authentication")) {
+        handleRetryConnection();
+      }
+    };
+    window.addEventListener("frontwing-auth-changed", handleAuthChange);
+    return () => window.removeEventListener("frontwing-auth-changed", handleAuthChange);
+  }, [errorMsg, questionTitle, id]);
+
   if (errorMsg) {
     return (
       <div className="min-h-screen bg-canvas flex flex-col items-center justify-center p-6 text-text-secondary">
@@ -653,13 +710,13 @@ export function InvestigationThread() {
           </div>
           <div className="flex gap-4 w-full pt-2">
             <button
-              onClick={() => executeQuery(questionTitle)}
+              onClick={handleRetryConnection}
               className="flex-1 btn-f1-primary py-2.5 px-4 text-xs font-mono font-bold uppercase tracking-wider"
             >
               Retry Connection
             </button>
             <button
-              onClick={() => navigate("/")}
+              onClick={handleGoHome}
               className="flex-1 py-2.5 px-4 rounded-badge border border-border-subtle text-text-primary hover:bg-surface-raised transition-colors font-mono text-xs uppercase tracking-wider"
             >
               Go Home
@@ -912,6 +969,7 @@ export function InvestigationThread() {
     placeholder="Ask a follow-up or enter custom what-if scenario..."
     disabled={isStreaming || isLoading}
     onSubmit={handleFollowUpSubmit}
+    prefillValue={prefillQuery}
     contextLabel="RE_ENGINEER"
   /></div></main>{
     /* Right Pane: Split Screen Interactive Telemetry Overlay */

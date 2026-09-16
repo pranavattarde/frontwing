@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -9,11 +9,19 @@ export function QuestionBar({
   contextLabel = null,
   variant = "inline",
   onSubmit,
-  onSuggestionClick
+  onSuggestionClick,
+  prefillValue = ""
 }) {
   const [value, setValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (prefillValue) {
+      setValue(prefillValue);
+      inputRef.current?.focus();
+    }
+  }, [prefillValue]);
 
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim();
@@ -40,11 +48,12 @@ export function QuestionBar({
   const handleSuggestionClick = useCallback(
     (suggestion) => {
       if (!disabled) {
+        setValue(suggestion);
+        inputRef.current?.focus();
         onSuggestionClick?.(suggestion);
-        onSubmit?.(suggestion);
       }
     },
-    [disabled, onSuggestionClick, onSubmit]
+    [disabled, onSuggestionClick]
   );
 
   const isHero = variant === "hero";

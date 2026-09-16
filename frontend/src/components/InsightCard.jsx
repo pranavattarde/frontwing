@@ -49,9 +49,8 @@ export function InsightCard({
 
   return (
     <motion.div
-      onClick={onClick}
       className={cn(
-        "bg-surface-base border border-border-subtle rounded card-interactive p-4 relative flex flex-col justify-between cursor-pointer group transition-all duration-fast",
+        "bg-surface-base border border-border-subtle rounded p-4 relative flex flex-col justify-between group transition-all duration-fast",
         variant === "featured" ? "min-h-[120px] w-full sm:w-[280px]" : "min-h-[90px] w-full sm:w-[220px]"
       )}
       initial={{ opacity: 0, scale: 0.95 }}

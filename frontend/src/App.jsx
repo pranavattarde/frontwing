@@ -44,16 +44,11 @@ export default function App() {
 
   const handleSearchResultClick = (queryText) => {
     setIsSearchOpen(false);
-    const generatedId = generateId();
-    const newInvestigation = {
-      id: generatedId,
-      question: queryText,
-      status: "loading",
-      exchanges: [],
-      timestamp: Date.now()
-    };
-    localStorage.setItem(`frontwing_investigation_${generatedId}`, JSON.stringify(newInvestigation));
-    window.location.href = `/investigate/${generatedId}`;
+    // Prefill query in console without auto-submitting (Fix AA)
+    window.dispatchEvent(new CustomEvent("frontwing-prefill-query", { detail: { query: queryText } }));
+    if (window.location.pathname !== "/") {
+      window.location.href = `/?q=${encodeURIComponent(queryText)}`;
+    }
   };
 
   return (

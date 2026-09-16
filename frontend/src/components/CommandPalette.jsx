@@ -7,28 +7,13 @@ export function CommandPalette({ isOpen, onClose }) {
   const [value, setValue] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef(null);
-  const runPaletteQuery = (queryText) => {
-    onClose();
-    const generatedId = generateId();
-    const newInvestigation = {
-      id: generatedId,
-      question: queryText,
-      status: "loading",
-      exchanges: [],
-      timestamp: Date.now()
-    };
-    localStorage.setItem(`frontwing_investigation_${generatedId}`, JSON.stringify(newInvestigation));
-    navigate(`/investigate/${generatedId}`);
-  };
   const commands = [
     { id: "nav-home", label: "Go to Home / Briefing Room", category: "NAVIGATION", shortcut: "G H", action: () => navigate("/") },
-    { id: "nav-briefing", label: "Go to Race Briefing", category: "NAVIGATION", shortcut: "G B", action: () => navigate("/race/aut-2024") },
-    { id: "nav-playground", label: "Go to Strategy Playground Simulator", category: "NAVIGATION", shortcut: "G P", action: () => navigate("/strategy/aut-2024") },
-    { id: "nav-ghost", label: "Go to Piastri vs Sainz Ghost Battle", category: "NAVIGATION", shortcut: "G G", action: () => navigate("/ghost-battle/aut-2024") },
-    { id: "query-sainz", label: "Why did Sainz finish P3 instead of P2?", category: "QUERIES", action: () => runPaletteQuery("Why did Sainz finish P3 instead of P2?") },
-    { id: "query-norris", label: "Why did Verstappen and Norris collide?", category: "QUERIES", action: () => runPaletteQuery("Why did Verstappen and Norris collide?") },
-    { id: "action-export", label: "Export active telemetry trace", category: "ACTIONS", shortcut: "\u2318E", action: () => console.log("Export PNG") },
-    { id: "action-reset", label: "Reset all active what-if simulation states", category: "ACTIONS", shortcut: "\u2318R", action: () => console.log("Reset sims") }
+    { id: "nav-strategy", label: "Go to Strategy Engineer Workspace", category: "NAVIGATION", shortcut: "G S", action: () => navigate("/strategy") },
+    { id: "nav-ghost", label: "Go to 3D Ghost Battle Studio", category: "NAVIGATION", shortcut: "G G", action: () => navigate("/ghost-battle") },
+    { id: "nav-briefing", label: "Go to Race Briefing Portal", category: "NAVIGATION", shortcut: "G B", action: () => navigate("/race/aut-2024") },
+    { id: "action-export", label: "Export active telemetry trace", category: "ACTIONS", shortcut: "⌘E", action: () => console.log("Export PNG") },
+    { id: "action-reset", label: "Reset all active what-if simulation states", category: "ACTIONS", shortcut: "⌘R", action: () => console.log("Reset sims") }
   ];
   const filtered = commands.filter(
     (cmd) => cmd.label.toLowerCase().includes(value.toLowerCase()) || cmd.category.toLowerCase().includes(value.toLowerCase())

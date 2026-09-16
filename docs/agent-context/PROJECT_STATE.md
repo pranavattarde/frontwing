@@ -1,11 +1,58 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-09-15 by Antigravity (Session 041 - Formula 1 Broadcast Visual Identity & Design-System Rebuild: F1 Broadcast Palette, Semantic Tokens, Tabular Typography Scale, Original Connected FW Logo & Motion System)
-> Audit method: Researched and extracted official colors from formula1.com, F1 broadcast telemetry graphics, and Pirelli motorsport technical specifications; completely replaced design_tokens.css with a 100% semantic token layer (surfaces, borders, accents, timing statuses, tyre compounds, spacing 2px–64px, radius 0px–full, shadows, z-index, and mechanical motion); aligned tailwind.config.js; wired up complete Barlow Condensed, Inter, and JetBrains Mono fonts; implemented tabular figure alignments (.type-tabular); designed original connected FW speed mark and wordmark SVG component (FrontWingLogo.jsx); implemented mechanical transitions and consistent interactive states; created showcase page (/design-system) and verified live via browser subagent with 4 screenshots. All 14 security tests passing.
+> Last updated: 2026-09-16 by Antigravity (Session 042 - Upcoming Race Hero & 4-Hour Cadence, Real Telemetry Circuit Geometry & Honest Ingestion Placeholders, System Alert Auth Recovery, and Global Click-to-Query Audit)
+> Audit method: Verified all 4 core fixes live via browser subagent with video recording (frontwing_fixes_verify_1789535209563.webp) and automated test suites. Validated 4-hour schedule cadence (14,400,000ms), upcoming Round 15 Azerbaijan GP hero at Baku City Circuit relative to today's date (2026-09-16) with countdown timer and dual IST/local timetable; dedicated Round 14 Spanish GP at Madrid results section with authentic 715-point position telemetry SVG geometry; honest pending placeholder for uningested venues (Baku); auth recovery in System Alert; and complete elimination of all 10 click-to-query surfaces across the product. Frontend build succeeded with 0 errors; all 14 backend security tests passing.
 
 ---
 
 ## 1. What Works Right Now
+
+### Upcoming Race Hero & FastF1 4-Hour Cadence (SESSION 042 - FIX X VERIFIED LIVE)
+- **FastF1 Schedule Selection Logic (`hero_service.py`, `hero.service.js`)**:
+  - Selection query checks the current real date (`2026-09-16`) against the official 2026 FastF1 schedule and resolves the **NEXT upcoming race weekend** (Round 15: Azerbaijan Grand Prix, Baku City Circuit, Sep 26, 2026) rather than stale completed races.
+  - Automatically falls back to completed race results only if the season is over or no upcoming race exists.
+  - Live hero displays dynamic countdown timer (`T - 09D 18H ...`), grand prix title, round badge, and complete weekend session timetable with dual IST (`Asia/Kolkata`, UTC+5:30) and local track time readouts.
+- **Dedicated Last Race Results Section (`BriefingRoom.jsx`, `hero_service.py`)**:
+  - Created a dedicated, clearly labeled section: `LAST RACE RESULTS // PODIUM & CLASSIFICATION` positioned immediately below the hero on the homepage.
+  - Displays the most recently completed race (Round 14: Spanish Grand Prix at Madrid, Sep 13, 2026).
+  - Shows full podium classification (Antonelli P1, Verstappen P2, Norris P3), fastest lap (Russell 1:35.587), round details, and real Madrid track outline.
+- **4-Hour Scheduled Cadence (`backend/src/services/hero.service.js`)**:
+  - Updated hero data refresh cadence from every 5 days to every 4 hours (`FOUR_HOURS_MS = 4 * 60 * 60 * 1000 = 14,400,000ms`).
+  - Unit test `hero_cadence.test.js` verified the scheduled recurring job timer interval is exactly 14,400,000ms and verifies both upcoming hero and last race results payloads.
+
+### Year-Specific Circuit Resolution & Real Telemetry Geometry (SESSION 042 - FIX Y VERIFIED LIVE)
+- **Year & Location-Aware Circuit Resolution (`hero_service.py`, `circuitTracks.js`)**:
+  - Resolved circuit identification using event `Location`, `Country`, and event year—never the GP name alone. In 2026, the Spanish Grand Prix moved to the Madring street circuit in Madrid (`Location: "Madrid"`, `Country: "Spain"`), which is correctly resolved to `Madring Circuit (Madrid)`.
+- **Authentic Decimeter Telemetry Track Outlines (`circuitTelemetryTracks.json`, `circuitTracks.js`)**:
+  - Ingested authentic FastF1 position telemetry `(X, Y, Z)` in decimeters from driver flying laps into SVG path centerlines (e.g. 715 decimeter coordinates from Russell's 1:35.587 fastest lap at Madrid; full decimeter tracks for Monza, Silverstone, and Zandvoort).
+  - Includes calibrated start/finish line indicator coordinates and track metrics.
+- **Honest Telemetry Pending Ingestion Placeholder (`BriefingRoom.jsx`, `circuitTracks.js`)**:
+  - For circuits where race session telemetry has not yet occurred or been ingested (e.g. Round 15 Baku City Circuit), `circuitTracks.js` returns `hasTelemetry: false`.
+  - The hero renders an honest, transparent placeholder: `TRACK_LAYOUT // PENDING TELEMETRY INGESTION` with explicit messaging stating authentic geometry will be generated upon session completion.
+  - STRICTLY ZERO fake, approximate, or fallback shapes (no Monza fallback, no synthetic vectors). Verified across Madrid, Monza, Silverstone, and Baku via `backend/tests/circuit_geometry.test.js`.
+
+### System Alert Authentication Recovery (SESSION 042 - FIX Z VERIFIED LIVE)
+- **Retry Connection Button (`InvestigationThread.jsx`)**:
+  - Checks client authentication state via `localStorage.getItem("token")`.
+  - If unauthenticated, triggers the application auth modal (`frontwing-open-auth-modal`) and registers an event listener (`frontwing-auth-changed`). Upon successful login, automatically re-executes the failed investigation query.
+  - If already authenticated, directly re-attempts the query with the stored bearer token.
+- **Go Home Button (`InvestigationThread.jsx`)**:
+  - Cleans up query-related localStorage items and navigates cleanly to the root path `/` via `navigate("/")`.
+
+### Global Click-to-Query Removal & Input-Surface Enforcement (SESSION 042 - FIX AA VERIFIED LIVE)
+- **Audited 10 In-Product Click-Triggered Query Surfaces**:
+  - 1. `RaceStoryCard.jsx`: Removed "INVESTIGATE IN CONSOLE →" button and moment click handlers (`onMomentClick`, `onFullDebrief`). Key moments rendered as static broadcast divs. Retained read-only external verification links (`VERIFY ON {OUTLET} ↗`).
+  - 2. `InsightCard.jsx`: Removed card click invocation; made non-interactive with `cursor-default` and retained external source link (`VERIFY ↗`).
+  - 3. `QuestionBar.jsx`: Updated `handleSuggestionClick` to prefill the text input via `setValue(suggestion)` and focus the input without submitting the query.
+  - 4. `InvestigationThread.jsx`: Converted follow-up suggestion chips to prefill the `QuestionBar` via `setPrefillQuery(suggestion)` without triggering auto-submission.
+  - 5. `StrategyEngineer.jsx`: Changed `PRESET_QUERIES` buttons and follow-up suggestion chips to set the query input value (`setQuestion(...)`) without calling `handleExecuteQuery`.
+  - 6. `RaceBriefing.jsx`: Removed `handleQueryTrigger` and `submitEngineerQuery`; converted race phase badges and team cards to static, non-clickable elements.
+  - 7. `CommandPalette.jsx`: Removed query execution command runner; replaced auto-submitting query commands (`query-sainz`, `query-norris`) with safe navigation commands (`nav-strategy`, `nav-ghost`).
+  - 8. `App.jsx`: Updated `handleSearchResultClick` to dispatch `frontwing-prefill-query` event instead of immediately creating a thread and submitting a query.
+  - 9. `BriefingRoom.jsx`: Removed clickable prompt cards from the homepage briefing interface.
+  - 10. `GhostBattle3D.jsx`: Generation remains strictly gated behind a multi-step user selection deck (Year -> Completed GP -> 2+ Drivers/Teams -> Explicit "GENERATE 3D GHOST BATTLE" button click).
+- **Enforcement Rule**:
+  - Race Engineer investigation and Strategy Engineer queries can ONLY be invoked via explicit user submission from dedicated typed input surfaces (Enter key or Submit button).
 
 ### Formula 1 Broadcast Visual Identity & Design System (SESSION 041 VERIFIED LIVE)
 - **Extracted Broadcast Color Palette & Semantic Tokens (`design_tokens.css`, `tailwind.config.js`)**:
