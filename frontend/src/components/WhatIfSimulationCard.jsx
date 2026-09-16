@@ -11,10 +11,10 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-card border-2 border-[#FF1801]/40 bg-panel p-6 shadow-card"
+        className="rounded border border-accent-danger/40 bg-surface-base p-6 shadow-sm"
       >
         <div className="flex items-center gap-2 mb-3">
-          <span className="px-2 py-0.5 text-xs font-mono font-bold uppercase bg-[#FF1801] text-white rounded-sm">
+          <span className="px-2 py-0.5 text-xs font-mono font-bold uppercase bg-accent-danger text-text-primary rounded-sm">
             ⚠️ SIMULATION BOUNDARY
           </span>
           <span className="text-xs font-mono text-text-muted">
@@ -23,14 +23,14 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
         </div>
 
         <h3 className="text-base font-bold text-text-primary font-mono mb-2">
-          Variable Not Supported: <span className="text-[#FF1801] font-mono">"{simulation.unmodeled_variable}"</span>
+          Variable Not Supported: <span className="text-accent-danger font-mono">"{simulation.unmodeled_variable}"</span>
         </h3>
 
         <p className="text-sm text-text-secondary leading-relaxed mb-4">
           {simulation.message}
         </p>
 
-        <div className="p-3 bg-canvas/60 border border-fw-border rounded-sm">
+        <div className="p-3 bg-surface-raised border border-border-subtle rounded">
           <span className="text-[11px] font-mono text-text-muted uppercase block mb-1">
             WHAT CAN BE SIMULATED:
           </span>
@@ -57,12 +57,12 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
 
   const getCompoundColor = (compound) => {
     const c = String(compound || "").toUpperCase();
-    if (c.includes("SOFT")) return "bg-[#FF1801]/10 text-[#FF1801] border-[#FF1801]/30";
-    if (c.includes("MEDIUM")) return "bg-[#FFD600]/10 text-[#FFD600] border-[#FFD600]/30";
+    if (c.includes("SOFT")) return "bg-accent-danger/15 text-accent-danger border-accent-danger/30";
+    if (c.includes("MEDIUM")) return "bg-timing-yellow/15 text-timing-yellow border-timing-yellow/30";
     if (c.includes("HARD")) return "bg-white/10 text-white border-white/30";
-    if (c.includes("INTER")) return "bg-[#00D26A]/10 text-[#00D26A] border-[#00D26A]/30";
-    if (c.includes("WET")) return "bg-[#00E5FF]/10 text-[#00E5FF] border-[#00E5FF]/30";
-    return "bg-white/5 text-text-muted border-fw-border";
+    if (c.includes("INTER")) return "bg-timing-green/15 text-timing-green border-timing-green/30";
+    if (c.includes("WET")) return "bg-[#0070FF]/15 text-[#3671C6] border-[#0070FF]/30";
+    return "bg-surface-raised text-text-muted border-border-subtle";
   };
 
   return (
@@ -72,34 +72,34 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
       className="space-y-6"
     >
       {/* Simulation Header */}
-      <div className="rounded-card border border-fw-border bg-panel p-5 relative overflow-hidden shadow-card">
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-drs-cyan via-teammate-yellow to-f1-red" />
+      <div className="rounded border border-border-subtle bg-surface-base p-5 relative overflow-hidden shadow-sm">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-accent-primary" />
         
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 text-[11px] font-mono font-bold tracking-wider uppercase bg-drs-cyan text-canvas rounded-sm">
+            <span className="px-2.5 py-1 text-[11px] font-mono font-bold tracking-wider uppercase bg-accent-primary text-text-primary rounded-sm">
               COUNTERFACTUAL SIMULATION
             </span>
-            <span className="text-mono-meta font-mono text-text-muted">
+            <span className="text-xs font-mono text-text-muted">
               {season} {grandPrix} • {driverName}
             </span>
           </div>
           {latencyMs && (
-            <span className="text-mono-meta font-mono text-text-muted">
+            <span className="text-xs font-mono text-text-muted type-tabular">
               COMPUTED IN {latencyMs}ms
             </span>
           )}
         </div>
 
         {/* Before vs After Split View */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 type-tabular">
           {/* Baseline / Actual Scenario */}
-          <div className="p-4 bg-canvas/60 border border-fw-border rounded-card">
+          <div className="p-4 bg-surface-raised border border-border-subtle rounded">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-mono font-bold text-text-muted uppercase tracking-wider">
                 ORIGINAL RACE OUTCOME
               </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-panel border border-fw-border text-text-muted">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-surface-base border border-border-subtle text-text-muted">
                 ACTUAL
               </span>
             </div>
@@ -119,7 +119,7 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono text-text-muted">Tyre Compound:</span>
-                <span className={cn("px-2 py-0.5 text-xs font-mono font-bold border rounded-sm", getCompoundColor(original_scenario.compound))}>
+                <span className={cn("px-2 py-0.5 text-xs font-mono font-bold border rounded", getCompoundColor(original_scenario.compound))}>
                   {original_scenario.compound || "HARD"}
                 </span>
               </div>
@@ -127,12 +127,12 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
           </div>
 
           {/* Simulated / Counterfactual Scenario */}
-          <div className="p-4 bg-canvas/80 border-2 border-drs-cyan/40 rounded-card relative overflow-hidden">
+          <div className="p-4 bg-surface-raised border border-border-medium rounded relative overflow-hidden">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono font-bold text-drs-cyan uppercase tracking-wider">
+              <span className="text-xs font-mono font-bold text-accent-primary uppercase tracking-wider">
                 SIMULATED COUNTERFACTUAL
               </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-drs-cyan text-canvas font-bold">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-accent-primary text-text-primary font-bold">
                 SIMULATED
               </span>
             </div>
@@ -141,12 +141,12 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
               <div className="flex items-baseline justify-between">
                 <span className="text-xs font-mono text-text-muted">Projected Finish:</span>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-mono font-bold text-drs-cyan">
+                  <span className="text-2xl font-mono font-bold text-accent-primary">
                     P{simulated_scenario.finish_position ?? "—"}
                   </span>
                   <span className={cn(
                     "text-xs font-mono font-bold",
-                    posChange > 0 ? "text-[#00D26A]" : posChange < 0 ? "text-[#FF1801]" : "text-text-muted"
+                    posChange > 0 ? "text-timing-green" : posChange < 0 ? "text-accent-danger" : "text-text-muted"
                   )}>
                     ({posChangeStr} places)
                   </span>
@@ -160,7 +160,7 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono text-text-muted">Target Compound:</span>
-                <span className={cn("px-2 py-0.5 text-xs font-mono font-bold border rounded-sm", getCompoundColor(simulated_scenario.target_compound))}>
+                <span className={cn("px-2 py-0.5 text-xs font-mono font-bold border rounded", getCompoundColor(simulated_scenario.target_compound))}>
                   {simulated_scenario.target_compound || "HARD"}
                 </span>
               </div>
@@ -169,14 +169,14 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
         </div>
 
         {/* Net Time Delta Callout */}
-        <div className="p-4 rounded-sm bg-canvas/80 border border-fw-border flex flex-wrap items-center justify-between gap-4 mb-4">
+        <div className="p-4 rounded bg-surface-base border border-border-subtle flex flex-wrap items-center justify-between gap-4 mb-4 type-tabular">
           <div>
             <span className="text-[10px] font-mono text-text-muted uppercase block">
               NET RACE TIME DELTA
             </span>
             <span className={cn(
               "text-2xl font-mono font-bold",
-              netDelta >= 0 ? "text-[#00D26A]" : "text-[#FF1801]"
+              netDelta >= 0 ? "text-timing-green" : "text-accent-danger"
             )}>
               {netDeltaSign}{netDelta}s {netDelta >= 0 ? "TIME GAINED" : "TIME LOST"}
             </span>
@@ -184,15 +184,15 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
 
           {/* Physics trade-off breakdown */}
           <div className="flex flex-wrap gap-2 text-xs font-mono">
-            <div className="px-3 py-1.5 rounded bg-panel border border-fw-border">
+            <div className="px-3 py-1.5 rounded bg-surface-raised border border-border-subtle">
               <span className="text-text-muted block text-[10px]">UNDERCUT GAIN</span>
               <span className="font-bold text-text-primary">{simulated_scenario.undercut_gain_s || 0}s</span>
             </div>
-            <div className="px-3 py-1.5 rounded bg-panel border border-fw-border">
+            <div className="px-3 py-1.5 rounded bg-surface-raised border border-border-subtle">
               <span className="text-text-muted block text-[10px]">TRAFFIC LOSS</span>
               <span className="font-bold text-text-primary">{simulated_scenario.traffic_loss_s || 0}s</span>
             </div>
-            <div className="px-3 py-1.5 rounded bg-panel border border-fw-border">
+            <div className="px-3 py-1.5 rounded bg-surface-raised border border-border-subtle">
               <span className="text-text-muted block text-[10px]">PIT LANE LOSS</span>
               <span className="font-bold text-text-primary">{simulated_scenario.pit_loss_s || 22.0}s</span>
             </div>
@@ -200,7 +200,7 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
         </div>
 
         {/* Analytical Explanation */}
-        <p className="text-sm text-text-secondary leading-relaxed border-t border-fw-border pt-4">
+        <p className="text-sm text-text-secondary leading-relaxed border-t border-border-subtle pt-4">
           {analysis_summary}
         </p>
       </div>
