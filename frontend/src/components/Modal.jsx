@@ -37,7 +37,7 @@ export function Modal({
     aria-modal="true"
     aria-labelledby="modal-title"
     className={cn(
-      "w-full bg-panel border border-fw-border rounded-card shadow-2xl relative z-10 overflow-hidden flex flex-col",
+      "w-full bg-surface-raised border border-border-strong rounded-card shadow-2xl relative z-10 overflow-hidden flex flex-col",
       sizeClasses[size]
     )}
     initial={{ opacity: 0, scale: 0.95, y: 8 }}
@@ -46,7 +46,7 @@ export function Modal({
     transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
   >{
     /* Header */
-  }<div className="px-5 py-4 border-b border-fw-border flex justify-between items-center"><h3 id="modal-title" className="text-text-primary text-sm font-semibold uppercase font-mono tracking-wider">{title}</h3><button
+  }<div className="px-5 py-4 border-b border-border-subtle flex justify-between items-center"><h3 id="modal-title" className="text-text-primary text-sm font-semibold uppercase font-mono tracking-wider">{title}</h3><button
     onClick={onClose}
     className="text-text-muted hover:text-text-secondary text-sm font-mono"
     aria-label="Close modal"
@@ -56,14 +56,14 @@ export function Modal({
     /* Content Body */
   }<div className="px-5 py-4 flex-1 text-sm text-text-secondary leading-relaxed max-h-[70vh] overflow-y-auto">{children}</div>{
     /* Actions Footer */
-  }{actions.length > 0 && <div className="px-5 py-3 border-t border-fw-border bg-canvas/30 flex justify-end gap-2">{actions.map((act, idx) => <button
+  }{actions.length > 0 && <div className="px-5 py-3 border-t border-border-subtle bg-surface-base/50 flex justify-end gap-2">{actions.map((act, idx) => <button
     key={idx}
     onClick={act.onClick}
     className={cn(
-      "px-3 py-1.5 font-mono text-xs rounded-button border transition-all duration-[80ms]",
-      act.variant === "primary" && "bg-drs-cyan/15 text-drs-cyan border-drs-cyan/30 hover:bg-drs-cyan/25",
-      act.variant === "danger" && "bg-f1-red/15 text-f1-red border-f1-red/30 hover:bg-f1-red/25",
-      (act.variant === "secondary" || !act.variant) && "bg-canvas text-text-secondary border-fw-border hover:border-fw-border-active"
+      "px-3 py-1.5 font-mono text-xs rounded-badge border transition-all duration-[80ms]",
+      act.variant === "primary" && "bg-accent-primary text-white border-accent-primary hover:brightness-110 font-bold",
+      act.variant === "danger" && "bg-accent-danger/15 text-accent-danger border-accent-danger/30 hover:bg-accent-danger/25",
+      (act.variant === "secondary" || !act.variant) && "bg-surface-base text-text-secondary border-border-subtle hover:border-border-strong hover:text-text-primary"
     )}
   >{act.label.toUpperCase()}</button>)}</div>}</motion.div></div>}</AnimatePresence>;
 }

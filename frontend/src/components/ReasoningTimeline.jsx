@@ -1,19 +1,19 @@
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 const TYPE_COLORS = {
-  data_load: "bg-drs-cyan border-drs-cyan/30 text-drs-cyan",
-  computation: "bg-teammate-yellow border-teammate-yellow/30 text-teammate-yellow",
-  comparison: "bg-f1-red border-f1-red/30 text-f1-red",
-  conclusion: "bg-tire-inter border-tire-inter/30 text-tire-inter"
+  data_load: "bg-accent-primary border-accent-primary/30 text-accent-primary",
+  computation: "bg-timing-yellow border-timing-yellow/30 text-timing-yellow",
+  comparison: "bg-accent-danger border-accent-danger/30 text-accent-danger",
+  conclusion: "bg-timing-green border-timing-green/30 text-timing-green"
 };
 export function ReasoningTimeline({ events, totalDuration, className }) {
-  return <div className={cn("bg-panel border border-fw-border rounded-card p-4 flex flex-col gap-4 select-none w-full", className)}>{
+  return <div className={cn("bg-surface-base border border-border-subtle rounded-card p-4 flex flex-col gap-4 select-none w-full", className)}>{
     /* Title */
-  }<div className="flex justify-between items-center text-mono-meta font-mono border-b border-fw-border pb-2"><span className="text-text-primary font-semibold uppercase tracking-wider">
+  }<div className="flex justify-between items-center text-mono-meta font-mono border-b border-border-subtle pb-2"><span className="text-text-primary font-semibold uppercase tracking-wider">
           REASONING_PIPELINE_LATENCY
-        </span><span className="text-text-muted">TOTAL_DURATION: {totalDuration}MS</span></div>{
+        </span><span className="text-text-muted type-tabular">TOTAL_DURATION: {totalDuration}MS</span></div>{
     /* Latency ticks block */
-  }<div className="relative flex flex-col gap-3 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[1px] before:bg-fw-border">{events.map((evt, idx) => {
+  }<div className="relative flex flex-col gap-3 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[1px] before:bg-border-subtle">{events.map((evt, idx) => {
     return <motion.div
       key={idx}
       className="flex gap-4 items-start pl-6 relative"

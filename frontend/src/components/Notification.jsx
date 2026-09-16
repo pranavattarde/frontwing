@@ -8,10 +8,10 @@ const ICONS = {
   error: "\u2715"
 };
 const COLORS = {
-  info: "text-drs-cyan border-drs-cyan/30",
-  success: "text-tire-inter border-tire-inter/30",
-  warning: "text-teammate-yellow border-teammate-yellow/30",
-  error: "text-f1-red border-f1-red/30"
+  info: "text-accent-primary border-accent-primary/30",
+  success: "text-timing-green border-timing-green/30",
+  warning: "text-timing-yellow border-timing-yellow/30",
+  error: "text-accent-danger border-accent-danger/30"
 };
 function NotificationToast({ notification, onDismiss }) {
   useEffect(() => {
@@ -29,12 +29,12 @@ function NotificationToast({ notification, onDismiss }) {
     role={notification.type === "error" ? "alert" : "status"}
     aria-live={notification.type === "error" ? "assertive" : "polite"}
     className={cn(
-      "flex items-center gap-3 px-4 py-3 rounded-card bg-panel border",
+      "flex items-center gap-3 px-4 py-3 rounded-card bg-surface-raised border border-border-strong shadow-card",
       COLORS[notification.type]
     )}
   ><span className={cn("font-mono text-sm", COLORS[notification.type].split(" ")[0])}>{ICONS[notification.type]}</span><p className="text-sm text-text-primary flex-1">{notification.message}</p>{notification.action && <button
     onClick={notification.action.onClick}
-    className="text-mono-meta font-mono text-drs-cyan hover:underline underline-offset-2"
+    className="text-mono-meta font-mono text-accent-primary hover:underline underline-offset-2"
   >{notification.action.label}</button>}<button
     onClick={() => onDismiss(notification.id)}
     className="text-text-muted hover:text-text-secondary ml-1"

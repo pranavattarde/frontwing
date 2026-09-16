@@ -129,21 +129,21 @@ export function MarkdownContent({ content, className }) {
       {blocks.map((block, idx) => {
         if (block.type === "h1") {
           return (
-            <h1 key={idx} className="font-f1 text-2xl font-bold text-text-primary tracking-wide border-b border-fw-border pb-2 mt-2">
+            <h1 key={idx} className="font-f1 text-2xl font-bold text-text-primary tracking-wide border-b border-[var(--border-subtle)] pb-2 mt-2">
               {block.text}
             </h1>
           );
         }
         if (block.type === "h2") {
           return (
-            <h2 key={idx} className="font-f1 text-lg font-bold text-text-primary tracking-wide border-b border-fw-border pb-1 mt-2">
+            <h2 key={idx} className="font-f1 text-lg font-bold text-text-primary tracking-wide border-b border-[var(--border-subtle)] pb-1 mt-2">
               {block.text}
             </h2>
           );
         }
         if (block.type === "h3") {
           return (
-            <h3 key={idx} className="font-f1 text-sm uppercase tracking-widest text-drs-cyan font-semibold mt-2">
+            <h3 key={idx} className="font-f1 text-sm uppercase tracking-widest text-accent-primary font-semibold mt-2">
               {block.text}
             </h3>
           );
@@ -180,7 +180,7 @@ export function MarkdownContent({ content, className }) {
                           key={cIdx}
                           className={cn(
                             cIdx === 0 ? "font-semibold text-text-primary" : "font-mono",
-                            "py-2.5 px-3.5 border-b border-fw-border/60"
+                            "py-2.5 px-3.5 border-b border-[var(--border-subtle)]"
                           )}
                         >
                           {renderFormattedText(cell)}

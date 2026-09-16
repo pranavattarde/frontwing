@@ -23,11 +23,11 @@ export function ComparisonSlider({
   const handleMouseUpOrChange = () => {
     onChange?.(internalVal);
   };
-  return <div className={cn("flex flex-col gap-3 p-3 bg-panel border border-fw-border rounded-card select-none w-full", className)}><div className="flex justify-between items-center text-mono-meta font-mono"><span className="text-text-primary font-semibold tracking-wider">
+  return <div className={cn("flex flex-col gap-3 p-3 bg-surface-base border border-border-subtle rounded-card select-none w-full", className)}><div className="flex justify-between items-center text-mono-meta font-mono"><span className="text-text-primary font-semibold tracking-wider">
           STRATEGY_DECISION_SLIDER // PIT_STOP_WINDOW
-        </span><div className="flex items-center gap-2">{isComputing && <span className="text-teammate-yellow animate-pulse text-[10px]">
+        </span><div className="flex items-center gap-2">{isComputing && <span className="text-timing-yellow animate-pulse text-[10px]">
               RE_COMPUTING...
-            </span>}<span className="text-drs-cyan text-xs font-semibold">LAP {internalVal}</span></div></div>{
+            </span>}<span className="text-accent-primary text-xs font-semibold type-tabular">LAP {internalVal}</span></div></div>{
     /* Slider Input */
   }<div className="relative mt-2 flex items-center"><input
     type="range"
@@ -40,7 +40,7 @@ export function ComparisonSlider({
     onMouseUp={handleMouseUpOrChange}
     onTouchEnd={handleMouseUpOrChange}
     className={cn(
-      "w-full h-1 bg-elevated rounded-lg appearance-none cursor-pointer border border-fw-border accent-drs-cyan focus:outline-none focus:ring-1 focus:ring-drs-cyan/30",
+      "w-full h-1 bg-surface-raised rounded-lg appearance-none cursor-pointer border border-border-subtle accent-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary/30",
       isComputing && "opacity-50 cursor-not-allowed"
     )}
     aria-label="Strategy decision slider"
@@ -67,12 +67,12 @@ export function ComparisonSlider({
     }<div
       className={cn(
         "w-1.5 h-1.5 rounded-full border transition-all duration-[100ms]",
-        isMatch ? "bg-drs-cyan border-drs-cyan scale-125" : m.type === "optimal" ? "bg-tire-inter border-tire-inter/50" : m.type === "actual" ? "bg-f1-red border-f1-red/50" : "bg-elevated border-fw-border"
+        isMatch ? "bg-accent-primary border-accent-primary scale-125" : m.type === "optimal" ? "bg-timing-green border-timing-green/50" : m.type === "actual" ? "bg-accent-danger border-accent-danger/50" : "bg-surface-raised border-border-subtle"
       )}
     /><span
       className={cn(
         "mt-1 font-semibold uppercase",
-        isMatch ? "text-drs-cyan" : m.type === "optimal" ? "text-tire-inter" : m.type === "actual" ? "text-f1-red" : "text-text-muted"
+        isMatch ? "text-accent-primary" : m.type === "optimal" ? "text-timing-green" : m.type === "actual" ? "text-accent-danger" : "text-text-muted"
       )}
     >{m.label}</span></div>;
   })}</div>}</div>;

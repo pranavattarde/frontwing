@@ -10,14 +10,14 @@ export function SkeletonParagraph() {
 }
 export function SkeletonCard({ height = 120 }) {
   return <div
-    className="skeleton border border-fw-border rounded-card"
+    className="skeleton border border-[var(--border-subtle)] rounded-lg"
     style={{ height }}
   />;
 }
 export function SkeletonPills({ count = 3 }) {
   return <div className="flex gap-2">{Array.from({ length: count }).map((_, i) => <div
     key={i}
-    className="skeleton h-6 rounded-card"
+    className="skeleton h-6 rounded-md"
     style={{ width: `${60 + i * 20}px` }}
   />)}</div>;
 }

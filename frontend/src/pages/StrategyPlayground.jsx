@@ -110,66 +110,97 @@ export function StrategyPlayground() {
       setIsComputing(false);
     }, 400);
   };
-  return <div className="min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-drs-cyan/20 selection:text-drs-cyan">{
-    /* Header */
-  }<BriefingHeader
-    breadcrumbs={breadcrumbs}
-    sessionState={isComputing ? "loading" : "idle"}
-    onLogoClick={() => navigate("/")}
-    onBreadcrumbClick={(index) => {
-      if (index === 0) navigate("/");
-      if (index === 1) navigate(`/race/${AUSTRIAN_GP.id}`);
-    }}
-  />{
-    /* Main Content Layout */
-  }<main className="flex-1 w-full max-w-[1440px] mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">{
-    /* Left Side (Colspan 2): Sliders & timelines */
-  }<div className="lg:col-span-2 flex flex-col gap-6"><div className="border-b border-fw-border pb-4"><span className="text-mono-meta font-mono text-drs-cyan tracking-widest uppercase">
+  return (
+    <div className="min-h-screen bg-[var(--canvas)] text-[var(--text-secondary)] flex flex-col font-sans selection:bg-[var(--accent-primary)]/20 selection:text-[var(--text-primary)]">
+      {/* Header */}
+      <BriefingHeader
+        breadcrumbs={breadcrumbs}
+        sessionState={isComputing ? "loading" : "idle"}
+        onLogoClick={() => navigate("/")}
+        onBreadcrumbClick={(index) => {
+          if (index === 0) navigate("/");
+          if (index === 1) navigate(`/race/${AUSTRIAN_GP.id}`);
+        }}
+      />
+
+      {/* Main Content Layout */}
+      <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left Side (Colspan 2): Sliders & timelines */}
+        <div className="lg:col-span-2 flex flex-col gap-6">
+          <div className="border-b border-[var(--border-subtle)] pb-4">
+            <span className="text-[10px] font-mono text-[var(--accent-primary)] tracking-widest uppercase font-semibold">
               STRATEGY_PLAYGROUND // WHAT-IF_ENVIRONMENT
-            </span><h1 className="text-display text-text-primary mt-1">
+            </span>
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-[var(--text-primary)] mt-1 font-sans">
               Carlos Sainz Strategy Simulator
-            </h1><p className="text-text-muted text-sm mt-0.5">
+            </h1>
+            <p className="text-[var(--text-muted)] text-sm mt-1">
               Drag the timing slider to recalculate the traffic re-entry queue, stint lengths, and projected final race time delta.
-            </p></div>{
-    /* Slider */
-  }<ComparisonSlider
-    min={15}
-    max={30}
-    value={pitLap}
-    markers={sliderMarkers}
-    isComputing={isComputing}
-    onChange={handleSliderChange}
-  />{
-    /* Strategy Timeline comparing Actual vs Simulated */
-  }<section className="flex flex-col gap-3"><span className="text-mono-meta font-mono text-text-muted uppercase tracking-wider">
+            </p>
+          </div>
+
+          {/* Slider */}
+          <ComparisonSlider
+            min={15}
+            max={30}
+            value={pitLap}
+            markers={sliderMarkers}
+            isComputing={isComputing}
+            onChange={handleSliderChange}
+          />
+
+          {/* Strategy Timeline comparing Actual vs Simulated */}
+          <section className="flex flex-col gap-3">
+            <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider font-semibold">
               STINT_TIMELINE_COMPARISON
-            </span><StrategyTimeline
-    stints={STRATEGIES.SAI}
-    simulated={simData.stints}
-    totalLaps={AUSTRIAN_GP.totalLaps}
-    driverCode="SAI"
-    variant="comparison"
-  /></section>{
-    /* AI Strategy Commentary */
-  }<section className="bg-panel border border-fw-border rounded-card p-4 border-l-2 border-l-drs-cyan"><span className="text-mono-meta font-mono text-text-muted uppercase tracking-wider block mb-1">
+            </span>
+            <StrategyTimeline
+              stints={STRATEGIES.SAI}
+              simulated={simData.stints}
+              totalLaps={AUSTRIAN_GP.totalLaps}
+              driverCode="SAI"
+              variant="comparison"
+            />
+          </section>
+
+          {/* AI Strategy Commentary */}
+          <section className="bg-[var(--surface-base)] border border-[var(--border-subtle)] rounded-lg p-4 border-l-4 border-l-[var(--accent-primary)] shadow-sm">
+            <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider block mb-1 font-semibold">
               ENGINEER_TACTICAL_DEBRIEF
-            </span><p className="text-sm text-text-secondary leading-relaxed">{simData.commentary}</p></section></div>{
-    /* Right Side Column: Exit Traffic Map & Simulation results */
-  }<div className="flex flex-col gap-6">{
-    /* Simulation Output Card */
-  }<section className="flex flex-col gap-3"><span className="text-mono-meta font-mono text-text-muted uppercase tracking-wider">
+            </span>
+            <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+              {simData.commentary}
+            </p>
+          </section>
+        </div>
+
+        {/* Right Side Column: Exit Traffic Map & Simulation results */}
+        <div className="flex flex-col gap-6">
+          {/* Simulation Output Card */}
+          <section className="flex flex-col gap-3">
+            <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider font-semibold">
               SIMULATED_PROJECTIONS
-            </span><SimulationResult
-    result={simData.result}
-    variant="detailed"
-    onShareResult={() => console.log("Share")}
-  /></section>{
-    /* Traffic Visualizer */
-  }<section className="flex flex-col gap-3"><span className="text-mono-meta font-mono text-text-muted uppercase tracking-wider">
+            </span>
+            <SimulationResult
+              result={simData.result}
+              variant="detailed"
+              onShareResult={() => console.log("Share")}
+            />
+          </section>
+
+          {/* Traffic Visualizer */}
+          <section className="flex flex-col gap-3">
+            <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider font-semibold">
               TRAFFIC_RE_ENTRY_MODEL
-            </span><PitWindowVisualizer
-    pittingDriver={{ code: "SAI", exitLap: pitLap, pitLossTime: 22 }}
-    rivals={simData.rivals}
-    cleanAirThreshold={1.5}
-  /></section></div></main></div>;
+            </span>
+            <PitWindowVisualizer
+              pittingDriver={{ code: "SAI", exitLap: pitLap, pitLossTime: 22 }}
+              rivals={simData.rivals}
+              cleanAirThreshold={1.5}
+            />
+          </section>
+        </div>
+      </main>
+    </div>
+  );
 }

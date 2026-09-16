@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
  * - Zero line-smoothing (miter line joins, crisp angular transitions)
  * - Strict track distance alignment (X-axis in meters from start/finish line)
  * - 250m slate grid intervals with 500m/1000m labels
- * - High contrast: Chaser/Driver A (#00E5FF Neon Cyan), Defender/Driver B (#FFD600 Neon Yellow)
+ * - High contrast: Chaser/Driver A (#00D2BE Timing Green), Defender/Driver B (#FFD600 Neon Yellow)
  * - Brake overlay: Neon F1 Red (#FF1801) with rgba(255, 24, 1, 0.08) fill when active
  * - High-DPI Canvas scaling with devicePixelRatio
  * - Interactive distance-synchronized crosshair & HUD telemetry inspector

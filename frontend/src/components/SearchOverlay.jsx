@@ -24,14 +24,14 @@ export function SearchOverlay({
   }<motion.div
     role="search"
     aria-label="Ask the AI Race Engineer"
-    className="w-full max-w-[560px] bg-panel border border-fw-border rounded-card shadow-2xl relative z-10 overflow-hidden flex flex-col"
+    className="w-full max-w-[560px] bg-surface-raised border border-border-strong rounded-card shadow-2xl relative z-10 overflow-hidden flex flex-col"
     initial={{ opacity: 0, scale: 0.97, y: -8 }}
     animate={{ opacity: 1, scale: 1, y: 0 }}
     exit={{ opacity: 0, scale: 0.97, y: -8 }}
     transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
   >{
     /* Input Row */
-  }<div className="flex items-center px-4 py-3 border-b border-fw-border"><svg className="w-4 h-4 text-text-muted mr-3 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg><input
+  }<div className="flex items-center px-4 py-3 border-b border-border-subtle bg-surface-base/60"><svg className="w-4 h-4 text-text-muted mr-3 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg><input
     type="text"
     value={value}
     onChange={(e) => setValue(e.target.value)}
@@ -40,7 +40,7 @@ export function SearchOverlay({
     autoFocus
   /><button
     onClick={onClose}
-    className="text-text-muted hover:text-text-secondary text-xs font-mono shrink-0 pl-3 border-l border-fw-border"
+    className="text-text-muted hover:text-text-secondary text-xs font-mono shrink-0 pl-3 border-l border-border-subtle"
   >
                 [ESC]
               </button></div>{
@@ -52,7 +52,7 @@ export function SearchOverlay({
                       </span><div className="flex flex-col gap-1">{recentSearches.map((rec) => <button
     key={rec}
     onClick={() => onResultClick?.(rec)}
-    className="text-left py-1 px-2 rounded-button text-xs text-text-secondary hover:bg-elevated/40 hover:text-text-primary transition-colors truncate"
+    className="text-left py-1.5 px-2.5 rounded-badge text-xs text-text-secondary hover:bg-surface-overlay hover:text-text-primary transition-colors truncate"
   >{rec}</button>)}</div></div>}{
     /* Trending Queries */
   }{trending.length > 0 && <div className="flex flex-col gap-2"><span className="text-[9px] font-mono text-text-muted uppercase tracking-wider">
@@ -60,15 +60,15 @@ export function SearchOverlay({
                       </span><div className="flex flex-col gap-1">{trending.map((trend) => <button
     key={trend}
     onClick={() => onResultClick?.(trend)}
-    className="text-left py-1.5 px-2 rounded-button text-xs text-text-secondary hover:bg-elevated/40 hover:text-text-primary transition-colors flex items-center gap-2"
-  ><span className="text-drs-cyan font-mono text-[9px]">◆</span><span className="truncate">{trend}</span></button>)}</div></div>}</> : (
+    className="text-left py-1.5 px-2.5 rounded-badge text-xs text-text-secondary hover:bg-surface-overlay hover:text-text-primary transition-colors flex items-center gap-2"
+  ><span className="text-accent-primary font-mono text-[9px]">◆</span><span className="truncate">{trend}</span></button>)}</div></div>}</> : (
     /* Filtered Options */
     <div className="flex flex-col gap-2"><span className="text-[9px] font-mono text-text-muted uppercase tracking-wider">
                     FILTERED_TACTICAL_RESULTS
                   </span><div className="flex flex-col gap-1">{filteredSuggestions.length > 0 ? filteredSuggestions.map((item) => <button
       key={item}
       onClick={() => onResultClick?.(item)}
-      className="text-left py-1.5 px-2 rounded-button text-xs text-text-secondary hover:bg-elevated/40 hover:text-text-primary transition-colors flex items-center justify-between"
+      className="text-left py-1.5 px-2.5 rounded-badge text-xs text-text-secondary hover:bg-surface-overlay hover:text-text-primary transition-colors flex items-center justify-between"
     ><span className="truncate">{item}</span><span className="font-mono text-[9px] text-text-muted">[VIEW]</span></button>) : <span className="text-xs text-text-muted font-mono p-2">
                         NO_RECORDS_MATCHING_CRITERIA
                       </span>}</div></div>

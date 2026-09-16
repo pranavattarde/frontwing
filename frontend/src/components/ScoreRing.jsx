@@ -8,7 +8,7 @@ const SIZE_MAP = {
 export const ScoreRing = memo(function ScoreRing2({
   value,
   label,
-  color = "#00E5FF",
+  color = "#00D2BE",
   size = "md",
   onClick
 }) {

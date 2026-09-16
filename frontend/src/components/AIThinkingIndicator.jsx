@@ -36,7 +36,7 @@ export function AIThinkingIndicator({ stage = "parsing", detail, className }) {
       role="status"
       aria-live="polite"
       className={cn(
-        "border border-fw-border rounded-card bg-panel/90 backdrop-blur-md p-4 flex flex-col gap-3.5 shadow-xl",
+        "border border-border-subtle rounded-card bg-surface-base/90 backdrop-blur-md p-4 flex flex-col gap-3.5 shadow-card",
         className
       )}
     >
@@ -48,22 +48,22 @@ export function AIThinkingIndicator({ stage = "parsing", detail, className }) {
             <div
               key={s.id}
               className={cn(
-                "flex items-center gap-2 p-2 rounded border font-mono text-[11px] transition-all duration-200",
-                status === "completed" && "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 font-semibold",
-                status === "active" && "bg-drs-cyan/10 border-drs-cyan/40 text-drs-cyan font-bold shadow-sm",
-                status === "pending" && "bg-elevated/30 border-fw-border/40 text-text-muted opacity-60"
+                "flex items-center gap-2 p-2 rounded-badge border font-mono text-[11px] transition-all duration-200",
+                status === "completed" && "bg-timing-green/10 border-timing-green/30 text-timing-green font-semibold",
+                status === "active" && "bg-accent-primary/10 border-accent-primary/40 text-accent-primary font-bold shadow-sm",
+                status === "pending" && "bg-surface-raised/40 border-border-subtle text-text-muted opacity-60"
               )}
             >
               {status === "completed" ? (
-                <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold">
+                <span className="w-4 h-4 rounded-full bg-timing-green/20 text-timing-green flex items-center justify-center text-[10px] font-bold">
                   ✓
                 </span>
               ) : status === "active" ? (
-                <span className="w-4 h-4 rounded-full bg-drs-cyan/20 text-drs-cyan flex items-center justify-center text-[10px] animate-spin">
+                <span className="w-4 h-4 rounded-full bg-accent-primary/20 text-accent-primary flex items-center justify-center text-[10px] animate-spin">
                   ⚙
                 </span>
               ) : (
-                <span className="w-4 h-4 rounded-full bg-elevated text-text-muted flex items-center justify-center text-[9px]">
+                <span className="w-4 h-4 rounded-full bg-surface-raised text-text-muted flex items-center justify-center text-[9px]">
                   {idx + 1}
                 </span>
               )}
@@ -74,9 +74,9 @@ export function AIThinkingIndicator({ stage = "parsing", detail, className }) {
       </div>
 
       {/* Real-time Telemetry Status Ticker */}
-      <div className="flex items-center justify-between text-mono-meta font-mono border-t border-fw-border/60 pt-2.5 px-1 text-xs">
+      <div className="flex items-center justify-between text-mono-meta font-mono border-t border-border-subtle pt-2.5 px-1 text-xs">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-drs-cyan animate-pulse" />
+          <span className="w-2 h-2 rounded-full bg-accent-primary animate-pulse" />
           <span className="text-text-primary font-semibold tracking-wide">
             AI_RACE_ENGINEER
           </span>

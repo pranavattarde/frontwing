@@ -11,9 +11,15 @@ export function TelemetryOverlay({
   const handleHover = (dist) => {
     setHoverDist(dist);
   };
-  return <div className="flex flex-col gap-4 bg-panel border border-fw-border rounded-card p-4"><div className="flex justify-between items-center border-b border-fw-border pb-2.5 mb-2 font-mono text-mono-meta"><span className="text-text-primary font-semibold uppercase">
+  return (
+    <div className="flex flex-col gap-4 bg-[var(--surface-base)] border border-[var(--border-subtle)] rounded-lg p-4 shadow-sm">
+      <div className="flex justify-between items-center border-b border-[var(--border-subtle)] pb-2.5 mb-2 font-mono text-[10px]">
+        <span className="text-[var(--text-primary)] font-semibold uppercase tracking-wider">
           SYNCHRONIZED_MULTI_CHANNEL_TELEMETRY
-        </span><span className="text-text-muted">ALIGNMENT: DISTANCE (10M BINS)</span></div><div className="flex flex-col gap-3">{
+        </span>
+        <span className="text-[var(--text-muted)] font-mono">ALIGNMENT: DISTANCE (10M BINS)</span>
+      </div>
+      <div className="flex flex-col gap-3">{
     /* Speed Channel */
   }<TelemetryCard
     driverA={driverA}
@@ -61,5 +67,8 @@ export function TelemetryOverlay({
     variant="expanded"
     onHover={handleHover}
     hoverDist={hoverDist}
-  /></div></div>;
+  />
+      </div>
+    </div>
+  );
 }

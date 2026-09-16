@@ -250,10 +250,10 @@ export function CircuitCanvas3D({ circuit, drivers = [], currentTime = 0 }) {
   const centerline = circuit?.centerline || [];
 
   return (
-    <div className="w-full h-[480px] sm:h-[560px] lg:h-[620px] rounded-card border border-fw-border bg-[#0B0D11] relative overflow-hidden shadow-2xl">
+    <div className="w-full h-[480px] sm:h-[560px] lg:h-[620px] rounded-lg border border-[var(--border-subtle)] bg-[var(--canvas)] relative overflow-hidden shadow-2xl">
       {/* 3D Viewport Controls Hint */}
       <div className="absolute top-3 left-3 z-10 flex items-center gap-2 pointer-events-none select-none">
-        <span className="text-[10px] font-mono px-2 py-1 rounded bg-canvas/80 border border-fw-border/60 text-text-muted backdrop-blur-sm">
+        <span className="text-[10px] font-mono px-2 py-1 rounded bg-[var(--canvas)]/80 border border-[var(--border-subtle)] text-[var(--text-muted)] backdrop-blur-sm">
           ORBIT: LEFT-CLICK DRAG • PAN: RIGHT-CLICK DRAG • ZOOM: SCROLL
         </span>
       </div>

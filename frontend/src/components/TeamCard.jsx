@@ -13,7 +13,7 @@ export function TeamCard({
     onClick={onClick}
     className={cn(
       "evidence-card relative flex flex-col justify-between hover-lift transition-all duration-[80ms]",
-      onClick && "cursor-pointer hover:border-fw-border-active",
+      onClick && "cursor-pointer hover:border-border-strong",
       isExpanded ? "p-5 w-full sm:w-[360px]" : "p-3 w-full"
     )}
     initial={{ opacity: 0, y: 12 }}
@@ -32,15 +32,15 @@ export function TeamCard({
       e.stopPropagation();
       onDriverClick?.(d.code);
     }}
-    className="font-mono text-mono-meta text-text-muted hover:text-drs-cyan hover:underline transition-colors"
-  >{d.code}</button>)}</div></div><div className="flex items-center gap-2"><span className="font-mono text-[9px] text-text-muted uppercase">STRAT_GRADE</span><span className="font-data text-base font-semibold text-drs-cyan">{strategyGrade}</span></div></div>{
+    className="font-mono text-mono-meta text-text-muted hover:text-accent-primary hover:underline transition-colors"
+  >{d.code}</button>)}</div></div><div className="flex items-center gap-2"><span className="font-mono text-[9px] text-text-muted uppercase">STRAT_GRADE</span><span className="font-data text-base font-semibold text-timing-green type-tabular">{strategyGrade}</span></div></div>{
     /* Content Body */
-  }{isExpanded ? <div className="flex flex-col gap-4 border-t border-fw-border pt-3"><div className="grid grid-cols-2 gap-4"><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">PIT_CREW_RANK</span><span className="text-xs font-mono text-text-secondary">P{pitCrewRank}</span></div><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">AVG_WEAR_SLOPE</span><span className="text-xs font-mono text-text-secondary">{avgWearSlope.toFixed(3)} s/lap</span></div></div>{
+  }{isExpanded ? <div className="flex flex-col gap-4 border-t border-border-subtle pt-3"><div className="grid grid-cols-2 gap-4"><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">PIT_CREW_RANK</span><span className="text-xs font-mono text-text-secondary type-tabular">P{pitCrewRank}</span></div><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">AVG_WEAR_SLOPE</span><span className="text-xs font-mono text-text-secondary type-tabular">{avgWearSlope.toFixed(3)} s/lap</span></div></div>{
     /* Constructor Score Ring */
-  }<div className="flex items-center justify-between border-t border-fw-border pt-3"><span className="text-mono-meta font-mono text-text-muted max-w-[140px] leading-tight">
+  }<div className="flex items-center justify-between border-t border-border-subtle pt-3"><span className="text-mono-meta font-mono text-text-muted max-w-[140px] leading-tight">
                 CONSTRUCTOR EFFICIENCY SCORE OVER WEEKEND
-              </span><ScoreRing value={constructorScore} label="CONSTRUCTOR" size="md" color="#00E5FF" /></div></div> : (
+              </span><ScoreRing value={constructorScore} label="CONSTRUCTOR" size="md" color={team.color || "#00D2BE"} /></div></div> : (
     /* Summary View */
-    <div className="flex items-center justify-between border-t border-fw-border pt-2 text-mono-meta font-mono"><div><span className="text-text-muted">PIT_RANK:</span>{" "}<span className="text-text-secondary">P{pitCrewRank}</span></div><div><span className="text-text-muted">WEAR:</span>{" "}<span className="text-text-secondary">{avgWearSlope.toFixed(3)}s</span></div><span className="text-text-primary font-semibold">{constructorScore.toFixed(1)}</span></div>
+    <div className="flex items-center justify-between border-t border-border-subtle pt-2 text-mono-meta font-mono"><div><span className="text-text-muted">PIT_RANK:</span>{" "}<span className="text-text-secondary type-tabular">P{pitCrewRank}</span></div><div><span className="text-text-muted">WEAR:</span>{" "}<span className="text-text-secondary type-tabular">{avgWearSlope.toFixed(3)}s</span></div><span className="text-text-primary font-semibold type-tabular">{constructorScore.toFixed(1)}</span></div>
   )}</div></motion.div>;
 }

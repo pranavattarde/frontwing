@@ -49,12 +49,12 @@ export function GhostBattleViewer({
             AI_GHOST_BATTLE_LOG
           </span><div className="flex gap-1.5 font-mono text-[9px]"><button
     onClick={() => setViewMode("single")}
-    className={`px-1.5 py-0.5 border rounded-sm ${viewMode === "single" ? "border-drs-cyan text-drs-cyan bg-drs-cyan/5 font-semibold" : "border-fw-border text-text-muted"}`}
+    className={`px-1.5 py-0.5 border rounded-badge ${viewMode === "single" ? "border-accent-primary text-accent-primary bg-accent-primary/10 font-semibold" : "border-border-subtle text-text-muted"}`}
   >
               SINGLE_TRACE
             </button><button
     onClick={() => setViewMode("stacked")}
-    className={`px-1.5 py-0.5 border rounded-sm ${viewMode === "stacked" ? "border-drs-cyan text-drs-cyan bg-drs-cyan/5 font-semibold" : "border-fw-border text-text-muted"}`}
+    className={`px-1.5 py-0.5 border rounded-badge ${viewMode === "stacked" ? "border-accent-primary text-accent-primary bg-accent-primary/10 font-semibold" : "border-border-subtle text-text-muted"}`}
   >
               STACKED_CHANNELS
             </button></div></div>{
@@ -67,7 +67,7 @@ export function GhostBattleViewer({
       onClick={() => setActiveCornerIdx(idx)}
       className={cn(
         "border rounded-card p-4 transition-all duration-[150ms] cursor-pointer relative overflow-hidden",
-        isActive ? "border-fw-border-active bg-elevated/40" : "border-fw-border bg-panel hover:bg-elevated/20"
+        isActive ? "border-accent-primary bg-surface-raised shadow-card" : "border-border-subtle bg-surface-base hover:bg-surface-raised"
       )}
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
@@ -76,8 +76,8 @@ export function GhostBattleViewer({
       /* Advantage strip */
     }<div
       className="absolute left-0 top-0 bottom-0 w-1"
-      style={{ backgroundColor: isAdvantageA ? "#00E5FF" : "#FFD600" }}
-    /><div className="pl-2"><div className="flex justify-between items-baseline mb-2 font-mono text-mono-meta"><span className="text-text-primary font-semibold">{nar.cornerName}</span><span className={cn("text-xs font-semibold", isAdvantageA ? "text-drs-cyan" : "text-teammate-yellow")}>{isAdvantageA ? driverA.code : driverB.code} ADV (+{Math.abs(nar.deltaMs)}ms)
+      style={{ backgroundColor: isAdvantageA ? (driverA.color || "#00D2BE") : (driverB.color || "#FFD600") }}
+    /><div className="pl-2"><div className="flex justify-between items-baseline mb-2 font-mono text-mono-meta"><span className="text-text-primary font-semibold">{nar.cornerName}</span><span className={cn("text-xs font-semibold type-tabular", isAdvantageA ? "text-timing-green" : "text-timing-yellow")}>{isAdvantageA ? driverA.code : driverB.code} ADV (+{Math.abs(nar.deltaMs)}ms)
                     </span></div><p className="text-xs text-text-secondary leading-relaxed">{nar.narrative}</p></div></motion.div>;
   })}</div></div>{
     /* Right Pane (Colspan 7): Synced Telemetry Traces */

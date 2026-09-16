@@ -27,7 +27,7 @@ export function NarrativeStream({ content, isStreaming = false }) {
       <MarkdownContent content={displayedText} />
       {isStreaming && (
         <span
-          className="inline-block text-drs-cyan font-mono font-bold animate-cursor-pulse ml-0.5"
+          className="inline-block text-accent-primary font-mono font-bold animate-cursor-pulse ml-0.5"
           aria-hidden="true"
         >
           ▋

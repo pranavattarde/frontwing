@@ -11,7 +11,7 @@ export function FilterBar({ filters, onFilterChange, className }) {
     }
     onFilterChange?.(filterId, nextSelected);
   };
-  return <div className={cn("flex flex-wrap items-center gap-4 bg-panel border border-fw-border rounded-card p-3 select-none", className)}>{filters.map((filter) => <div key={filter.id} className="flex flex-col sm:flex-row sm:items-center gap-2">{
+  return <div className={cn("flex flex-wrap items-center gap-4 bg-surface-base border border-border-subtle rounded-card p-3 select-none", className)}>{filters.map((filter) => <div key={filter.id} className="flex flex-col sm:flex-row sm:items-center gap-2">{
     /* Filter Group Label */
   }<span className="text-mono-meta font-mono text-text-muted uppercase tracking-wider shrink-0">{filter.label}:
           </span>{
@@ -22,8 +22,8 @@ export function FilterBar({ filters, onFilterChange, className }) {
       key={opt.value}
       onClick={() => handleToggle(filter.id, opt.value, isSelected)}
       className={cn(
-        "px-2.5 py-1 text-xs font-mono rounded-button border transition-all duration-[80ms]",
-        isSelected ? "bg-drs-cyan/15 text-drs-cyan border-drs-cyan/35 font-medium" : "bg-canvas text-text-secondary border-fw-border hover:border-fw-border-active hover:text-text-primary"
+        "px-2.5 py-1 text-xs font-mono rounded-badge border transition-all duration-[80ms]",
+        isSelected ? "bg-accent-primary/15 text-accent-primary border-accent-primary/40 font-medium" : "bg-surface-base text-text-secondary border-border-subtle hover:border-border-strong hover:text-text-primary"
       )}
     >{opt.label}{isSelected && <span className="ml-1 text-[9px] font-semibold">✓</span>}</button>;
   })}</div></div>)}</div>;

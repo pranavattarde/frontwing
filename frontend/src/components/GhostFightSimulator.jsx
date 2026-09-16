@@ -5,7 +5,7 @@ import { getCircuitByTrackName } from "@/lib/circuitTracks";
 /**
  * GhostFightSimulator - Real-time Continuous Ghost Battle Loop with Accurate SVG Track Map
  *
- * Simulates a continuous head-to-head ghost fight between Driver A (Cyan) and Driver B (Yellow)
+ * Simulates a continuous head-to-head ghost fight between Driver A (Timing Green) and Driver B (Yellow)
  * running along an accurate F1 circuit outline with colored sector segments and live telemetry HUD.
  */
 export function GhostFightSimulator({
@@ -37,7 +37,7 @@ export function GhostFightSimulator({
 
   const nameA = driverA?.name || driverA?.code || "DRIVER A";
   const nameB = driverB?.name || driverB?.code || "DRIVER B";
-  const colorA = driverA?.color || "#00E5FF";
+  const colorA = driverA?.color || "#00D2BE";
   const colorB = driverB?.color || "#FFD600";
 
   // Measure SVG track length once mounted or when circuit changes
@@ -172,11 +172,11 @@ export function GhostFightSimulator({
   const s3Len = pathLength * (1 - s2Ratio);
 
   return (
-    <div className={cn("bg-panel border border-fw-border rounded-card p-4 flex flex-col gap-4 select-none relative overflow-hidden", className)}>
+    <div className={cn("bg-[var(--surface-base)] border border-[var(--border-subtle)] rounded-lg p-4 flex flex-col gap-4 select-none relative overflow-hidden", className)}>
       {/* Top Header & Track Badges */}
-      <div className="flex justify-between items-center border-b border-fw-border pb-2.5">
+      <div className="flex justify-between items-center border-b border-[var(--border-subtle)] pb-2.5">
         <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-drs-cyan animate-pulse" />
+          <span className="w-2.5 h-2.5 rounded-full bg-[var(--accent-primary)] animate-pulse" />
           <span className="font-f1 text-sm font-bold text-text-primary tracking-wider uppercase">
             LIVE GHOST BATTLE // {circuit.name.toUpperCase()}
           </span>
@@ -199,9 +199,9 @@ export function GhostFightSimulator({
       </div>
 
       {/* SVG Circuit Outline & Synced Ghost Battle Track Map */}
-      <div className="relative w-full h-[220px] bg-canvas/95 rounded-card border border-fw-border flex flex-col items-center justify-center p-2 overflow-hidden">
+      <div className="relative w-full h-[220px] bg-[var(--canvas)] rounded-lg border border-[var(--border-subtle)] flex flex-col items-center justify-center p-2 overflow-hidden">
         {/* Subtle Background Radial Glow */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(0,229,255,0.03)_0%,transparent_70%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(225,6,0,0.02)_0%,transparent_70%)] pointer-events-none" />
 
         <svg
           viewBox={circuit.viewBox}
@@ -209,8 +209,8 @@ export function GhostFightSimulator({
           preserveAspectRatio="xMidYMid meet"
         >
           <defs>
-            {/* Glow Filter for Car A (Cyan) */}
-            <filter id="glowCyan" x="-50%" y="-50%" width="200%" height="200%">
+            {/* Glow Filter for Car A (Driver A) */}
+            <filter id="glowDriverA" x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="3" result="coloredBlur" />
               <feMerge>
                 <feMergeNode in="coloredBlur" />
@@ -311,20 +311,20 @@ export function GhostFightSimulator({
             </text>
           </g>
 
-          {/* Ghost Driver A (Chaser - Neon Cyan) */}
+          {/* Ghost Driver A (Chaser) */}
           <g transform={`translate(${carPosA.x}, ${carPosA.y})`}>
-            <circle r="8" fill="#00E5FF" opacity="0.4" filter="url(#glowCyan)" />
-            <circle r="5" fill="#00E5FF" stroke="#0B0D10" strokeWidth="1.5" />
+            <circle r="8" fill={colorA} opacity="0.4" />
+            <circle r="5" fill={colorA} stroke="#0B0D10" strokeWidth="1.5" />
             <circle r="1.5" fill="#FFFFFF" />
-            <rect x="-18" y="-19" width="36" height="12" rx="3" fill="#12151B" stroke="#00E5FF" strokeWidth="0.8" />
-            <text x="0" y="-10" fill="#00E5FF" fontSize="8" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
+            <rect x="-18" y="-19" width="36" height="12" rx="3" fill="#12151B" stroke={colorA} strokeWidth="0.8" />
+            <text x="0" y="-10" fill={colorA} fontSize="8" fontWeight="bold" textAnchor="middle" fontFamily="monospace">
               {nameA.split(" ")[0].slice(0, 6)}
             </text>
           </g>
         </svg>
 
         {/* Bottom Track Meta & Sector Legend */}
-        <div className="w-full flex justify-between items-center text-[10px] font-mono text-text-muted px-2 pt-1 border-t border-fw-border/60 z-10">
+        <div className="w-full flex justify-between items-center text-[10px] font-mono text-text-muted px-2 pt-1 border-t border-border-subtle z-10">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-[#B138DD]" /> S1
@@ -338,80 +338,80 @@ export function GhostFightSimulator({
           </div>
           <div className="flex items-center gap-3">
             <span>TRACK DIST: {Math.round(progressDist)}m / {totalDistance}m</span>
-            <span className="text-text-primary font-bold">{Math.round((progressDist / totalDistance) * 100)}%</span>
+            <span className="text-text-primary font-bold type-tabular">{Math.round((progressDist / totalDistance) * 100)}%</span>
           </div>
         </div>
       </div>
 
       {/* Real-Time Live HUD Telemetry Grid */}
       <div className="grid grid-cols-2 gap-3">
-        {/* Driver A Telemetry HUD (Cyan) */}
-        <div className="border border-drs-cyan/30 bg-drs-cyan/5 rounded-card p-3 flex flex-col gap-2">
+        {/* Driver A Telemetry HUD */}
+        <div className="border border-timing-green/30 bg-timing-green/5 rounded-card p-3 flex flex-col gap-2">
           <div className="flex justify-between items-center">
-            <span className="font-mono text-xs font-bold text-drs-cyan flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-drs-cyan" />
+            <span className="font-mono text-xs font-bold text-timing-green flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-timing-green" />
               {nameA}
             </span>
-            <span className="font-mono text-xs font-bold text-text-primary">
+            <span className="font-mono text-xs font-bold text-text-primary type-tabular">
               {currA.speed} <span className="text-[10px] text-text-muted font-normal">km/h</span>
             </span>
           </div>
           <div className="grid grid-cols-3 gap-1.5 font-mono text-[10px] text-text-muted">
-            <div className="flex flex-col bg-panel/80 p-1.5 rounded border border-fw-border">
+            <div className="flex flex-col bg-surface-base p-1.5 rounded border border-border-subtle">
               <span className="text-[8px]">THROTTLE</span>
-              <span className="text-text-primary font-bold">{currA.throttle}%</span>
+              <span className="text-text-primary font-bold type-tabular">{currA.throttle}%</span>
             </div>
-            <div className="flex flex-col bg-panel/80 p-1.5 rounded border border-fw-border">
+            <div className="flex flex-col bg-surface-base p-1.5 rounded border border-border-subtle">
               <span className="text-[8px]">BRAKE</span>
-              <span className={cn("font-bold", currA.brake > 0 ? "text-f1-red" : "text-text-primary")}>
+              <span className={cn("font-bold type-tabular", currA.brake > 0 ? "text-accent-danger" : "text-text-primary")}>
                 {currA.brake > 0 ? `${currA.brake}%` : "OFF"}
               </span>
             </div>
-            <div className="flex flex-col bg-panel/80 p-1.5 rounded border border-fw-border">
+            <div className="flex flex-col bg-surface-base p-1.5 rounded border border-border-subtle">
               <span className="text-[8px]">GEAR</span>
-              <span className="text-drs-cyan font-bold">{currA.gear > 0 ? `G${currA.gear}` : "N/A"}</span>
+              <span className="text-timing-green font-bold">{currA.gear > 0 ? `G${currA.gear}` : "N/A"}</span>
             </div>
           </div>
         </div>
 
         {/* Driver B Telemetry HUD (Yellow) */}
-        <div className="border border-teammate-yellow/30 bg-teammate-yellow/5 rounded-card p-3 flex flex-col gap-2">
+        <div className="border border-timing-yellow/30 bg-timing-yellow/5 rounded-card p-3 flex flex-col gap-2">
           <div className="flex justify-between items-center">
-            <span className="font-mono text-xs font-bold text-teammate-yellow flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-teammate-yellow" />
+            <span className="font-mono text-xs font-bold text-timing-yellow flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-timing-yellow" />
               {nameB}
             </span>
-            <span className="font-mono text-xs font-bold text-text-primary">
+            <span className="font-mono text-xs font-bold text-text-primary type-tabular">
               {currB.speed} <span className="text-[10px] text-text-muted font-normal">km/h</span>
             </span>
           </div>
           <div className="grid grid-cols-3 gap-1.5 font-mono text-[10px] text-text-muted">
-            <div className="flex flex-col bg-panel/80 p-1.5 rounded border border-fw-border">
+            <div className="flex flex-col bg-surface-base p-1.5 rounded border border-border-subtle">
               <span className="text-[8px]">THROTTLE</span>
-              <span className="text-text-primary font-bold">{currB.throttle}%</span>
+              <span className="text-text-primary font-bold type-tabular">{currB.throttle}%</span>
             </div>
-            <div className="flex flex-col bg-panel/80 p-1.5 rounded border border-fw-border">
+            <div className="flex flex-col bg-surface-base p-1.5 rounded border border-border-subtle">
               <span className="text-[8px]">BRAKE</span>
-              <span className={cn("font-bold", currB.brake > 0 ? "text-f1-red" : "text-text-primary")}>
+              <span className={cn("font-bold type-tabular", currB.brake > 0 ? "text-accent-danger" : "text-text-primary")}>
                 {currB.brake > 0 ? `${currB.brake}%` : "OFF"}
               </span>
             </div>
-            <div className="flex flex-col bg-panel/80 p-1.5 rounded border border-fw-border">
+            <div className="flex flex-col bg-surface-base p-1.5 rounded border border-border-subtle">
               <span className="text-[8px]">GEAR</span>
-              <span className="text-teammate-yellow font-bold">{currB.gear > 0 ? `G${currB.gear}` : "N/A"}</span>
+              <span className="text-timing-yellow font-bold">{currB.gear > 0 ? `G${currB.gear}` : "N/A"}</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Delta Leader Badge & Controls */}
-      <div className="flex justify-between items-center bg-elevated/40 border border-fw-border rounded-card p-2.5 font-mono text-xs">
+      <div className="flex justify-between items-center bg-surface-base border border-border-subtle rounded-card p-2.5 font-mono text-xs">
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-text-muted">DELTA AT {Math.round(progressDist)}m:</span>
           <span
             className={cn(
-              "font-bold px-2 py-0.5 rounded text-[11px]",
-              isALeading ? "bg-drs-cyan/15 text-drs-cyan border border-drs-cyan/30" : "bg-teammate-yellow/15 text-teammate-yellow border border-teammate-yellow/30"
+              "font-bold px-2 py-0.5 rounded text-[11px] type-tabular",
+              isALeading ? "bg-timing-green/15 text-timing-green border border-timing-green/30" : "bg-timing-yellow/15 text-timing-yellow border border-timing-yellow/30"
             )}
           >
             {isALeading ? `${nameA.split(" ")[0]} +${Math.abs(speedDelta)} km/h` : `${nameB.split(" ")[0]} +${Math.abs(speedDelta)} km/h`}
@@ -422,19 +422,19 @@ export function GhostFightSimulator({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsPlaying(!isPlaying)}
-            className="px-2 py-0.5 rounded border border-fw-border hover:border-drs-cyan text-text-primary hover:text-drs-cyan transition-colors text-[10px]"
+            className="px-2 py-0.5 rounded border border-border-subtle hover:border-accent-primary text-text-primary hover:text-accent-primary transition-colors text-[10px]"
           >
             {isPlaying ? "PAUSE" : "PLAY"}
           </button>
           <button
             onClick={() => setSpeedMultiplier((prev) => (prev === 1 ? 2 : prev === 2 ? 0.5 : 1))}
-            className="px-1.5 py-0.5 rounded border border-fw-border text-text-muted hover:text-text-primary text-[10px]"
+            className="px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)] text-[10px]"
           >
             {speedMultiplier}X
           </button>
           <button
             onClick={() => setProgressDist(0)}
-            className="px-1.5 py-0.5 rounded border border-fw-border text-text-muted hover:text-text-primary text-[10px]"
+            className="px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)] text-[10px]"
           >
             RESTART
           </button>
