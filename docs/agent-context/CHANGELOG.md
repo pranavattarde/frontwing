@@ -1,3 +1,35 @@
+## Session 043 -- 2026-09-16 -- Web Search Fallback for Out-of-Scope Queries (FIX BB), AI Verdict Card Dynamic Sizing & Markdown (FIX CC), and Complete Elimination of Internal Model/Provider Badging (FIX DD)
+
+### What Was Changed
+- **FIX BB: Free Web Search Tool & Multi-Domain Out-of-Scope Routing (`web_search.py`, `adapters.py`, `registry.py`, `startup.py`, `planner.py`, `nlp_parser.py`, `context_builder.py`, `investigation_correlator.py`)**:
+  - Implemented `WebSearchEngine` using Wikipedia REST API (`/w/api.php`) for technical, historical, and aerodynamic encyclopedic queries, and Google News RSS for contemporary reporting, journalism, and regulations without any paid API keys.
+  - Returns structured `results` with clean fair-use snippets (truncated cleanly at sentence boundaries) and structured `sources` list `{title, url, source}`.
+  - Registered `WebSearchTool` (`web_search_tool`) into the tool registry and planner adaptive framework.
+  - Expanded NLP intent matching so non-telemetry, non-timing questions (who designed, aerodynamic concept, 107% rule, brake materials, operating temperatures) correctly route to `intent="knowledge"` and execute `["knowledge_tool", "web_search_tool"]`.
+  - In `synthesize_node`, invoked reliable LLM provider to synthesize a clean, authoritative 2-3 paragraph answer to the user's question citing retrieved evidence, with fallback to clean snippets when offline or rate-limited.
+  - Enforced Critical Scope Rule: strictly stripped dummy telemetry findings ("No data available."), dummy simulation sections, and empty standings from responses for pure knowledge queries.
+  - Verified live with `scratch/verify_bb_queries.py` across 3 test queries (Adrian Newey RB19 design, 107% qualifying rule, and carbon-carbon brake disc materials).
+- **FIX CC: AI Verdict Dynamic Card Sizing & Natural Page Flow (`VerdictBlock.jsx`, `InvestigationThread.jsx`)**:
+  - Removed `overflow-hidden` and fixed height constraints from `VerdictBlock.jsx`, enabling the card to expand dynamically to fit content naturally in normal page flow.
+  - Removed artificial line slicing (`cleanLines.slice(0, 4)`) in `InvestigationThread.jsx`, ensuring the full synthesized verdict is visible.
+  - Replaced plain text display with `<MarkdownContent content={verdict} />` to render markdown formatting, headings, bullet lists, and source links natively.
+  - Eliminated inner scroll trapping (`overflow-y-auto` inside `overflow-hidden`), allowing seamless downward scrolling through narrative findings and telemetry evidence cards.
+- **FIX DD: Elimination of Internal Provider/Model Names & Title Case Standardization (`VerdictBlock.jsx`, `BriefingHeader.jsx`, `InvestigationThread.jsx`, `BriefingRoom.jsx`, `StrategyEngineer.jsx`, `GhostBattle.jsx`, `GhostBattle3D.jsx`, `StrategyPlayground.jsx`, `RaceBriefing.jsx`, 17+ components)**:
+  - Removed all user-facing traces of internal provider names (Gemini, Groq) and model names (`gemini-3.6-flash`, `openai/gpt-oss-120b`, `gemini-2.0-flash`).
+  - Removed `AI_ENGINEER_ACTIVE` badge and all confidence percentage badges / confidence strips from the interface.
+  - Converted all `ALL_CAPS_WITH_UNDERSCORES` labels across buttons, tabs, section headers, and cards into clean Title Case.
+  - Replaced technical loading messages with query-tailored progress descriptions ("Resolving Session", "Gathering Telemetry", "Synthesizing Analysis").
+
+### Verification
+- `python scratch/verify_bb_queries.py`: All 3 out-of-scope/knowledge queries passed:
+  1. Adrian Newey RB19: SUCCESS, tools=['knowledge_tool', 'web_search_tool'], 5 sources cited, factual answer generated, 0 dummy telemetry sections.
+  2. 107% Qualifying Rule: SUCCESS, tools=['knowledge_tool', 'web_search_tool'], 5 sources cited, factual answer generated, 0 dummy telemetry sections.
+  3. F1 Brake Disc Materials: SUCCESS, tools=['knowledge_tool', 'web_search_tool'], 5 sources cited, factual answer generated, 0 dummy telemetry sections.
+- `npm test` in `backend/`: 14/14 security and input validation tests passed.
+- `npm run build` in `frontend/`: 0 errors, production bundle generated successfully.
+
+---
+
 ## Session 042 -- 2026-09-16 -- Core Integrity Fixes: Hero Race Selection & 4-Hour Refresh (FIX X), Authentic Circuit Telemetry Resolution & Madring Street Circuit (FIX Y), Auth Screen Button Wiring (FIX Z), and Complete Audit & Removal of Click-Triggered Agent Invocations (FIX AA)
 
 ### What Was Changed

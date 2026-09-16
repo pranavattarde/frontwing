@@ -98,6 +98,7 @@ def run_startup_health_checks() -> Dict[str, Any]:
         "explain_mode_tool",
         "research_tool",
         "knowledge_tool",
+        "web_search_tool",
         "investigation_tool",
         "race_results_tool",
         "driver_database_tool",

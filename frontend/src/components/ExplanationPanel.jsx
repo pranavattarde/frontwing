@@ -16,11 +16,11 @@ export function ExplanationPanel({ steps = [], conclusion, reasoningGraph, plann
         <div className="flex items-center gap-2.5">
           <span className="text-xs font-mono font-bold text-text-primary flex items-center gap-2 group-hover:text-accent-primary transition-colors">
             <span>⚙️</span>
-            <span>{isOpen ? "HIDE TECHNICAL REASONING & TELEMETRY LOGS" : "SHOW TECHNICAL REASONING & TELEMETRY LOGS"}</span>
+            <span>{isOpen ? "Hide Technical Reasoning & Telemetry Logs" : "Show Technical Reasoning & Telemetry Logs"}</span>
           </span>
         </div>
         <span className="text-[11px] font-mono text-accent-primary group-hover:underline">
-          {isOpen ? "[COLLAPSE]" : "[EXPAND]"}
+          {isOpen ? "[Collapse]" : "[Expand]"}
         </span>
       </button>
 
@@ -39,7 +39,7 @@ export function ExplanationPanel({ steps = [], conclusion, reasoningGraph, plann
               {conclusion && (
                 <div className="bg-surface-raised border border-border-subtle p-3 rounded-card text-text-primary border-l-2 border-l-accent-primary leading-relaxed">
                   <span className="text-[10px] font-mono text-text-muted uppercase block mb-1 font-bold">
-                    ENGINEERING_SYNTHESIS_CONCLUSION
+                    Synthesis Conclusion
                   </span>
                   <p className="text-xs text-text-secondary">{conclusion}</p>
                 </div>
@@ -49,7 +49,7 @@ export function ExplanationPanel({ steps = [], conclusion, reasoningGraph, plann
               {reasoningGraph && (
                 <div className="bg-surface-raised border border-border-subtle p-3 rounded-card flex flex-col gap-2">
                   <span className="text-[10px] font-mono text-accent-primary uppercase font-bold tracking-wider">
-                    ROOT_CAUSE_REASONING_GRAPH // DAG_TRACE
+                    Root Cause Reasoning Chain
                   </span>
                   <pre className="text-[11px] font-mono text-text-secondary whitespace-pre-wrap overflow-x-auto bg-surface-base p-2.5 rounded border border-border-subtle">
                     {reasoningGraph}
@@ -61,7 +61,7 @@ export function ExplanationPanel({ steps = [], conclusion, reasoningGraph, plann
               {planningSteps && planningSteps.length > 0 && (
                 <div className="bg-surface-raised border border-border-subtle p-3 rounded-card flex flex-col gap-2">
                   <span className="text-[10px] font-mono text-timing-yellow uppercase font-bold tracking-wider">
-                    DISPATCHED_PLANNING_STEPS // FASTF1_TOOL_INVOCATIONS
+                    Dispatched Tool Invocations
                   </span>
                   <div className="flex flex-col gap-1.5">
                     {planningSteps.map((step, idx) => (
@@ -87,16 +87,11 @@ export function ExplanationPanel({ steps = [], conclusion, reasoningGraph, plann
                           <span className="text-xs font-semibold text-text-primary leading-tight">
                             {step.title}
                           </span>
-                          {step.confidence !== undefined && (
-                            <span className="text-[10px] font-mono text-text-muted shrink-0 type-tabular">
-                              CONF: {step.confidence}%
-                            </span>
-                          )}
                         </div>
                         <p className="text-xs text-text-secondary leading-normal">{step.description}</p>
                         {step.dataReference && (
                           <span className="text-[10px] font-mono text-text-muted mt-0.5">
-                            REF: {step.dataReference}
+                            Ref: {step.dataReference}
                           </span>
                         )}
                       </div>

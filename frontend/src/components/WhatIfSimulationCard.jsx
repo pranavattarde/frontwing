@@ -14,11 +14,11 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
         className="rounded border border-accent-danger/40 bg-surface-base p-6 shadow-sm"
       >
         <div className="flex items-center gap-2 mb-3">
-          <span className="px-2 py-0.5 text-xs font-mono font-bold uppercase bg-accent-danger text-text-primary rounded-sm">
-            ⚠️ SIMULATION BOUNDARY
+          <span className="px-2 py-0.5 text-xs font-mono font-bold bg-accent-danger text-text-primary rounded-sm">
+            ⚠️ Simulation Boundary
           </span>
           <span className="text-xs font-mono text-text-muted">
-            UNMODELED VARIABLE DETECTED
+            Unmodeled Variable Detected
           </span>
         </div>
 
@@ -31,8 +31,8 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
         </p>
 
         <div className="p-3 bg-surface-raised border border-border-subtle rounded">
-          <span className="text-[11px] font-mono text-text-muted uppercase block mb-1">
-            WHAT CAN BE SIMULATED:
+          <span className="text-[11px] font-mono text-text-muted block mb-1">
+            What can be simulated:
           </span>
           <ul className="text-xs font-mono text-text-secondary space-y-1">
             <li>• <strong className="text-text-primary">Pit Stop Timing:</strong> What if driver X pitted on lap N?</li>
@@ -78,7 +78,7 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-1 text-[11px] font-mono font-bold tracking-wider uppercase bg-accent-primary text-text-primary rounded-sm">
-              COUNTERFACTUAL SIMULATION
+              Counterfactual Simulation
             </span>
             <span className="text-xs font-mono text-text-muted">
               {season} {grandPrix} • {driverName}
@@ -86,7 +86,7 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
           </div>
           {latencyMs && (
             <span className="text-xs font-mono text-text-muted type-tabular">
-              COMPUTED IN {latencyMs}ms
+              Computed in {latencyMs}ms
             </span>
           )}
         </div>
@@ -96,11 +96,11 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
           {/* Baseline / Actual Scenario */}
           <div className="p-4 bg-surface-raised border border-border-subtle rounded">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono font-bold text-text-muted uppercase tracking-wider">
-                ORIGINAL RACE OUTCOME
+              <span className="text-xs font-mono font-bold text-text-muted tracking-wider">
+                Original Race Outcome
               </span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-surface-base border border-border-subtle text-text-muted">
-                ACTUAL
+                Actual
               </span>
             </div>
             
@@ -129,11 +129,11 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
           {/* Simulated / Counterfactual Scenario */}
           <div className="p-4 bg-surface-raised border border-border-medium rounded relative overflow-hidden">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono font-bold text-accent-primary uppercase tracking-wider">
-                SIMULATED COUNTERFACTUAL
+              <span className="text-xs font-mono font-bold text-accent-primary tracking-wider">
+                Simulated Counterfactual
               </span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-accent-primary text-text-primary font-bold">
-                SIMULATED
+                Simulated
               </span>
             </div>
             
@@ -172,28 +172,28 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
         <div className="p-4 rounded bg-surface-base border border-border-subtle flex flex-wrap items-center justify-between gap-4 mb-4 type-tabular">
           <div>
             <span className="text-[10px] font-mono text-text-muted uppercase block">
-              NET RACE TIME DELTA
+              Net Race Time Delta
             </span>
             <span className={cn(
               "text-2xl font-mono font-bold",
               netDelta >= 0 ? "text-timing-green" : "text-accent-danger"
             )}>
-              {netDeltaSign}{netDelta}s {netDelta >= 0 ? "TIME GAINED" : "TIME LOST"}
+              {netDeltaSign}{netDelta}s {netDelta >= 0 ? "Time Gained" : "Time Lost"}
             </span>
           </div>
 
           {/* Physics trade-off breakdown */}
           <div className="flex flex-wrap gap-2 text-xs font-mono">
             <div className="px-3 py-1.5 rounded bg-surface-raised border border-border-subtle">
-              <span className="text-text-muted block text-[10px]">UNDERCUT GAIN</span>
+              <span className="text-text-muted block text-[10px]">Undercut Gain</span>
               <span className="font-bold text-text-primary">{simulated_scenario.undercut_gain_s || 0}s</span>
             </div>
             <div className="px-3 py-1.5 rounded bg-surface-raised border border-border-subtle">
-              <span className="text-text-muted block text-[10px]">TRAFFIC LOSS</span>
+              <span className="text-text-muted block text-[10px]">Traffic Loss</span>
               <span className="font-bold text-text-primary">{simulated_scenario.traffic_loss_s || 0}s</span>
             </div>
             <div className="px-3 py-1.5 rounded bg-surface-raised border border-border-subtle">
-              <span className="text-text-muted block text-[10px]">PIT LANE LOSS</span>
+              <span className="text-text-muted block text-[10px]">Pit Lane Loss</span>
               <span className="font-bold text-text-primary">{simulated_scenario.pit_loss_s || 22.0}s</span>
             </div>
           </div>

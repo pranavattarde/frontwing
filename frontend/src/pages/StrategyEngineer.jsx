@@ -9,7 +9,7 @@ import { generateId, cn } from "@/lib/utils";
 
 const PRESET_QUERIES = [
   {
-    category: "STRATEGY ANALYSIS",
+    category: "Strategy Analysis",
     queries: [
       "Why did Verstappen finish P2 at the 2024 Dutch GP?",
       "What went wrong with Leclerc's strategy at the 2024 British GP?",
@@ -17,7 +17,7 @@ const PRESET_QUERIES = [
     ]
   },
   {
-    category: "WHAT-IF COUNTERFACTUALS",
+    category: "What-If Counterfactuals",
     queries: [
       "What if Piastri pitted on lap 18 on hard tires at the 2024 Qatar GP?",
       "What if Hamilton pitted 5 laps earlier at the 2024 Dutch GP?",
@@ -121,7 +121,7 @@ export function StrategyEngineer() {
     <div className="min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-accent-primary/20 selection:text-accent-primary">
       {/* Top Header */}
       <BriefingHeader
-        breadcrumbs={[{ label: "STRATEGY ENGINEER" }]}
+        breadcrumbs={[{ label: "Strategy Engineer" }]}
         sessionState={isLoading ? "loading" : "idle"}
         onLogoClick={() => navigate("/")}
         onBreadcrumbClick={() => navigate("/strategy")}
@@ -135,10 +135,10 @@ export function StrategyEngineer() {
             <div>
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="px-2 py-0.5 text-[10px] font-mono font-bold tracking-wider uppercase bg-accent-primary text-text-primary rounded-sm">
-                  F1 PIT WALL
+                  Pit Wall
                 </span>
                 <span className="text-xs font-mono text-text-muted">
-                  STRATEGY ENGINEER • MULTI-TURN THREADED WORKSPACE
+                  Strategy Engineer • Multi-Turn Workspace
                 </span>
               </div>
               <h1 className="text-xl sm:text-2xl font-bold font-sans tracking-tight text-text-primary">
@@ -156,7 +156,7 @@ export function StrategyEngineer() {
                 className="btn-f1-primary text-xs flex items-center gap-1.5 py-2 px-3"
                 title="Discard current strategy chat and start fresh"
               >
-                <span className="text-sm leading-none">+</span> NEW CHAT
+                <span className="text-sm leading-none">+</span> New Chat
               </button>
 
               <div className="flex items-center gap-1 border border-border-subtle rounded bg-surface-base p-1">
@@ -164,12 +164,12 @@ export function StrategyEngineer() {
                   onClick={() => navigate("/")}
                   className="px-3 py-1 text-xs font-mono text-text-muted hover:text-text-primary transition-colors"
                 >
-                  INVESTIGATION
+                  Investigation
                 </button>
                 <button
                   className="px-3 py-1 text-xs font-mono font-bold text-accent-primary bg-surface-raised rounded border border-border-medium shadow-sm"
                 >
-                  STRATEGY
+                  Strategy
                 </button>
               </div>
             </div>
@@ -180,7 +180,7 @@ export function StrategyEngineer() {
             <div className="mt-4 pt-3 border-t border-border-subtle flex flex-wrap items-center justify-between gap-2 text-xs font-mono type-tabular">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-timing-green animate-pulse" />
-                <span className="text-text-muted">ACTIVE STRATEGY THREAD:</span>
+                <span className="text-text-muted">Active Strategy Thread:</span>
                 <span className="text-accent-primary font-bold">{activeContext.driver_name}</span>
                 <span className="text-text-muted">•</span>
                 <span className="text-timing-yellow font-bold">
@@ -206,7 +206,7 @@ export function StrategyEngineer() {
             <div className="flex items-center justify-between border-b border-border-subtle pb-3">
               <span className="text-xs font-mono font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-accent-primary" />
-                SUGGESTED STRATEGY SCENARIOS TO START:
+                Suggested Strategy Scenarios:
               </span>
               <span className="text-[11px] font-mono text-text-muted">
                 Click any scenario or enter your own below
@@ -253,7 +253,7 @@ export function StrategyEngineer() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10px] font-mono text-text-muted uppercase tracking-wider">
-                        RACE ENGINEER INQUIRY
+                        Race Engineer Inquiry
                       </span>
                       <span className="text-[10px] font-mono text-text-muted type-tabular">
                         {new Date(turn.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -305,12 +305,12 @@ export function StrategyEngineer() {
             >
               <div className="inline-flex items-center gap-3">
                 <div className="w-5 h-5 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
-                <span className="font-mono text-sm font-bold text-text-primary tracking-wider uppercase">
-                  SIMULATING STRATEGY & EVALUATING COUNTERFACTUALS...
+                <span className="font-mono text-sm font-bold text-text-primary tracking-wider">
+                  Simulating strategy and evaluating counterfactuals...
                 </span>
               </div>
               <p className="text-xs font-mono text-text-muted mt-2">
-                Running PostgreSQL lap timing queries, calculating scoring models, and projecting pit stop outcomes.
+                Analyzing lap timings, tyre degradation models, and pit stop windows.
               </p>
             </motion.div>
           )}
@@ -324,7 +324,7 @@ export function StrategyEngineer() {
             className="rounded border border-accent-danger/40 bg-accent-danger/10 p-4 text-accent-danger"
           >
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-mono font-bold uppercase">ERROR EXECUTING STRATEGY QUERY</span>
+              <span className="text-xs font-mono font-bold uppercase">Error Executing Strategy Query</span>
             </div>
             <p className="text-sm font-mono">{error}</p>
           </motion.div>
@@ -334,7 +334,7 @@ export function StrategyEngineer() {
         {chatHistory.length > 0 && !isLoading && (
           <div className="p-3 rounded border border-border-subtle bg-surface-base flex flex-col gap-2">
             <span className="text-[10px] font-mono text-text-muted uppercase tracking-wider flex items-center gap-1.5">
-              <span className="text-accent-primary font-bold">💬</span> CONTINUATION SUGGESTIONS IN THIS CHAT:
+              <span className="text-accent-primary font-bold">💬</span> Continuation Suggestions:
             </span>
             <div className="flex flex-wrap gap-2">
               {getContextualSuggestions().map((suggestion) => (
@@ -359,7 +359,7 @@ export function StrategyEngineer() {
           <form onSubmit={handleSubmitForm} className="relative flex items-center">
             <div className="absolute left-3.5 flex items-center pointer-events-none">
               <span className="text-accent-primary font-mono text-xs font-bold tracking-wider">
-                {activeContext.driver_name ? `${activeContext.driver_name.split(" ").pop().toUpperCase()} >` : "STRATEGY >"}
+                {activeContext.driver_name ? `${activeContext.driver_name.split(" ").pop()} >` : "Strategy >"}
               </span>
             </div>
             <input
@@ -378,9 +378,9 @@ export function StrategyEngineer() {
             <button
               type="submit"
               disabled={isLoading || !question.trim()}
-              className="absolute right-2 btn-f1-primary px-4 py-2 text-xs uppercase"
+              className="absolute right-2 btn-f1-primary px-4 py-2 text-xs"
             >
-              {isLoading ? "RUNNING..." : "ANALYZE"}
+              {isLoading ? "Running..." : "Analyze"}
             </button>
           </form>
         </div>

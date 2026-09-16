@@ -490,8 +490,17 @@ def _fallback_semantic_parser(preprocessed: Dict[str, str], context: Optional[Di
     is_unsupported_query = any(k in q_lower for k in UNSUPPORTED_METRIC_KEYWORDS)
 
     # Check Knowledge / Explanation Queries (Concept definitions, regulations, tyres, technical terms)
-    is_knowledge_term = any(k in q_lower for k in ["understeer", "oversteer", "drs", "compound", "undercut", "overcut", "dirty air", "slipstream", "downforce", "aerodynamics", "regulations", "graining", "blistering", "porpoising", "ground effect", "diffuser", "venturi", "plank", "skid block", "technical directive", "difference between"])
-    is_explanation_prefix = any(q_lower.startswith(prefix) for prefix in ["what is", "explain", "how does", "what are", "define", "describe", "what causes"]) or "explain" in q_lower or "difference between" in q_lower
+    is_knowledge_term = any(k in q_lower for k in [
+        "understeer", "oversteer", "drs", "compound", "undercut", "overcut", "dirty air", "slipstream",
+        "downforce", "aerodynamics", "aerodynamic", "regulations", "graining", "blistering", "porpoising",
+        "ground effect", "diffuser", "venturi", "plank", "skid block", "technical directive", "difference between",
+        "107%", "107 percent", "qualifying rule", "who designed", "designed", "aerodynamic concept",
+        "brake disc", "brake discs", "operating temperature", "operating temperatures", "material", "materials",
+        "concorde agreement", "halo", "safety car rule"
+    ])
+    is_explanation_prefix = any(q_lower.startswith(prefix) for prefix in [
+        "what is", "explain", "how does", "what are", "define", "describe", "what causes", "who designed", "what materials", "tell me about"
+    ]) or "explain" in q_lower or "difference between" in q_lower
 
     # Check Strategy, Pit Timing & Simulation
     is_simulation_query = any(k in q_lower for k in ["what if", "simulate", "pitted 5 laps", "pitted earlier", "pitted later", "pitted on lap", "pitted lap", "pit on lap", "pit lap", "pitted on"])

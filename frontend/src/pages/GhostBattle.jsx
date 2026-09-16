@@ -35,7 +35,7 @@ export function GhostBattle() {
         <div className="border-b border-border-subtle pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <span className="text-mono-meta font-mono text-accent-primary tracking-widest uppercase">
-              GHOST_BATTLE // MICRO_SECTOR_ANALYZER
+              Ghost Battle • Micro-Sector Analysis
             </span>
             <h1 className="text-display text-text-primary mt-1">
               Oscar Piastri vs Carlos Sainz
@@ -47,7 +47,7 @@ export function GhostBattle() {
 
           {/* Lap Selector */}
           <div className="flex items-center gap-3 bg-surface-base border border-border-subtle rounded-card p-2">
-            <span className="text-mono-meta font-mono text-text-muted uppercase">ACTIVE_LAP:</span>
+            <span className="text-mono-meta font-mono text-text-muted uppercase">Lap:</span>
             <div className="flex gap-1">
               {[40, 41, 42, 43, 44].map((lap) => (
                 <button

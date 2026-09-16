@@ -71,18 +71,10 @@ export function InsightCard({
       )}
 
       <div>
-        {/* Confidence Badge */}
+        {/* Header */}
         <div className="flex items-center justify-between mb-2">
-          <span className="font-mono text-xs text-text-muted uppercase tracking-wider">
-            INSIGHT
-          </span>
-          <span
-            className={cn(
-              "font-mono text-[9px] px-1.5 py-0.5 rounded border uppercase font-bold tracking-wider",
-              confidenceColors[confidence]
-            )}
-          >
-            {confidence} CONFIDENCE
+          <span className="font-mono text-xs text-text-muted tracking-wider">
+            Insight
           </span>
         </div>
 
@@ -106,7 +98,7 @@ export function InsightCard({
           {metric?.context}
         </p>
         <div className="flex items-center justify-between text-[10px] font-mono text-text-muted/70 mt-1.5 pt-1.5 border-t border-border-subtle">
-          <span className="truncate max-w-[140px]" title={source}>SRC: {source}</span>
+          <span className="truncate max-w-[140px]" title={source}>Source: {source}</span>
           {source_url && (
             <a
               href={source_url}
@@ -115,7 +107,7 @@ export function InsightCard({
               className="text-accent-primary hover:text-accent-primary-hover hover:underline transition-colors shrink-0 ml-1 font-semibold"
               onClick={(e) => e.stopPropagation()}
             >
-              VERIFY ↗
+              Verify ↗
             </a>
           )}
         </div>

@@ -9,11 +9,11 @@ export function GhostBattleStatsTable({ drivers, currentTime }) {
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-accent-primary animate-pulse" />
           <span className="font-mono text-xs text-text-primary uppercase tracking-wider font-bold">
-            OFFICIAL FASTEST LAP CLASSIFICATION & TELEMETRY DELTAS
+            Fastest Lap Classification & Telemetry Deltas
           </span>
         </div>
         <span className="font-mono text-[10px] text-text-muted uppercase">
-          FASTF1 VERIFIED FLYING LAPS
+          FastF1 Verified Flying Laps
         </span>
       </div>
 
@@ -21,16 +21,16 @@ export function GhostBattleStatsTable({ drivers, currentTime }) {
         <table className="w-full text-left font-mono text-xs border-collapse">
           <thead>
             <tr className="border-b border-border-subtle text-text-muted text-[10px] uppercase">
-              <th className="py-2 px-2 text-center w-8">POS</th>
-              <th className="py-2 px-3">DRIVER</th>
-              <th className="py-2 px-3">TEAM</th>
-              <th className="py-2 px-3 text-right">LAP TIME</th>
-              <th className="py-2 px-3 text-right">DELTA</th>
-              <th className="py-2 px-3 text-right">SECTOR 1</th>
-              <th className="py-2 px-3 text-right">SECTOR 2</th>
-              <th className="py-2 px-3 text-right">SECTOR 3</th>
-              <th className="py-2 px-3 text-right">TOP SPEED</th>
-              <th className="py-2 px-3 text-center">STATUS</th>
+              <th className="py-2 px-2 text-center w-8">Pos</th>
+              <th className="py-2 px-3">Driver</th>
+              <th className="py-2 px-3">Team</th>
+              <th className="py-2 px-3 text-right">Lap Time</th>
+              <th className="py-2 px-3 text-right">Delta</th>
+              <th className="py-2 px-3 text-right">Sector 1</th>
+              <th className="py-2 px-3 text-right">Sector 2</th>
+              <th className="py-2 px-3 text-right">Sector 3</th>
+              <th className="py-2 px-3 text-right">Top Speed</th>
+              <th className="py-2 px-3 text-center">Status</th>
             </tr>
           </thead>
           <tbody className="type-tabular">
@@ -62,7 +62,7 @@ export function GhostBattleStatsTable({ drivers, currentTime }) {
                   </td>
                   <td className="py-2.5 px-3 text-right text-text-muted">
                     <span className={d.delta === "FASTEST" ? "text-timing-green font-bold" : "text-text-muted"}>
-                      {d.delta}
+                      {d.delta === "FASTEST" ? "Fastest" : d.delta}
                     </span>
                   </td>
                   <td className="py-2.5 px-3 text-right text-text-muted">
@@ -80,11 +80,11 @@ export function GhostBattleStatsTable({ drivers, currentTime }) {
                   <td className="py-2.5 px-3 text-center">
                     {isFinished ? (
                       <span className="px-1.5 py-0.5 rounded text-[9px] uppercase font-bold bg-timing-green/15 text-timing-green border border-timing-green/30">
-                        FINISHED
+                        Finished
                       </span>
                     ) : (
                       <span className="px-1.5 py-0.5 rounded text-[9px] uppercase font-medium bg-surface-raised text-text-muted border border-border-subtle">
-                        ON TRACK
+                        On Track
                       </span>
                     )}
                   </td>

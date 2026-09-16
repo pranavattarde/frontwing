@@ -230,18 +230,18 @@ export function BriefingRoom() {
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="font-mono text-xs text-accent-primary font-bold tracking-widest uppercase flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent-primary animate-pulse" />
-                  ENGINEER_ROOM // {heroData?.event_name ? heroData.event_name.toUpperCase() : "ACTIVE_CALENDAR_EVENT"}
+                  Race Briefing • {heroData?.event_name || "Active Event"}
                 </span>
 
                 {countdown && (countdown.days > 0 || countdown.hours > 0 || countdown.minutes > 0) && (
                   <span className="text-[10px] font-mono text-accent-primary px-2 py-0.5 rounded border border-accent-primary/30 bg-accent-primary/10 font-bold type-tabular">
-                    STARTS IN: {countdown.days}D {countdown.hours}H {countdown.minutes}M
+                    Starts in: {countdown.days}d {countdown.hours}h {countdown.minutes}m
                   </span>
                 )}
 
                 {heroData?.last_updated && (
                   <span className="text-[10px] font-mono text-text-muted/70 px-2 py-0.5 rounded border border-border-subtle bg-surface-raised/40">
-                    UPDATED {new Date(heroData.last_updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    Updated {new Date(heroData.last_updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 )}
               </div>
@@ -262,7 +262,7 @@ export function BriefingRoom() {
                 disabled={sessionState === "loading"}
                 onSubmit={handleQuestionSubmit}
                 prefillValue={prefillQuery}
-                contextLabel={heroData?.circuit_key ? heroData.circuit_key.toUpperCase() : "F1_LIVE"}
+                contextLabel={heroData?.circuit_key ? heroData.circuit_key.toUpperCase() : "Live Telemetry"}
               />
             </div>
 
@@ -272,7 +272,7 @@ export function BriefingRoom() {
                 <div className="flex items-center justify-between font-mono text-xs text-text-muted">
                   <span className="text-accent-primary font-bold uppercase tracking-wider flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-accent-primary animate-pulse" />
-                    FASTF1 EVENT SESSIONS // IST (UTC+5:30) & LOCAL TIME
+                    Event Sessions • IST (UTC+5:30) & Local Time
                   </span>
                   <span className="type-tabular">ROUND {heroData.round_number || 15} • {heroData.season || 2026}</span>
                 </div>
@@ -309,10 +309,10 @@ export function BriefingRoom() {
 
             <div className="relative flex flex-col items-center w-full">
               <span className="absolute top-0 left-0 text-[10px] font-mono text-text-muted uppercase tracking-wider">
-                CIRCUIT // {heroData?.circuit_name?.toUpperCase() || circuit.name.toUpperCase()}
+                Circuit • {heroData?.circuit_name || circuit.name}
               </span>
               <span className="absolute top-0 right-0 text-[10px] font-mono text-text-muted type-tabular">
-                LEN: {heroData?.track_length_km ? `${heroData.track_length_km} KM` : `${((circuit.lengthMeters || 6003) / 1000).toFixed(3)} KM`}
+                Length: {heroData?.track_length_km ? `${heroData.track_length_km} KM` : `${((circuit.lengthMeters || 6003) / 1000).toFixed(3)} KM`}
               </span>
 
               {/* Dynamic Track SVG or Honest Placeholder */}
@@ -344,7 +344,7 @@ export function BriefingRoom() {
                     ⌖
                   </div>
                   <span className="font-mono text-xs font-bold text-text-primary tracking-wider uppercase">
-                    TRACK_LAYOUT // PENDING TELEMETRY INGESTION
+                    Track Layout • Pending Telemetry Ingestion
                   </span>
                   <p className="font-mono text-[11px] text-text-muted mt-1 max-w-xs leading-relaxed">
                     Authentic geometry will be extracted post-session from FastF1 decimeter telemetry. Synthetic or approximated layouts are disabled.
@@ -355,15 +355,15 @@ export function BriefingRoom() {
               {/* Dynamic Track Specs */}
               <div className="flex justify-between w-full mt-4 border-t border-border-subtle pt-4 font-mono text-xs">
                 <div>
-                  <span className="text-text-muted">TURNS: </span>
+                  <span className="text-text-muted">Turns: </span>
                   <span className="text-text-primary font-bold type-tabular">{heroData?.turns || circuit.turns || 20}</span>
                 </div>
                 <div>
-                  <span className="text-text-muted">DRS_ZONES: </span>
+                  <span className="text-text-muted">DRS Zones: </span>
                   <span className="text-text-primary font-bold type-tabular">{heroData?.drs_zones || circuit.drsZones || 2}</span>
                 </div>
                 <div>
-                  <span className="text-text-muted">RECORD: </span>
+                  <span className="text-text-muted">Record: </span>
                   <span className="text-text-primary font-bold type-tabular">{heroData?.lap_record || "1:43.009"}</span>
                 </div>
               </div>
@@ -378,7 +378,7 @@ export function BriefingRoom() {
               <div className="flex flex-col gap-1">
                 <span className="font-mono text-xs text-accent-primary font-bold tracking-widest uppercase flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-accent-primary" />
-                  LAST RACE RESULTS // PODIUM & CLASSIFICATION
+                  Last Race Results • Podium & Classification
                 </span>
                 <h2 className="font-heading font-black text-2xl text-text-primary tracking-tight uppercase">
                   Round {heroData.last_race_results.round_number} — {heroData.last_race_results.event_name} • {heroData.last_race_results.location}
@@ -389,7 +389,7 @@ export function BriefingRoom() {
                   {heroData.last_race_results.date}
                 </span>
                 <span className="px-2.5 py-1 rounded bg-timing-green/10 border border-timing-green/30 text-timing-green font-bold uppercase">
-                  SESSION COMPLETED
+                  Session Completed
                 </span>
               </div>
             </div>
@@ -398,7 +398,7 @@ export function BriefingRoom() {
               {/* Left Column: Podium Finishers & Fastest Lap */}
               <div className="flex flex-col gap-3">
                 <span className="font-mono text-[11px] text-text-muted uppercase tracking-wider">
-                  PODIUM FINISHERS
+                  Podium Finishers
                 </span>
                 <div className="flex flex-col gap-2">
                   {heroData.last_race_results.podium?.map((pod) => (
@@ -436,7 +436,7 @@ export function BriefingRoom() {
                 {heroData.last_race_results.fastest_lap && (
                   <div className="p-3 rounded border border-border-subtle bg-surface-raised flex items-center justify-between font-mono text-xs mt-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-timing-purple font-bold">⚡ FASTEST LAP</span>
+                      <span className="text-timing-purple font-bold">⚡ Fastest Lap</span>
                       <span className="text-text-primary font-bold">
                         {heroData.last_race_results.fastest_lap.driver} ({heroData.last_race_results.fastest_lap.team})
                       </span>
@@ -451,16 +451,16 @@ export function BriefingRoom() {
               {/* Middle Column: Top 5 Classification Table */}
               <div className="flex flex-col gap-3">
                 <span className="font-mono text-[11px] text-text-muted uppercase tracking-wider">
-                  TOP 5 CLASSIFICATION
+                  Top 5 Classification
                 </span>
                 <div className="rounded border border-border-subtle overflow-hidden bg-surface-raised">
                   <table className="w-full font-mono text-xs text-left">
                     <thead className="bg-surface-base text-[10px] text-text-muted border-b border-border-subtle uppercase">
                       <tr>
-                        <th className="py-2 px-3">POS</th>
-                        <th className="py-2 px-3">DRIVER</th>
-                        <th className="py-2 px-3">TEAM</th>
-                        <th className="py-2 px-3 text-right">GAP / TIME</th>
+                        <th className="py-2 px-3">Pos</th>
+                        <th className="py-2 px-3">Driver</th>
+                        <th className="py-2 px-3">Team</th>
+                        <th className="py-2 px-3 text-right">Gap / Time</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border-subtle">
@@ -488,7 +488,7 @@ export function BriefingRoom() {
               {/* Right Column: Real Madring (Madrid) Track Telemetry Geometry */}
               <div className="flex flex-col gap-2 border border-border-subtle rounded p-4 bg-surface-raised relative overflow-hidden group">
                 <div className="flex justify-between items-center text-[10px] font-mono text-text-muted uppercase">
-                  <span>CIRCUIT // {heroData.last_race_results.circuit_name}</span>
+                  <span>Circuit • {heroData.last_race_results.circuit_name}</span>
                   <span className="type-tabular">{heroData.last_race_results.track_length_km} KM</span>
                 </div>
 
@@ -519,8 +519,8 @@ export function BriefingRoom() {
                 </div>
 
                 <div className="flex justify-between items-center pt-2 border-t border-border-subtle font-mono text-[10px] text-text-muted">
-                  <span>TURNS: <strong className="text-text-primary">{heroData.last_race_results.turns}</strong></span>
-                  <span className="text-timing-green font-semibold">AUTHENTIC FASTF1 TELEMETRY</span>
+                  <span>Turns: <strong className="text-text-primary">{heroData.last_race_results.turns}</strong></span>
+                  <span className="text-timing-green font-semibold">FastF1 Telemetry Verified</span>
                 </div>
               </div>
             </div>
@@ -532,12 +532,12 @@ export function BriefingRoom() {
           <div className="flex items-center justify-between font-mono text-xs">
             <span className="text-accent-primary font-bold uppercase tracking-wider flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-accent-primary" />
-              INVESTIGATION_HISTORY // ARCHIVE
+              Investigation History
             </span>
             <span className="text-text-muted type-tabular">
               {isAuthenticated
-                ? `${recentInvestigations.length} STORED // ${savedInvestigations.length} SAVED`
-                : "GUEST MODE"}
+                ? `${recentInvestigations.length} Stored • ${savedInvestigations.length} Saved`
+                : "Guest Mode"}
             </span>
           </div>
 
@@ -559,7 +559,7 @@ export function BriefingRoom() {
             <div className="border border-border-subtle rounded p-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface-base/60 backdrop-blur-sm">
               <div className="flex flex-col gap-1 text-left">
                 <span className="text-xs font-mono text-accent-primary font-bold uppercase tracking-wider">
-                  AUTHENTICATION // GUEST SESSION
+                  Authentication Required • Guest Session
                 </span>
                 <p className="text-xs text-text-muted max-w-lg">
                   Sign in or register to automatically save your telemetry investigations, access multi-turn telemetry timelines, and sync your query history across sessions.
@@ -569,14 +569,14 @@ export function BriefingRoom() {
                 onClick={openAuth}
                 className="btn-f1-primary px-4 py-2 text-xs tracking-wider shrink-0"
               >
-                SIGN IN / REGISTER
+                Sign In / Register
               </button>
             </div>
           ) : recentInvestigations.length === 0 ? (
             /* Honest Empty State for Authenticated User with 0 Investigations */
             <div className="border border-dashed border-border-subtle rounded p-8 flex flex-col items-center justify-center text-center gap-2 bg-surface-base/20">
               <span className="text-xs font-mono text-text-muted uppercase tracking-wider">
-                ARCHIVE_EMPTY // NO_SAVED_DEBRIEFS
+                Archive Empty • No Saved Debriefs
               </span>
               <p className="text-sm text-text-secondary max-w-md">
                 You have not run any telemetry investigations yet. Ask a question in the console above or pick a suggested scenario to generate your first technical debrief.
@@ -594,7 +594,7 @@ export function BriefingRoom() {
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between text-[10px] font-mono text-text-muted">
                       <span className="text-accent-primary font-bold uppercase">
-                        {item.session || item.grand_prix || "ACTIVE_SESSION"}
+                        {item.session || item.grand_prix || "Active Session"}
                       </span>
                       <span className="type-tabular">
                         {new Date(item.timestamp || item.created_at).toLocaleDateString()}
@@ -606,17 +606,14 @@ export function BriefingRoom() {
                   </div>
                   <div className="flex items-center justify-between border-t border-border-subtle pt-3 text-[10px] font-mono">
                     <span className="text-text-muted">
-                      PROVIDER:{" "}
-                      <span className="text-text-primary uppercase font-bold">
-                        {item.provider_used || "GEMINI"}
-                      </span>
+                      Telemetry Analysis
                     </span>
                     <button
                       onClick={(e) => handleDeleteItem(e, item.id)}
                       className="text-text-muted hover:text-accent-danger font-bold transition-colors"
                       title="Delete Investigation"
                     >
-                      [DELETE]
+                      Delete
                     </button>
                   </div>
                 </div>
@@ -632,16 +629,16 @@ export function BriefingRoom() {
             <div className="flex items-center justify-between font-mono text-xs">
               <div className="flex items-center gap-2">
                 <span className="text-text-muted uppercase tracking-wider">
-                  FEATURED_DEBRIEF // LIVE_TACTICAL_FEED
+                  Featured Debrief • Tactical Feed
                 </span>
                 {editorialData?.last_updated && (
                   <span className="text-[10px] text-text-muted/70 px-1.5 py-0.5 rounded border border-border-subtle">
-                    UPDATED {new Date(editorialData.last_updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    Updated {new Date(editorialData.last_updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 )}
               </div>
               <span className="text-accent-primary font-bold uppercase tracking-wider">
-                REAL-TIME F1 ANALYSIS
+                Real-Time F1 Analysis
               </span>
             </div>
 
@@ -660,7 +657,7 @@ export function BriefingRoom() {
             ) : (
               <div className="p-8 border border-border-subtle rounded bg-surface-base/40 text-center">
                 <span className="text-xs font-mono text-text-muted uppercase">
-                  {isLoadingEditorial ? "CONNECTING TO FORMULA 1 EDITORIAL PIPELINE..." : "NO EDITORIAL FEEDS FOUND"}
+                  {isLoadingEditorial ? "Connecting to Formula 1 editorial pipeline..." : "No editorial feeds found"}
                 </span>
               </div>
             )}
@@ -669,7 +666,7 @@ export function BriefingRoom() {
           {/* Trending Tactical Insights */}
           <div className="flex flex-col gap-4">
             <span className="font-mono text-xs text-text-muted uppercase tracking-wider">
-              TRENDING_TACTICAL_INSIGHTS
+              Trending Tactical Insights
             </span>
             <div className="flex flex-col sm:flex-row xl:flex-col gap-3">
               {trendingInsights.length > 0 ? (
@@ -683,7 +680,7 @@ export function BriefingRoom() {
               ) : (
                 <div className="p-6 border border-border-subtle rounded bg-surface-base/40 text-center">
                   <span className="text-xs font-mono text-text-muted">
-                    {isLoadingEditorial ? "CALCULATING DELTAS..." : "NO ACTIVE TACTICAL DELTAS"}
+                    {isLoadingEditorial ? "Calculating tactical deltas..." : "No tactical deltas available"}
                   </span>
                 </div>
               )}
@@ -696,11 +693,11 @@ export function BriefingRoom() {
       <footer className="border-t border-border-subtle py-4 bg-surface-base/90 mt-auto">
         <div className="max-w-[1440px] mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2 font-mono text-xs text-text-muted">
           <div>
-            SYSTEM_STATUS: <span className="text-accent-primary font-bold">ACTIVE</span> // FASTF1_INTEGRATION:{" "}
-            <span className="text-text-primary uppercase font-semibold">{heroData?.event_name || "ONLINE"}</span>
+            System Status: <span className="text-accent-primary font-bold">Active</span> • FastF1 Integration:{" "}
+            <span className="text-text-primary uppercase font-semibold">{heroData?.event_name || "Online"}</span>
           </div>
           <div>
-            © 2026 FRONTWING // WORLD'S BEST AI RACE ENGINEER
+            © 2026 FrontWing • Formula 1 Strategy & Telemetry Intelligence
           </div>
         </div>
       </footer>

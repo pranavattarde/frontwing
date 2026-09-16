@@ -200,7 +200,7 @@ export function Sidebar({ className }) {
             }}
             className="btn-f1-primary w-full py-2.5 text-xs tracking-wider shadow-sm"
           >
-            <span className="text-sm font-bold">+</span> NEW INVESTIGATION
+            <span className="text-sm font-bold">+</span> New Investigation
           </button>
 
           {/* Quick Search Action in Sidebar */}
@@ -216,7 +216,7 @@ export function Sidebar({ className }) {
               <svg className="w-3.5 h-3.5 text-accent-primary" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
               </svg>
-              <span>SEARCH</span>
+              <span>Search</span>
             </div>
             <kbd className="text-[10px] font-mono text-text-muted bg-surface-canvas px-1.5 py-0.5 rounded border border-border-subtle">
               ⌘K
@@ -238,7 +238,7 @@ export function Sidebar({ className }) {
               )}
             >
               <span>🏎️</span>
-              <span>INVESTIGATION ROOM</span>
+              <span>Investigation Room</span>
             </button>
 
             <button
@@ -254,7 +254,7 @@ export function Sidebar({ className }) {
               )}
             >
               <span>📊</span>
-              <span>STRATEGY ENGINEER</span>
+              <span>Strategy Engineer</span>
             </button>
 
             <button
@@ -270,15 +270,15 @@ export function Sidebar({ className }) {
               )}
             >
               <span>⚡</span>
-              <span>GHOST BATTLE</span>
+              <span>Ghost Battle</span>
             </button>
           </div>
         </div>
 
         {/* Center: Real User Recent Investigation History */}
         <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-3.5 gap-2">
-          <div className="flex items-center justify-between text-mono-meta font-mono text-[10px] text-text-muted uppercase tracking-wider pb-1">
-            <span>RECENT_INVESTIGATIONS</span>
+          <div className="flex items-center justify-between text-mono-meta font-mono text-[10px] text-text-muted tracking-wider pb-1">
+            <span>Recent Investigations</span>
             {isLoadingHistory && (
               <span className="w-1.5 h-1.5 rounded-full bg-accent-primary animate-ping" />
             )}
@@ -286,7 +286,7 @@ export function Sidebar({ className }) {
 
           {!user ? (
             <div className="p-3 rounded-md border border-border-subtle bg-surface-canvas text-center font-mono text-[11px] text-text-muted flex flex-col gap-2 my-auto">
-              <span className="text-accent-primary font-bold">🔒 AUTHENTICATION REQUIRED</span>
+              <span className="text-accent-primary font-bold">🔒 Authentication Required</span>
               <p className="text-[10px] leading-relaxed text-text-secondary">
                 Sign in to save and access your investigation history across sessions.
               </p>
@@ -371,9 +371,9 @@ export function Sidebar({ className }) {
               <button
                 onClick={handleLogout}
                 title="Sign out of FrontWing"
-                className="px-2 py-1 rounded bg-surface-raised hover:bg-accent-danger/20 border border-border-subtle hover:border-accent-danger/40 text-text-muted hover:text-accent-danger font-mono text-[10px] uppercase transition-colors shrink-0"
+                className="px-2 py-1 rounded bg-surface-raised hover:bg-accent-danger/20 border border-border-subtle hover:border-accent-danger/40 text-text-muted hover:text-accent-danger font-mono text-[10px] transition-colors shrink-0"
               >
-                LOGOUT
+                Sign Out
               </button>
             </div>
           ) : (
@@ -384,7 +384,7 @@ export function Sidebar({ className }) {
                   onClick={() => setIsAuthOpen(true)}
                   className="btn-f1-primary w-full py-2 px-3 text-xs tracking-wider"
                 >
-                  SIGN IN / REGISTER
+                  Sign In / Register
                 </button>
               ) : (
                 <form onSubmit={handleAuthSubmit} className="flex flex-col gap-2 font-mono">
@@ -403,7 +403,7 @@ export function Sidebar({ className }) {
                           : "bg-surface-raised text-text-muted hover:text-text-primary"
                       )}
                     >
-                      LOGIN
+                      Sign In
                     </button>
                     <button
                       type="button"
@@ -418,7 +418,7 @@ export function Sidebar({ className }) {
                           : "bg-surface-raised text-text-muted hover:text-text-primary"
                       )}
                     >
-                      REGISTER
+                      Register
                     </button>
                   </div>
 
@@ -467,7 +467,7 @@ export function Sidebar({ className }) {
                       disabled={isSubmittingAuth}
                       className="btn-f1-primary flex-1 py-1.5 text-xs tracking-wider disabled:opacity-50"
                     >
-                      {isSubmittingAuth ? "PROCESSING..." : authMode === "login" ? "SIGN IN" : "REGISTER"}
+                      {isSubmittingAuth ? "Processing..." : authMode === "login" ? "Sign In" : "Register"}
                     </button>
                     <button
                       type="button"

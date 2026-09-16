@@ -337,16 +337,17 @@ def adaptive_plan_extract(
         confidence = 0.95
         tools = ["scoring_tool", "explain_mode_tool"]
 
-    # 7. Explanation / Regulation queries (e.g. "What is CAR?", "Article 40.8 safety car") -> Explain Mode Tool / Knowledge Tool
-    elif any(k in q_lower for k in ["explain", "what is", "drs", "undercut", "overcut", "rule", "regulation"]):
-        intent = "explanation"
-        required_evidence = ["formula_definition", "fia_regulations"]
-        missing_evidence = ["formula_definition", "fia_regulations"]
+    # 7. Explanation / Regulation / General F1 Knowledge queries (e.g. "What is CAR?", "Article 40.8 safety car", "Who designed RB19?", "107% rule", "brake disc materials")
+    elif any(k in q_lower for k in [
+        "explain", "what is", "what are", "drs", "undercut", "overcut", "rule", "regulation", "article",
+        "who designed", "designed", "aerodynamic", "material", "materials", "brake disc", "temperature",
+        "107%", "history", "invented", "formula 1", "concorde", "ground effect", "porpoising", "halo"
+    ]):
+        intent = "knowledge"
+        required_evidence = ["formula_definition", "fia_regulations", "web_knowledge"]
+        missing_evidence = ["formula_definition", "fia_regulations", "web_knowledge"]
         confidence = 0.95
-        if any(r in q_lower for r in ["rule", "regulation", "article"]):
-            tools = ["knowledge_tool"]
-        else:
-            tools = ["explain_mode_tool"]
+        tools = ["knowledge_tool", "web_search_tool"]
 
     # 8. Research / Database queries (e.g. "Tell me about Ferrari team", "Leclerc driver info") -> Constructor / Driver Database Tool
     elif any(k in q_lower for k in ["info", "bio", "database", "stats", "team info"]):
@@ -374,7 +375,8 @@ def adaptive_plan_extract(
         "required_evidence": required_evidence,
         "missing_evidence": missing_evidence,
         "confidence": confidence,
-        "tools": tools
+        "tools": tools,
+        "question": question
     }
 
 
@@ -386,13 +388,14 @@ def get_tools_for_intent(intent: str, parameters: Dict[str, Any]) -> List[str]:
     defaults = {
         "simulation": ["simulation_tool"],
         "telemetry": ["telemetry_tool"],
-        "explanation": ["explain_mode_tool"],
+        "explanation": ["knowledge_tool", "web_search_tool"],
+        "knowledge": ["knowledge_tool", "web_search_tool"],
         "strategy": ["simulation_tool"],
         "scoring": ["scoring_tool", "explain_mode_tool"],
         "comparison": ["race_results_tool", "telemetry_tool", "scoring_tool"],
         "race_result": ["race_results_tool"],
         "investigation": ["race_results_tool", "telemetry_tool", "knowledge_tool", "simulation_tool"],
-        "research": ["driver_database_tool"]
+        "research": ["driver_database_tool", "web_search_tool"]
     }
     return defaults.get(intent, ["race_results_tool"])
 
@@ -406,6 +409,7 @@ def get_engineers_for_tools(tools: List[str]) -> List[str]:
         "explain_mode_tool": "Explain Engineer",
         "research_tool": "Research Engineer",
         "knowledge_tool": "Knowledge Engineer",
+        "web_search_tool": "Research Engineer",
         "investigation_tool": "Investigation Engineer",
         "race_results_tool": "Investigation Engineer",
         "driver_database_tool": "Research Engineer",
@@ -450,10 +454,11 @@ def normalize_planner_response(raw_plan: Any, fallback_adaptive_plan: Dict[str, 
 
     # 3. Tools / Required Tools / Execution Order
     raw_tools = raw_plan.get("tools") or raw_plan.get("required_tools") or raw_plan.get("tools_needed")
+    q_str = fallback_adaptive_plan.get("question") or ""
     if normalized["intent"] in ("knowledge", "explanation") or fallback_adaptive_plan.get("intent") in ("knowledge", "explanation"):
-        normalized["tools"] = ["explain_mode_tool"]
-        normalized["required_tools"] = ["explain_mode_tool"]
-        normalized["execution_order"] = ["explain_mode_tool"]
+        normalized["tools"] = ["knowledge_tool", "web_search_tool"]
+        normalized["required_tools"] = ["knowledge_tool", "web_search_tool"]
+        normalized["execution_order"] = [f"knowledge_tool|query={q_str}", f"web_search_tool|query={q_str}"]
     elif isinstance(raw_tools, list) and all(isinstance(t, str) for t in raw_tools):
         normalized["tools"] = raw_tools
         normalized["required_tools"] = raw_tools
@@ -488,6 +493,8 @@ def normalize_planner_response(raw_plan: Any, fallback_adaptive_plan: Dict[str, 
                     args["team"] = ent["team"]
                 if t == "explain_mode_tool":
                     args["topic"] = ent.get("topic") or ent.get("term") or ent.get("concept") or "F1 CONCEPT"
+                if t in ("knowledge_tool", "web_search_tool"):
+                    args["query"] = q_str or ent.get("query") or "F1 Concept"
                 
                 arg_str = ",".join(f"{k}={v}" for k, v in args.items() if v is not None)
                 synth_order.append(f"{t}|{arg_str}" if arg_str else t)
@@ -535,6 +542,7 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
     semantic_contract = state.get("semantic_contract") or parse_semantic_query(question, history, context=context)
     
     adaptive_plan = adaptive_plan_extract(question, session_id, driver_id, history, context=context)
+    adaptive_plan["question"] = question
     
     # Make SemanticQueryContract the single authoritative semantic input
     if semantic_contract:
@@ -554,8 +562,8 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         req_metric = semantic_contract.get("requested_metric")
         intent_val = semantic_contract.get("intent")
         if intent_val == "knowledge" or req_metric == "knowledge" or req_metric == "explanation":
-            adaptive_plan["tools"] = ["explain_mode_tool"]
-            adaptive_plan["execution_order"] = ["explain_mode_tool"]
+            adaptive_plan["tools"] = ["knowledge_tool", "web_search_tool"]
+            adaptive_plan["execution_order"] = [f"knowledge_tool|query={question}", f"web_search_tool|query={question}"]
         elif intent_val in ("telemetry_comparison", "telemetry") or req_metric in ("telemetry_comparison", "telemetry", "lap_telemetry"):
             adaptive_plan["tools"] = ["telemetry_tool"]
         elif intent_val in ("pit_stop_timing", "pit_stops") or req_metric in ("pit_stops", "pit_stop_timing"):
@@ -612,10 +620,10 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         if valid:
             structured_plan = normalized
             if normalized.get("intent") in ("knowledge", "explanation") or intent_norm in ("knowledge", "explanation"):
-                tools = ["explain_mode_tool"]
-                structured_plan["tools"] = ["explain_mode_tool"]
-                structured_plan["required_tools"] = ["explain_mode_tool"]
-                structured_plan["execution_order"] = ["explain_mode_tool"]
+                tools = ["knowledge_tool", "web_search_tool"]
+                structured_plan["tools"] = ["knowledge_tool", "web_search_tool"]
+                structured_plan["required_tools"] = ["knowledge_tool", "web_search_tool"]
+                structured_plan["execution_order"] = [f"knowledge_tool|query={question}", f"web_search_tool|query={question}"]
             elif intent_norm == "unsupported_metric" or req_metric == "unsupported_metric":
                 tools = []
                 structured_plan["tools"] = []
@@ -726,6 +734,9 @@ def plan_node(state: AgentState) -> Dict[str, Any]:
         if "driver_id" not in args and driver_id:
             args["driver_id"] = driver_id
             
+        if t in ("knowledge_tool", "web_search_tool") and ("query" not in args or not args["query"]):
+            args["query"] = question
+
         if t == "explain_mode_tool" and ("term" not in args or args["term"] == "CAR"):
             def _extract_term(q_str: str) -> str:
                 ql = q_str.lower().strip()
@@ -916,6 +927,7 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
         "explain_mode_tool": engineer_registry.get_engineer("Explain Engineer"),
         "research_tool": engineer_registry.get_engineer("Research Engineer"),
         "knowledge_tool": engineer_registry.get_engineer("Knowledge Engineer"),
+        "web_search_tool": engineer_registry.get_engineer("Research Engineer"),
         "investigation_tool": engineer_registry.get_engineer("Investigation Engineer"),
         "race_results_tool": engineer_registry.get_engineer("Investigation Engineer"),
         "driver_database_tool": engineer_registry.get_engineer("Research Engineer"),
@@ -1022,6 +1034,8 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
     print("========== PREPARING EXECUTION ==========")
     for idx, step in enumerate(plan):
         name, args = parse_step(step)
+        if name in ("knowledge_tool", "web_search_tool") and not args.get("query"):
+            args["query"] = q
         
         # Replace plan step args with resolved database IDs
         for k in list(args.keys()):
@@ -1349,8 +1363,40 @@ def execute_node(state: AgentState) -> Dict[str, Any]:
 
         print("------------------")
             
-    print("================================")
-    
+    # FIX BB: Fallback to web_search_tool when:
+    # (a) query is NOT a race result/telemetry/scoring/simulation/strategy question, AND
+    # (b) knowledge_tool returned missing_data, error, or 0 results (or web_search_tool was planned), AND
+    # (c) web_search_tool is not already in evidence.
+    is_f1_data_query = (
+        intent_norm in ("telemetry", "telemetry_comparison", "scoring", "simulation", "strategy", "race_result", "podium", "top_n", "fastest_lap", "points", "driver_position", "team_result")
+        or req_metric in ("telemetry", "telemetry_comparison", "scoring", "simulation", "strategy", "winner", "podium", "fastest_lap", "points", "driver_at_position", "finishing_position", "team_result")
+    )
+    knowledge_res = evidence.get("knowledge_tool")
+    knowledge_empty = (
+        knowledge_res is None
+        or (isinstance(knowledge_res, dict) and knowledge_res.get("status") in ("missing_data", "error", "DATA_UNAVAILABLE"))
+        or (isinstance(knowledge_res, list) and len(knowledge_res) == 0)
+    )
+    if not is_f1_data_query and knowledge_empty and "web_search_tool" not in evidence:
+        logger.info(f"[ExecuteNode] Knowledge tool returned no relevant match for out-of-scope/general query: '{q}'. Triggering web_search_tool fallback.")
+        ws_eng = engineer_registry.get_engineer("Research Engineer")
+        t_ws_start = time.time()
+        try:
+            ws_res = ws_eng.execute(state, {"query": q}, tool_name_ctx="web_search_tool")
+            dur_ws = int((time.time() - t_ws_start) * 1000)
+            evidence["web_search_tool"] = ws_res
+            trace.setdefault("timelines", {}).setdefault("engineers", []).append({
+                "engineer": "Research Engineer",
+                "role": "web_search",
+                "duration_ms": dur_ws,
+                "timestamp": int(time.time() * 1000)
+            })
+            tools_used.append("web_search_tool")
+            executed_tools.append("web_search_tool")
+            plan.append(f"web_search_tool|query={q}")
+        except Exception as ws_ex:
+            logger.error(f"[ExecuteNode] Web search tool failed: {ws_ex}", exc_info=True)
+
     trace.setdefault("timelines", {})["parameters_sent"] = params_sent
     
     # Validation step: planned_tools == executed_tools + skipped_tools + failed_tools
@@ -1811,17 +1857,56 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
         
         exec_summary = None
 
-        # 0. Knowledge / Explanation Query
-        if intent_name in ("knowledge", "explanation") or requested_metric in ("knowledge", "explanation") or "explain_mode_tool" in evidence or "knowledge_tool" in evidence:
+        # 0. Knowledge / Explanation / Web Search Query
+        if intent_name in ("knowledge", "explanation", "web_search") or requested_metric in ("knowledge", "explanation", "web_search") or "explain_mode_tool" in evidence or "knowledge_tool" in evidence or "web_search_tool" in evidence:
+            ws_data = evidence.get("web_search_tool") or {}
             exp_data = evidence.get("explain_mode_tool") or {}
             k_data = evidence.get("knowledge_tool")
-            if isinstance(k_data, list) and len(k_data) > 0:
+            
+            if isinstance(ws_data, dict) and ws_data.get("results"):
+                # Clean, well-structured synthesis from retrieved web sources
+                results = ws_data.get("results", [])
+                snippets = [r.get("snippet", "").strip() for r in results if r.get("snippet")]
+                sources_list = ws_data.get("sources", [])
+                
+                # Synthesize clean 2-3 paragraph answer using reliable_llm_provider
+                llm_synth = None
+                try:
+                    synth_prompt = (
+                        "You are an expert Formula 1 technical analyst and race engineer. "
+                        "Synthesize a clear, accurate, and engaging 2-to-3 paragraph factual answer "
+                        "to the user's question using the provided search evidence. "
+                        "Never mention internal tools, prompts, or JSON. "
+                        "Do not include long verbatim quotes; synthesize clearly in your own words."
+                    )
+                    evidence_text = "\n\n".join([f"Source [{s.get('title', 'Ref')}]: {s.get('snippet', '')}" for s in results[:6]])
+                    synth_user = f"User Question: {question}\n\nSearch Evidence:\n{evidence_text}"
+                    synth_resp, _ = reliable_llm_provider.generate_response(synth_prompt, synth_user, timeout_seconds=8.0)
+                    if synth_resp and len(synth_resp.strip()) > 80 and "error" not in synth_resp.lower()[:30]:
+                        llm_synth = synth_resp.strip()
+                except Exception as synth_err:
+                    logger.warning(f"Web search LLM synthesis failed, falling back to snippets: {synth_err}")
+                
+                if llm_synth:
+                    exec_summary = llm_synth
+                elif snippets:
+                    exec_summary = "\n\n".join(snippets[:3])
+                else:
+                    exec_summary = f"Synthesized research summary for '{question}'."
+            elif isinstance(k_data, list) and len(k_data) > 0:
                 k_content = "\n".join([doc.get("content", "") for doc in k_data if isinstance(doc, dict)])
                 exec_summary = explanations.get("intermediate") or k_content or f"F1 Knowledge breakdown for '{question}'."
             elif isinstance(exp_data, dict) and exp_data:
                 exec_summary = exp_data.get("explanation") or exp_data.get("beginner") or exp_data.get("intermediate") or explanations.get("intermediate") or f"F1 Knowledge breakdown for '{question}'."
             else:
                 exec_summary = explanations.get("intermediate") or f"F1 Knowledge breakdown for '{question}'."
+
+            if exec_summary and (not explanations or not explanations.get("intermediate")):
+                explanations = {
+                    "beginner": exec_summary,
+                    "intermediate": exec_summary,
+                    "engineer": exec_summary
+                }
 
         if not exec_summary:
             # 1. Strategy Simulation / What-If Query (Evaluated ONLY when simulation/strategy is the requested intent)
@@ -2179,6 +2264,28 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
             "Final Recommendation": corr_res["final_recommendation"],
             "Confidence": confidence
         }
+
+    # CRITICAL SCOPE RULE: telemetry, comparison, or driver/race-specific data sections
+    # must NEVER be attached to a response unless the query genuinely requires them.
+    for k in ["Telemetry Findings", "telemetry_findings", "Simulation Findings", "simulations", "simulation_findings", "Historical Findings", "Regulations Findings", "Alternative Scenarios", "Final Recommendation"]:
+        val = investigation_report.get(k)
+        if not val or val in ("No data available.", "Unavailable", "None") or (isinstance(val, str) and ("insufficient" in val.lower() or "unavailable" in val.lower())):
+            investigation_report.pop(k, None)
+
+    ws_data = evidence.get("web_search_tool")
+    if isinstance(ws_data, dict) and (ws_data.get("sources") or ws_data.get("results")):
+        if ws_data.get("sources"):
+            investigation_report["Sources"] = ws_data["sources"]
+        # For pure web search / general knowledge questions, omit dummy telemetry/simulation sections completely
+        investigation_report.pop("Telemetry Findings", None)
+        investigation_report.pop("telemetry_findings", None)
+        investigation_report.pop("Simulation Findings", None)
+        investigation_report.pop("simulations", None)
+        investigation_report.pop("simulation_findings", None)
+        investigation_report.pop("Historical Findings", None)
+        investigation_report.pop("Alternative Scenarios", None)
+        if not investigation_report.get("Standings"):
+            investigation_report.pop("Standings", None)
     
     # 3. Observability Timeline V3 compiler
     trace.setdefault("reasoning_graph", []).append(f"Explicit Root-Cause Chain:\n{corr_res['reasoning_graph_text']}")
@@ -2215,7 +2322,8 @@ def synthesize_node(state: AgentState) -> Dict[str, Any]:
         "investigation_report": investigation_report,
         "intelligence_trace": trace,
         "streaming_events": streaming_events,
-        "explanations": explanations
+        "explanations": explanations,
+        "sources": investigation_report.get("Sources", [])
     }
 
 # =====================================================================
@@ -2404,7 +2512,8 @@ def run_ai_race_engineer(
             "investigation_report": final_state.get("investigation_report", {}),
             "intelligence_trace": final_state.get("intelligence_trace", {}),
             "streaming_events": final_state.get("streaming_events", []),
-            "explanations": final_state.get("explanations", {})
+            "explanations": final_state.get("explanations", {}),
+            "sources": final_state.get("sources") or (final_state.get("investigation_report", {}) or {}).get("Sources", [])
         }
     except Exception as e:
         logger.error(f"LangGraph execution exception: {e}")

@@ -84,16 +84,16 @@ export const BriefingHeader = memo(function BriefingHeader2({
                 )}
               />
               <span className="font-mono text-[10px] tracking-wider text-text-muted">
-                {sessionState === "streaming" && "STREAMING"}
-                {sessionState === "loading" && "LOADING"}
-                {sessionState === "error" && "ERROR"}
+                {sessionState === "streaming" && "Processing..."}
+                {sessionState === "loading" && "Loading..."}
+                {sessionState === "error" && "Error"}
               </span>
             </div>
           )}
         </div>
 
         {/* Top-Right Search Trigger ONLY on Homepage */}
-        {isHomePage ? (
+        {isHomePage && (
           <button
             onClick={onSearchTrigger || (() => window.dispatchEvent(new CustomEvent("toggle-search-overlay")))}
             className="flex items-center gap-2 px-3 py-1.5 rounded border border-border-subtle bg-surface-raised hover:bg-surface-elevated hover:border-border-strong transition-all duration-fast group"
@@ -112,13 +112,6 @@ export const BriefingHeader = memo(function BriefingHeader2({
               ⌘K
             </span>
           </button>
-        ) : (
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-accent-primary/10 border border-accent-primary/30 text-[10px] font-mono font-semibold tracking-wider text-accent-primary uppercase">
-              <span className="w-1.5 h-1.5 rounded-full bg-accent-primary animate-pulse" />
-              AI_ENGINEER_ACTIVE
-            </span>
-          </div>
         )}
       </div>
     </nav>

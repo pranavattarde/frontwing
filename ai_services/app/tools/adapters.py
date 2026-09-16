@@ -1832,6 +1832,38 @@ class KnowledgeTool(BaseF1Tool):
 
 
 # =====================================================================
+# 7.5. Web Search Tool Adapter
+# =====================================================================
+class WebSearchTool(BaseF1Tool):
+    @property
+    def name(self) -> str:
+        return "web_search_tool"
+        
+    @property
+    def description(self) -> str:
+        return (
+            "Performs live web and technical encyclopedia searches for Formula 1 questions, "
+            "regulations, car designs, history, and personnel beyond internal database records. "
+            "Requires inputs: query (str)."
+        )
+        
+    @property
+    def input_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"}
+            },
+            "required": ["query"]
+        }
+        
+    def execute(self, inputs: Dict[str, Any]) -> Any:
+        query = inputs.get("query") or inputs.get("question") or ""
+        from app.tools.web_search import WebSearchEngine
+        return WebSearchEngine.search(str(query))
+
+
+# =====================================================================
 # 8. Investigation Tool Adapter
 # =====================================================================
 class InvestigationTool(BaseF1Tool):
@@ -2253,6 +2285,7 @@ tool_registry.register(TelemetryTool())
 tool_registry.register(ExplainModeTool())
 tool_registry.register(ResearchTool())
 tool_registry.register(KnowledgeTool())
+tool_registry.register(WebSearchTool())
 tool_registry.register(InvestigationTool())
 tool_registry.register(RaceResultsTool())
 tool_registry.register(DriverDatabaseTool())

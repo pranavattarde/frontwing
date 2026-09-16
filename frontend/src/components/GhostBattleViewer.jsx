@@ -46,17 +46,17 @@ export function GhostBattleViewer({
   return <div className={cn("grid grid-cols-1 lg:grid-cols-12 gap-8 items-start select-none", className)}>{
     /* Left Pane (Colspan 5): Turn-by-Turn Narration Log */
   }<div className="lg:col-span-5 flex flex-col gap-4"><div className="flex justify-between items-center"><span className="text-mono-meta font-mono text-text-muted uppercase tracking-wider">
-            AI_GHOST_BATTLE_LOG
+            Analysis Log
           </span><div className="flex gap-1.5 font-mono text-[9px]"><button
     onClick={() => setViewMode("single")}
     className={`px-1.5 py-0.5 border rounded-badge ${viewMode === "single" ? "border-accent-primary text-accent-primary bg-accent-primary/10 font-semibold" : "border-border-subtle text-text-muted"}`}
   >
-              SINGLE_TRACE
+              Single Trace
             </button><button
     onClick={() => setViewMode("stacked")}
     className={`px-1.5 py-0.5 border rounded-badge ${viewMode === "stacked" ? "border-accent-primary text-accent-primary bg-accent-primary/10 font-semibold" : "border-border-subtle text-text-muted"}`}
   >
-              STACKED_CHANNELS
+              Stacked Channels
             </button></div></div>{
     /* Narrative steps list */
   }<div className="flex flex-col gap-3">{narrations.map((nar, idx) => {
@@ -77,7 +77,7 @@ export function GhostBattleViewer({
     }<div
       className="absolute left-0 top-0 bottom-0 w-1"
       style={{ backgroundColor: isAdvantageA ? (driverA.color || "#00D2BE") : (driverB.color || "#FFD600") }}
-    /><div className="pl-2"><div className="flex justify-between items-baseline mb-2 font-mono text-mono-meta"><span className="text-text-primary font-semibold">{nar.cornerName}</span><span className={cn("text-xs font-semibold type-tabular", isAdvantageA ? "text-timing-green" : "text-timing-yellow")}>{isAdvantageA ? driverA.code : driverB.code} ADV (+{Math.abs(nar.deltaMs)}ms)
+    /><div className="pl-2"><div className="flex justify-between items-baseline mb-2 font-mono text-mono-meta"><span className="text-text-primary font-semibold">{nar.cornerName}</span><span className={cn("text-xs font-semibold type-tabular", isAdvantageA ? "text-timing-green" : "text-timing-yellow")}>{isAdvantageA ? driverA.code : driverB.code} Adv (+{Math.abs(nar.deltaMs)}ms)
                     </span></div><p className="text-xs text-text-secondary leading-relaxed">{nar.narrative}</p></div></motion.div>;
   })}</div></div>{
     /* Right Pane (Colspan 7): Synced Telemetry Traces */

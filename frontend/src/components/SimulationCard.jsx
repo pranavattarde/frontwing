@@ -47,8 +47,8 @@ export function SimulationCard({ data, className }) {
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-accent-primary animate-pulse" />
-            <span className="font-mono text-xs text-accent-primary font-bold tracking-widest uppercase">
-              WHAT_IF_SIMULATION // {driverId}
+            <span className="font-mono text-xs text-accent-primary font-bold tracking-widest">
+              What-If Simulation • {driverId}
             </span>
           </div>
           <span className="text-xs text-text-muted font-mono">{sessionId}</span>
@@ -56,8 +56,8 @@ export function SimulationCard({ data, className }) {
 
         {/* Strategy Badge */}
         {data.recommended_strategy && (
-          <div className="px-3 py-1 rounded bg-surface-raised border border-border-subtle text-text-primary font-mono text-[11px] uppercase tracking-wider font-bold">
-            STRATEGY: {data.recommended_strategy}
+          <div className="px-3 py-1 rounded bg-surface-raised border border-border-subtle text-text-primary font-mono text-[11px] tracking-wider font-bold">
+            Strategy: {data.recommended_strategy}
           </div>
         )}
       </div>
@@ -89,7 +89,7 @@ export function SimulationCard({ data, className }) {
               P{projPos}
             </span>
             <span className={cn("text-xs font-mono font-bold px-2 py-0.5 rounded border", getPosBadgeColor(posChange))}>
-              {posChange > 0 ? `+${posChange} POS` : posChange < 0 ? `${posChange} POS` : "0 (UNCHANGED)"}
+              {posChange > 0 ? `+${posChange} pos` : posChange < 0 ? `${posChange} pos` : "0 (Unchanged)"}
             </span>
           </div>
           <span className="text-[10px] text-text-muted font-mono type-tabular">
@@ -137,7 +137,7 @@ export function SimulationCard({ data, className }) {
       {/* Physics / Trace Notes */}
       {showDetails && (
         <div className="flex flex-col gap-1.5 p-3 rounded bg-surface-raised border border-border-subtle text-[11px] font-mono text-text-muted">
-          <div className="text-text-primary font-bold uppercase tracking-wider">Physics & Traffic Model:</div>
+          <div className="text-text-primary font-bold tracking-wider">Physics & Traffic Model:</div>
           <div>• Base pace & tire wear regression: Calibrated per-driver clean flying lap model.</div>
           <div>• Dirty air & traffic penalty: Dynamic bottleneck cap applied when trailing competitor within DRS/dirty air window.</div>
           <div>• Single-pit event guarantee: Seamless stint boundary consolidation.</div>
@@ -146,12 +146,12 @@ export function SimulationCard({ data, className }) {
 
       {/* Footer Controls */}
       <div className="flex items-center justify-between pt-2 border-t border-border-subtle text-xs font-mono">
-        <span className="text-text-muted">Engine: FastF1 1..N Timeline Monte Carlo / Deterministic Physics</span>
+        <span className="text-text-muted">Engine: FastF1 Monte Carlo Simulation</span>
         <button
           onClick={() => setShowDetails(!showDetails)}
-          className="text-accent-primary hover:underline transition-colors font-mono uppercase tracking-wider font-bold"
+          className="text-accent-primary hover:underline transition-colors font-mono tracking-wider font-bold"
         >
-          {showDetails ? "[- HIDE SIMULATION NOTES]" : "[+ SHOW SIMULATION NOTES]"}
+          {showDetails ? "[- Hide Simulation Notes]" : "[+ Show Simulation Notes]"}
         </button>
       </div>
     </div>

@@ -38,7 +38,7 @@ export function EvidenceCard({
               className="text-xs font-mono text-text-muted hover:text-text-primary transition-colors"
               title="Export"
             >
-              [EXPORT]
+              [Export]
             </button>
           )}
           {onDeepDive && !isCollapsed && (
@@ -46,7 +46,7 @@ export function EvidenceCard({
               onClick={onDeepDive}
               className="text-xs font-mono text-accent-primary font-bold hover:underline transition-colors"
             >
-              DEEP_DIVE
+              Deep Dive
             </button>
           )}
           {onExpand && (

@@ -47,6 +47,7 @@ def normalize_evidence_item(tool_name: str, payload: Any, question: str = "") ->
         "explain_mode_tool": "definitions",
         "research_tool": "regulations",
         "knowledge_tool": "regulations",
+        "web_search_tool": "web_search",
         "investigation_tool": "incident",
         "race_results_tool": "historical_results",
         "driver_database_tool": "database",

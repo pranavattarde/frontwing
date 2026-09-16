@@ -38,7 +38,7 @@ export function StrategyTimeline({
               {/* Stint details popover on hover */}
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:flex flex-col items-center z-50">
                 <div className="bg-surface-raised border border-border-medium rounded p-2 text-text-primary text-[10px] leading-tight shadow-lg pointer-events-none whitespace-nowrap">
-                  <p className="font-bold uppercase text-timing-yellow">{stint.compound} COMPOUND</p>
+                  <p className="font-bold capitalize text-timing-yellow">{stint.compound} Compound</p>
                   <p className="type-tabular">Laps: {stint.startLap} - {stint.endLap} ({stintLaps} laps)</p>
                   <p className="type-tabular">Degradation: {stint.wearSlope.toFixed(3)} s/lap</p>
                 </div>
@@ -57,9 +57,9 @@ export function StrategyTimeline({
       <div className="flex justify-between items-center text-xs font-mono border-b border-border-subtle pb-2">
         <span className="text-text-primary font-bold tracking-wider flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-accent-primary" />
-          STRATEGY_TIMELINE // {driverCode}
+          Strategy Timeline • {driverCode}
         </span>
-        <span className="text-text-muted type-tabular">TOTAL_LAPS: {totalLaps}</span>
+        <span className="text-text-muted type-tabular">Total Laps: {totalLaps}</span>
       </div>
 
       {/* Row Wrapper */}
@@ -67,7 +67,7 @@ export function StrategyTimeline({
         {/* Actual strategy row */}
         <div className="flex items-center gap-2">
           {isComparison && (
-            <span className="w-12 text-[10px] font-mono text-text-muted text-right shrink-0">ACTUAL</span>
+            <span className="w-12 text-[10px] font-mono text-text-muted text-right shrink-0">Actual</span>
           )}
           {renderStintRow(stints, false)}
         </div>
@@ -76,7 +76,7 @@ export function StrategyTimeline({
         {isComparison && simulated && (
           <div className="flex items-center gap-2">
             <span className="w-12 text-[10px] font-mono text-accent-primary font-bold text-right shrink-0">
-              SIM_L20
+              Simulated
             </span>
             {renderStintRow(simulated, true)}
           </div>
@@ -85,11 +85,11 @@ export function StrategyTimeline({
 
       {/* Axis Guide */}
       <div className="relative w-full h-4 mt-1 font-mono text-[9px] text-text-muted select-none type-tabular">
-        <div className="absolute left-0">LAP 1</div>
-        <div className="absolute left-1/4 -translate-x-1/2">LAP {Math.floor(totalLaps * 0.25)}</div>
-        <div className="absolute left-1/2 -translate-x-1/2">LAP {Math.floor(totalLaps * 0.5)}</div>
-        <div className="absolute left-3/4 -translate-x-1/2">LAP {Math.floor(totalLaps * 0.75)}</div>
-        <div className="absolute right-0">LAP {totalLaps}</div>
+        <div className="absolute left-0">Lap 1</div>
+        <div className="absolute left-1/4 -translate-x-1/2">Lap {Math.floor(totalLaps * 0.25)}</div>
+        <div className="absolute left-1/2 -translate-x-1/2">Lap {Math.floor(totalLaps * 0.5)}</div>
+        <div className="absolute left-3/4 -translate-x-1/2">Lap {Math.floor(totalLaps * 0.75)}</div>
+        <div className="absolute right-0">Lap {totalLaps}</div>
       </div>
     </div>
   );

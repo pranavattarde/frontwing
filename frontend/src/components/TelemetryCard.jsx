@@ -425,15 +425,15 @@ export function TelemetryCard({
       {/* Top Header Row */}
       <div className="flex flex-wrap justify-between items-center gap-2 border-b border-border-subtle pb-2.5 font-mono text-xs">
         <div className="flex items-center gap-2.5">
-          <span className="text-text-primary font-bold uppercase tracking-wider flex items-center gap-1.5">
+          <span className="text-text-primary font-bold tracking-wider flex items-center gap-1.5 capitalize">
             <span className="w-2 h-2 rounded-full bg-accent-primary animate-pulse" />
-            {activeMetric.toUpperCase()}_TRACE // {driverA?.code || "DRV_A"}
+            {activeMetric} Trace • {driverA?.code || "Driver A"}
             {driverB?.code ? ` vs ${driverB.code}` : ""}
           </span>
-          <span className="text-text-muted type-tabular">LAP {lapNumber || 1}</span>
+          <span className="text-text-muted type-tabular">Lap {lapNumber || 1}</span>
           {highlightZone && (
             <span className="text-accent-primary bg-accent-primary/10 px-1.5 py-0.5 border border-accent-primary/30 rounded text-[10px] font-bold">
-              ZONE_LOCK
+              Zone Lock
             </span>
           )}
         </div>
@@ -446,7 +446,7 @@ export function TelemetryCard({
                 key={met}
                 onClick={() => setActiveMetric(met)}
                 className={cn(
-                  "px-2 py-0.5 rounded text-[10px] uppercase font-mono transition-colors",
+                  "px-2 py-0.5 rounded text-[10px] capitalize font-mono transition-colors",
                   activeMetric === met
                     ? "bg-accent-primary text-text-primary font-bold shadow-sm"
                     : "text-text-muted hover:text-text-primary hover:bg-surface-elevated"
@@ -471,7 +471,7 @@ export function TelemetryCard({
                   : "border-border-subtle text-text-muted hover:text-text-primary hover:bg-surface-raised"
               )}
             >
-              {showTable ? "[HIDE_TABLE]" : "[DATA_TABLE]"}
+              {showTable ? "[Hide Table]" : "[Data Table]"}
             </button>
           )}
           {onExpand && (
@@ -479,7 +479,7 @@ export function TelemetryCard({
               onClick={onExpand}
               className="text-accent-primary hover:text-accent-primary-hover hover:underline transition-colors font-bold"
             >
-              {isCollapsed ? "[EXPAND]" : "[POP_OUT]"}
+              {isCollapsed ? "[Expand]" : "[Pop Out]"}
             </button>
           )}
         </div>
@@ -488,7 +488,7 @@ export function TelemetryCard({
       {/* Canvas Area */}
       {!hasData ? (
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center font-mono text-xs text-text-muted gap-1">
-          <span className="text-accent-danger font-semibold">// NO TELEMETRY TRACE PERSISTED</span>
+          <span className="text-accent-danger font-semibold">No telemetry trace recorded</span>
           <span>No downsampled FastF1 data points recorded for this driver and lap.</span>
         </div>
       ) : (
@@ -503,8 +503,8 @@ export function TelemetryCard({
           {/* Honest Gear Fallback Overlay */}
           {activeMetric === "gear" && !hasGearData && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-base/95 backdrop-blur-sm z-10 text-center font-mono p-4 border border-border-subtle">
-              <span className="text-timing-yellow font-bold text-xs uppercase tracking-wider mb-1">
-                ⚠️ GEAR DATA UNAVAILABLE
+              <span className="text-timing-yellow font-bold text-xs tracking-wider mb-1">
+                ⚠️ Gear Data Unavailable
               </span>
               <span className="text-[11px] text-text-muted max-w-sm">
                 FastF1 telemetry for this session does not contain recorded physical nGear channels.
@@ -535,8 +535,8 @@ export function TelemetryCard({
                 }}
               >
                 <div className="text-text-primary font-bold border-b border-border-subtle pb-1 flex justify-between items-center">
-                  <span className="type-tabular">DIST: {activeHoverDist}m</span>
-                  <span className="text-[9px] text-text-muted type-tabular">LAP {lapNumber || 1}</span>
+                  <span className="type-tabular">Dist: {activeHoverDist}m</span>
+                  <span className="text-[9px] text-text-muted type-tabular">Lap {lapNumber || 1}</span>
                 </div>
 
                 {/* Primary Metric Value */}
@@ -562,7 +562,7 @@ export function TelemetryCard({
                   {/* Delta indicator */}
                   {driverB?.code && ptB && (
                     <div className="flex justify-between items-center border-t border-border-subtle pt-1 text-[10px]">
-                      <span className="text-text-muted">DELTA:</span>
+                      <span className="text-text-muted">Delta:</span>
                       <span
                         className={cn(
                           "font-bold type-tabular",
@@ -580,9 +580,9 @@ export function TelemetryCard({
                 {/* Multi-channel telemetry sub-metrics */}
                 {activeMetric !== "multi" && ptA && (
                   <div className="flex items-center gap-2 border-t border-border-subtle pt-1 text-[9px] text-text-muted type-tabular">
-                    <span>THR: {formatVal(ptA, "throttle")}%</span>
-                    <span>BRK: {formatVal(ptA, "brake")}%</span>
-                    <span>GEAR: {formatVal(ptA, "gear")}</span>
+                    <span>Thr: {formatVal(ptA, "throttle")}%</span>
+                    <span>Brk: {formatVal(ptA, "brake")}%</span>
+                    <span>Gear: {formatVal(ptA, "gear")}</span>
                   </div>
                 )}
               </div>
@@ -596,10 +596,10 @@ export function TelemetryCard({
         <div className="mt-3 p-3 bg-surface-base border border-border-subtle rounded flex flex-col gap-2 font-mono text-xs">
           <div className="flex flex-wrap items-center justify-between gap-3 text-[11px]">
             <div className="flex items-center gap-3">
-              <span className="text-text-muted font-bold tracking-wider">DRIVERS:</span>
+              <span className="text-text-muted font-bold tracking-wider">Drivers:</span>
               <span className="flex items-center gap-1.5 font-bold" style={{ color: driverA?.color || "#E10600" }}>
                 <span className="w-2.5 h-0.5 rounded-full inline-block" style={{ backgroundColor: driverA?.color || "#E10600" }} />
-                {driverA?.code || "DRIVER A"}
+                {driverA?.code || "Driver A"}
               </span>
               {driverB?.code && (
                 <span className="flex items-center gap-1.5 text-timing-yellow font-bold">
@@ -610,13 +610,13 @@ export function TelemetryCard({
             </div>
             <div className="flex items-center gap-3 text-text-muted font-bold">
               <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-accent-primary" /> SPEED (km/h)
+                <span className="w-2 h-2 rounded-full bg-accent-primary" /> Speed (km/h)
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-timing-green" /> THROTTLE (0-100%)
+                <span className="w-2 h-2 rounded-full bg-timing-green" /> Throttle (0-100%)
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-accent-danger" /> BRAKE (THRESHOLD)
+                <span className="w-2 h-2 rounded-full bg-accent-danger" /> Brake (Threshold)
               </span>
             </div>
           </div>
@@ -630,9 +630,9 @@ export function TelemetryCard({
       {isCollapsed && hasData && (
         <div className="flex justify-between items-center font-mono text-xs text-text-muted mt-2 border-t border-border-subtle pt-1 type-tabular">
           <span>0m</span>
-          <span className="text-[10px] text-text-secondary uppercase font-semibold">
-            {driverA?.code || "DRIVER"} ({dataA.length} PTS)
-            {driverB?.code ? ` VS ${driverB.code} (${dataB.length} PTS)` : ""}
+          <span className="text-[10px] text-text-secondary font-semibold">
+            {driverA?.code || "Driver"} ({dataA.length} pts)
+            {driverB?.code ? ` vs ${driverB.code} (${dataB.length} pts)` : ""}
           </span>
           <span>{totalDistance}m</span>
         </div>
@@ -642,40 +642,40 @@ export function TelemetryCard({
       {isDeepDive && hasData && (
         <div className="border-t border-border-subtle pt-3 mt-3 flex flex-col gap-2">
           <div className="flex justify-between items-center text-[10px] font-mono text-text-muted">
-            <span className="text-text-primary font-semibold uppercase">
-              DISTANCE_BINNED_TELEMETRY_LOG // 10M_SLICES
+            <span className="text-text-primary font-semibold">
+              Distance-Binned Telemetry Log • 10m Slices
             </span>
-            <span className="type-tabular">SHOWING {Math.min(25, dataA.length)} POINTS</span>
+            <span className="type-tabular">Showing {Math.min(25, dataA.length)} points</span>
           </div>
 
           <div className="overflow-x-auto max-h-[220px] overflow-y-auto border border-border-subtle rounded bg-surface-base">
             <table className="w-full text-left font-mono text-[10px]">
               <thead className="bg-surface-raised border-b border-border-subtle sticky top-0 text-text-muted">
                 <tr>
-                  <th className="py-1 px-2.5">DIST (m)</th>
+                  <th className="py-1 px-2.5">Dist (m)</th>
                   <th className="py-1 px-2 font-bold" style={{ color: driverA?.color || "#E10600" }}>
-                    {driverA?.code || "A"} SPD
+                    {driverA?.code || "A"} Spd
                   </th>
                   {driverB?.code && (
                     <th className="py-1 px-2 font-bold" style={{ color: driverB?.color || "#FFD600" }}>
-                      {driverB.code} SPD
+                      {driverB.code} Spd
                     </th>
                   )}
-                  {driverB?.code && <th className="py-1 px-2 text-text-primary">Δ SPD</th>}
+                  {driverB?.code && <th className="py-1 px-2 text-text-primary">Δ Spd</th>}
                   <th className="py-1 px-2 font-bold" style={{ color: driverA?.color || "#E10600" }}>
-                    {driverA?.code || "A"} THR
+                    {driverA?.code || "A"} Thr
                   </th>
                   {driverB?.code && (
                     <th className="py-1 px-2 font-bold" style={{ color: driverB?.color || "#FFD600" }}>
-                      {driverB.code} THR
+                      {driverB.code} Thr
                     </th>
                   )}
                   <th className="py-1 px-2 font-bold" style={{ color: driverA?.color || "#E10600" }}>
-                    {driverA?.code || "A"} BRK
+                    {driverA?.code || "A"} Brk
                   </th>
                   {driverB?.code && (
                     <th className="py-1 px-2 font-bold" style={{ color: driverB?.color || "#FFD600" }}>
-                      {driverB.code} BRK
+                      {driverB.code} Brk
                     </th>
                   )}
                 </tr>

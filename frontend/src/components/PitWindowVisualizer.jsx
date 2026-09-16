@@ -14,9 +14,9 @@ export function PitWindowVisualizer({
       <div className="flex justify-between items-center text-xs font-mono border-b border-border-subtle pb-2.5">
         <span className="text-text-primary font-bold tracking-wider flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-accent-primary" />
-          PIT_EXIT_WINDOW_TRAFFIC_QUEUE
+          Pit Exit Window Traffic Queue
         </span>
-        <span className="text-text-muted text-[11px] type-tabular">THRESHOLD: {cleanAirThreshold.toFixed(1)}S</span>
+        <span className="text-text-muted text-[11px] type-tabular">Threshold: {cleanAirThreshold.toFixed(1)}s</span>
       </div>
 
       {/* Visual queue stack */}
@@ -69,12 +69,12 @@ export function PitWindowVisualizer({
                 </div>
                 <div className="flex items-center gap-2 font-mono text-[11px] type-tabular">
                   {isDirty ? (
-                    <span className="text-accent-danger font-bold uppercase text-[9px] px-1.5 py-0.5 rounded bg-accent-danger/15 border border-accent-danger/30">
-                      DIRTY_AIR
+                    <span className="text-accent-danger font-bold text-[9px] px-1.5 py-0.5 rounded bg-accent-danger/15 border border-accent-danger/30">
+                      Dirty Air
                     </span>
                   ) : (
-                    <span className="text-timing-green font-bold uppercase text-[9px] px-1.5 py-0.5 rounded bg-timing-green/15 border border-timing-green/30">
-                      CLEAN_AIR
+                    <span className="text-timing-green font-bold text-[9px] px-1.5 py-0.5 rounded bg-timing-green/15 border border-timing-green/30">
+                      Clean Air
                     </span>
                   )}
                   <span className={cn("text-xs font-bold", isDirty ? "text-accent-danger" : "text-timing-green")}>
@@ -91,10 +91,10 @@ export function PitWindowVisualizer({
           <div className="w-2.5 h-2.5 rounded-full bg-accent-primary border-2 border-canvas ml-4 shrink-0 shadow-[0_0_8px_rgba(225,6,0,0.6)]" />
           <div className="flex-1 flex justify-between items-center px-4 py-2.5 border border-accent-primary/40 bg-accent-primary/10 rounded font-mono border-l-2 border-l-accent-primary">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-accent-primary font-bold">PIT_EXIT</span>
+              <span className="text-xs text-accent-primary font-bold">Pit Exit</span>
               <span className="text-sm font-bold text-text-primary">{pittingDriver.code}</span>
             </div>
-            <span className="text-xs text-accent-primary font-bold type-tabular">LAP {pittingDriver.exitLap}</span>
+            <span className="text-xs text-accent-primary font-bold type-tabular">Lap {pittingDriver.exitLap}</span>
           </div>
         </div>
       </div>

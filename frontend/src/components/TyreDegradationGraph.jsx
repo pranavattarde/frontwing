@@ -19,7 +19,7 @@ export function TyreDegradationGraph({
   if (!data || data.length === 0) {
     return (
       <div className={cn("bg-surface-base border border-border-subtle rounded p-4 text-xs font-mono text-text-muted", className)}>
-        NO_TYRE_DEGRADATION_DATA
+        No tyre degradation data available
       </div>
     );
   }
@@ -52,24 +52,24 @@ export function TyreDegradationGraph({
         <div className="flex justify-between items-center font-mono text-xs">
           <span className="text-text-primary font-bold tracking-wider flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-timing-yellow animate-pulse" />
-            TYRE_DEGRADATION // STINT_WEAR_CURVE
+            Tyre Degradation • Stint Wear Curve
           </span>
           <div className="flex items-center gap-3 text-xs">
             <span className="text-text-muted">
-              {String(driverCode || "DRIVER").toUpperCase()} COMPOUND:{" "}
+              {String(driverCode || "Driver")} Compound:{" "}
               <span className="text-timing-yellow font-bold">{latest?.compound || "N/A"}</span>
             </span>
             <span className="text-text-muted">
-              DEG: <span className="text-timing-yellow font-bold type-tabular">{latest?.wear_pct !== null && latest?.wear_pct !== undefined ? `${latest.wear_pct}%` : "—"}</span>
+              Deg: <span className="text-timing-yellow font-bold type-tabular">{latest?.wear_pct !== null && latest?.wear_pct !== undefined ? `${latest.wear_pct}%` : "—"}</span>
             </span>
             <span className="text-text-muted">
-              LIFE: <span className="text-timing-green font-bold type-tabular">{latest?.wear_pct !== null && latest?.wear_pct !== undefined ? `${(100 - latest.wear_pct).toFixed(1).replace(/\.0$/, "")}%` : "—"}</span>
+              Life: <span className="text-timing-green font-bold type-tabular">{latest?.wear_pct !== null && latest?.wear_pct !== undefined ? `${(100 - latest.wear_pct).toFixed(1).replace(/\.0$/, "")}%` : "—"}</span>
             </span>
             <button
               onClick={() => setIsExpanded(true)}
               className="text-[11px] font-mono text-timing-yellow hover:text-timing-yellow/80 border border-timing-yellow/30 hover:border-timing-yellow px-2 py-0.5 rounded bg-timing-yellow/5 transition-colors font-semibold"
             >
-              [EXPAND]
+              [Expand]
             </button>
           </div>
         </div>
@@ -87,7 +87,7 @@ export function TyreDegradationGraph({
               fontWeight="bold"
               className="font-mono tracking-wider"
             >
-              ESTIMATED WEAR (%) / PACE LOSS (s) ↑
+              Estimated Wear (%) / Pace Loss (s) ↑
             </text>
 
             {/* Horizontal Gridlines & Y-Axis Labels */}
@@ -197,7 +197,7 @@ export function TyreDegradationGraph({
                 </span>
               </div>
               <div className="text-[10px] mt-0.5 flex items-center justify-between gap-4 type-tabular">
-                <span className="text-text-muted">TYRE LIFE:</span>
+                <span className="text-text-muted">Tyre Life:</span>
                 <span
                   className={cn(
                     "font-bold font-mono",
@@ -217,12 +217,12 @@ export function TyreDegradationGraph({
               </div>
               {hoveredPoint.compound && (
                 <div className="text-[10px] mt-0.5 flex items-center justify-between gap-4">
-                  <span className="text-text-muted">COMPOUND:</span>
+                  <span className="text-text-muted">Compound:</span>
                   <span className="text-timing-yellow font-bold uppercase">{hoveredPoint.compound}</span>
                 </div>
               )}
               <div className="text-[10px] mt-0.5 flex items-center justify-between gap-4 type-tabular">
-                <span className="text-text-muted">PACE LOSS:</span>
+                <span className="text-text-muted">Pace Loss:</span>
                 <span className="text-text-primary font-mono font-bold">
                   {hoveredPoint.note ? (
                     <span className="italic text-text-muted font-normal">[{hoveredPoint.note}]</span>
@@ -246,17 +246,17 @@ export function TyreDegradationGraph({
               <div>
                 <h3 className="font-mono text-xs font-bold text-timing-yellow tracking-wider uppercase flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-timing-yellow animate-pulse" />
-                  TYRE_DEGRADATION // DETAILED_STINT_WEAR_ANALYSIS
+                  Tyre Degradation • Detailed Stint Wear Analysis
                 </h3>
                 <span className="font-mono text-xs text-text-muted type-tabular">
-                  DRIVER: {driverCode} | COMPOUND: {latest?.compound || "N/A"} | INITIAL LIFE: 100% → CURRENT: {latest?.wear_pct || 100}%
+                  Driver: {driverCode} | Compound: {latest?.compound || "N/A"} | Initial Life: 100% → Current: {latest?.wear_pct || 100}%
                 </span>
               </div>
               <button
                 onClick={() => setIsExpanded(false)}
                 className="text-text-muted hover:text-text-primary font-mono text-xs px-2 py-1 rounded bg-surface-raised border border-border-subtle"
               >
-                [CLOSE]
+                [Close]
               </button>
             </div>
 
@@ -312,18 +312,18 @@ export function TyreDegradationGraph({
             {/* Degradation Log Table */}
             <div className="flex flex-col gap-2">
               <span className="font-mono text-xs font-bold text-text-primary uppercase tracking-wider">
-                STINT_DEGRADATION_METRICS_LOG
+                Stint Degradation Metrics Log
               </span>
               <div className="overflow-x-auto max-h-[220px] overflow-y-auto border border-border-subtle rounded">
                 <table className="w-full font-mono text-xs text-left border-collapse">
                   <thead className="sticky top-0 bg-surface-raised border-b border-border-subtle text-text-muted text-[11px]">
                     <tr>
-                      <th className="py-2 px-3">LAP #</th>
-                      <th className="py-2 px-3">STINT</th>
-                      <th className="py-2 px-3">TYRE DEGRADATION %</th>
-                      <th className="py-2 px-3">TYRE LIFE %</th>
-                      <th className="py-2 px-3">ESTIMATED PACE LOSS</th>
-                      <th className="py-2 px-3">COMPOUND STATUS</th>
+                      <th className="py-2 px-3">Lap #</th>
+                      <th className="py-2 px-3">Stint</th>
+                      <th className="py-2 px-3">Tyre Degradation %</th>
+                      <th className="py-2 px-3">Tyre Life %</th>
+                      <th className="py-2 px-3">Estimated Pace Loss</th>
+                      <th className="py-2 px-3">Compound Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle">

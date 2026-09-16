@@ -157,10 +157,10 @@ class InvestigationCorrelator:
             "reasoning_graph": reasoning_graph,
             "reasoning_graph_text": reasoning_graph_text,
             "executive_summary": exec_summary,
-            "telemetry_findings": "\n".join(telemetry_findings) if telemetry_findings else "Telemetry evidence is unavailable or insufficient for this request.",
-            "strategy_findings": "\n".join(strategy_findings) if strategy_findings else "Strategy simulation evidence is unavailable or insufficient for this request.",
-            "historical_findings": "\n".join(results_findings) if results_findings else "No historical standings parsed.",
-            "regulations_findings": "\n".join(regulations_findings) if regulations_findings else "No specific regulatory infractions logged.",
-            "alternative_scenarios": "Maintain current stint guidelines based on verified classification data." if not strategy_findings else "Pitting earlier into clean air recovers predicted position delta.",
-            "final_recommendation": final_rec
+            "telemetry_findings": "\n".join(telemetry_findings) if telemetry_findings else None,
+            "strategy_findings": "\n".join(strategy_findings) if strategy_findings else None,
+            "historical_findings": "\n".join(results_findings) if results_findings else None,
+            "regulations_findings": "\n".join(regulations_findings) if regulations_findings else None,
+            "alternative_scenarios": "Pitting earlier into clean air recovers predicted position delta." if strategy_findings else None,
+            "final_recommendation": final_rec if reasoning_graph else None
         }

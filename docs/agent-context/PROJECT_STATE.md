@@ -1,11 +1,45 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-09-16 by Antigravity (Session 042 - Upcoming Race Hero & 4-Hour Cadence, Real Telemetry Circuit Geometry & Honest Ingestion Placeholders, System Alert Auth Recovery, and Global Click-to-Query Audit)
-> Audit method: Verified all 4 core fixes live via browser subagent with video recording (frontwing_fixes_verify_1789535209563.webp) and automated test suites. Validated 4-hour schedule cadence (14,400,000ms), upcoming Round 15 Azerbaijan GP hero at Baku City Circuit relative to today's date (2026-09-16) with countdown timer and dual IST/local timetable; dedicated Round 14 Spanish GP at Madrid results section with authentic 715-point position telemetry SVG geometry; honest pending placeholder for uningested venues (Baku); auth recovery in System Alert; and complete elimination of all 10 click-to-query surfaces across the product. Frontend build succeeded with 0 errors; all 14 backend security tests passing.
+> Last updated: 2026-09-16 by Antigravity (Session 043 - Web Search Fallback for Out-of-Scope Queries, AI Verdict Dynamic Sizing & Markdown Flow, and Global Internal Model/Provider Badging Elimination)
+> Audit method: Verified all 3 core fixes live via automated test script `verify_bb_queries.py`, backend security test suite (`npm test`), and frontend production build (`npm run build`). Validated Wikipedia REST API and Google News RSS search integration without paid keys, real factual multi-paragraph synthesis citing sources for out-of-scope/knowledge queries (Adrian Newey RB19, 107% qualifying rule, carbon-carbon composite brake discs), strict enforcement of critical scope rule eliminating dummy telemetry/simulation findings from pure knowledge responses; dynamic vertical expansion of VerdictBlock cards without height/overflow trapping; and total elimination of internal model names (`gemini-3.6-flash`, `openai/gpt-oss-120b`, `gemini-2.0-flash`), provider badges (Gemini/Groq), confidence percentage badges, and `AI_ENGINEER_ACTIVE` badges across the UI. Frontend build passed with 0 errors; 14/14 backend security tests passing.
 
 ---
 
 ## 1. What Works Right Now
+
+### Web Search Fallback for Out-of-Scope Queries & Critical Scope Rules (SESSION 043 - FIX BB VERIFIED LIVE)
+- **Zero-Paid-API Web Search Engine (`ai_services/app/tools/web_search.py`, `adapters.py`)**:
+  - Engineered `WebSearchEngine` querying Wikipedia REST API for technical, historical, and aerodynamic encyclopedic summaries, and Google News RSS for contemporary reporting, regulations, and journalism.
+  - Returns structured `results` with clean fair-use snippets (truncated cleanly at sentence boundaries, <= 300 chars) and `sources` list containing `{title, url, source}`.
+  - Registered `WebSearchTool` (`web_search_tool`) in `tool_registry` and `BaseF1Tool` adapter system.
+- **Adaptive Routing & Factual Synthesis (`planner.py`, `nlp_parser.py`, `context_builder.py`)**:
+  - Expanded NLP intent matching to classify non-telemetry questions (technical concepts, car design, rules/regulations, materials, temperatures) as `intent="knowledge"`.
+  - Planner routes to `["knowledge_tool", "web_search_tool"]` and passes the query through execution order.
+  - `synthesize_node` invokes LLM provider to synthesize a comprehensive, clean 2-3 paragraph answer citing retrieved evidence, with fallback to clean snippets when offline or rate-limited.
+  - Returns `sources` at the top level of the response dictionary for direct frontend rendering.
+- **Critical Scope Enforcement Rule (`planner.py`, `investigation_correlator.py`)**:
+  - Telemetry, comparison, or driver/race-specific data sections are strictly omitted unless the query genuinely requires them.
+  - Strips out empty "Telemetry Findings: No data available", dummy simulations, and empty standings for pure knowledge/web-search queries.
+  - Verified across 3 out-of-scope queries with `scratch/verify_bb_queries.py`:
+    1. *"Who designed the Red Bull RB19 and what aerodynamic concept made it so dominant?"* -> Adrian Newey & ground effect underfloor tunnels, citations to 5 sources, zero dummy telemetry sections.
+    2. *"What is the 107% qualifying rule in Formula 1 and when was it introduced?"* -> 107% threshold, Q1 elimination, safety origins, 5 sources, zero dummy telemetry sections.
+    3. *"What materials are Formula 1 brake discs made of and what operating temperatures do they reach?"* -> Carbon-carbon composites & ~1000°C temperatures, 5 sources, zero dummy telemetry sections.
+
+### Dynamic Sizing & Natural Flow for AI Verdict Card (SESSION 043 - FIX CC VERIFIED LIVE)
+- **Fluid Layout & Scroll-Trap Elimination (`VerdictBlock.jsx`, `InvestigationThread.jsx`)**:
+  - Removed `overflow-hidden` and fixed height constraints from `VerdictBlock.jsx`, allowing verdict cards to size dynamically to their content.
+  - Removed artificial line slicing (`cleanLines.slice(0, 4)`) in `InvestigationThread.jsx` so complete multi-paragraph answers render fully.
+  - Converted verdict text display to `<MarkdownContent content={verdict} />` to render bold text, lists, and markdown formatting natively.
+  - Removed nested scroll trapping (`overflow-y-auto` inside `overflow-hidden`) so the page flows naturally down into narrative findings and evidence cards.
+
+### Elimination of Internal Provider/Model Names & Clean Title Case UI (SESSION 043 - FIX DD VERIFIED LIVE)
+- **Removal of Internal AI Engine & Provider Badges Everywhere**:
+  - Removed `AI_ENGINEER_ACTIVE` badge from `BriefingHeader.jsx`.
+  - Removed provider names (Gemini / Groq), model names (`gemini-3.6-flash`, `openai/gpt-oss-120b`, `gemini-2.0-flash`), and raw latency readouts from user-facing UI in `VerdictBlock.jsx`, `BriefingRoom.jsx`, and `InvestigationThread.jsx`.
+  - Removed confidence percentage badges and confidence strips from `VerdictBlock.jsx`, `ExplanationPanel.jsx`, and cards across the product.
+- **Title Case & User-Friendly Labels Across All Pages**:
+  - Converted all `ALL_CAPS_WITH_UNDERSCORES` labels to clean Title Case across `BriefingRoom.jsx`, `StrategyEngineer.jsx`, `GhostBattle.jsx`, `GhostBattle3D.jsx`, `StrategyPlayground.jsx`, `RaceBriefing.jsx`, and 17+ component cards.
+  - Replaced technical loading messages with clean, query-tailored progress descriptions (e.g. "Resolving Session", "Gathering Telemetry", "Synthesizing Analysis").
 
 ### Upcoming Race Hero & FastF1 4-Hour Cadence (SESSION 042 - FIX X VERIFIED LIVE)
 - **FastF1 Schedule Selection Logic (`hero_service.py`, `hero.service.js`)**:

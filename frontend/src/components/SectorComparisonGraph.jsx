@@ -9,7 +9,7 @@ export function SectorComparisonGraph({
   if (!data || data.length === 0) {
     return (
       <div className={cn("bg-surface-base border border-border-subtle rounded p-4 text-xs font-mono text-text-muted", className)}>
-        NO_SECTOR_COMPARISON_DATA
+        No sector comparison data available
       </div>
     );
   }
@@ -23,7 +23,7 @@ export function SectorComparisonGraph({
       <div className="flex justify-between items-center text-xs font-mono border-b border-border-subtle pb-2.5">
         <span className="text-text-primary font-bold tracking-wider flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-accent-primary" />
-          SECTOR_TIME_COMPARISON // DELTA_ANALYSIS
+          Sector Time Comparison • Delta Analysis
         </span>
         <div className="flex items-center gap-2.5 text-xs font-mono">
           <span className="text-accent-primary font-bold">{codeA}</span>
@@ -36,8 +36,8 @@ export function SectorComparisonGraph({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {data.map((s) => {
           const isAFaster = s.delta <= 0;
-          const winnerCode = s.winner_badge ? s.winner_badge.replace("🏆 ", "").replace(" FASTER", "").trim() : (s.faster_driver ? String(s.faster_driver).toUpperCase() : (isAFaster ? codeA : codeB));
-          const winnerBadgeText = s.winner_badge || `🏆 ${winnerCode} FASTER`;
+          const winnerCode = s.winner_badge ? s.winner_badge.replace("🏆 ", "").replace(" FASTER", "").replace(" Faster", "").trim() : (s.faster_driver ? String(s.faster_driver).toUpperCase() : (isAFaster ? codeA : codeB));
+          const winnerBadgeText = s.winner_badge || `🏆 ${winnerCode} Faster`;
           const deltaAbs = Math.abs(s.delta);
           const deltaStr = isAFaster ? `-${deltaAbs.toFixed(3)}s` : `+${deltaAbs.toFixed(3)}s`;
 

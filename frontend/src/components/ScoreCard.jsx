@@ -86,8 +86,8 @@ export function ScoreCard({ data, className }) {
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-accent-primary animate-pulse" />
-            <span className="font-mono text-xs text-accent-primary font-bold tracking-widest uppercase">
-              DRIVER_SCORECARD // {driverId}
+            <span className="font-mono text-xs text-accent-primary font-bold tracking-widest">
+              Performance Scorecard • {driverId}
             </span>
           </div>
           <span className="text-xs text-text-muted font-mono">{sessionId}</span>
@@ -156,12 +156,12 @@ export function ScoreCard({ data, className }) {
 
       {/* Footer Controls */}
       <div className="flex items-center justify-between pt-2 border-t border-border-subtle text-xs font-mono">
-        <span className="text-text-muted">Formula Model: FastF1 Real Ingestion Data</span>
+        <span className="text-text-muted">Formula Model: FastF1 Ingestion Data</span>
         <button
           onClick={() => setShowDetails(!showDetails)}
-          className="text-accent-primary hover:underline transition-colors font-mono uppercase tracking-wider font-bold"
+          className="text-accent-primary hover:underline transition-colors font-mono tracking-wider font-bold"
         >
-          {showDetails ? "[- HIDE MATHEMATICAL PARAMETERS]" : "[+ SHOW MATHEMATICAL PARAMETERS]"}
+          {showDetails ? "[- Hide Calculation Breakdown]" : "[+ Show Calculation Breakdown]"}
         </button>
       </div>
     </div>

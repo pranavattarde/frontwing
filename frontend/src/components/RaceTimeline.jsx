@@ -8,10 +8,10 @@ const TYPE_COLORS = {
   pit_window: "border-timing-green/40 text-timing-green bg-timing-green/10"
 };
 const TYPE_LABELS = {
-  normal: "NORMAL_STINT",
-  safety_car: "SAFETY_CAR",
-  incident: "STEWARDS_INCIDENT",
-  pit_window: "PIT_WINDOW_OPEN"
+  normal: "Normal Stint",
+  safety_car: "Safety Car",
+  incident: "Stewards Incident",
+  pit_window: "Pit Window Open"
 };
 export function RaceTimeline({
   phases,
@@ -49,18 +49,18 @@ export function RaceTimeline({
           isActive ? "border-accent-primary bg-surface-raised shadow-card" : "border-border-subtle bg-surface-base group-hover:bg-surface-raised",
           TYPE_COLORS[phase.type]
         )}
-      ><div className="flex justify-between items-baseline mb-1 text-mono-meta font-mono"><span className="font-semibold uppercase tracking-wider text-[9px]">{TYPE_LABELS[phase?.type] || String(phase?.type || "PHASE").toUpperCase()}</span><span className="text-text-muted type-tabular">
+      ><div className="flex justify-between items-baseline mb-1 text-mono-meta font-mono"><span className="font-semibold tracking-wider text-[10px]">{TYPE_LABELS[phase?.type] || String(phase?.type || "Phase")}</span><span className="text-text-muted type-tabular">
 
-                    LAPS {phase.startLap} - {phase.endLap}</span></div><p className="text-xs text-text-primary leading-snug">{phase.description}</p></div></motion.div>;
+                    Laps {phase.startLap} - {phase.endLap}</span></div><p className="text-xs text-text-primary leading-snug">{phase.description}</p></div></motion.div>;
     })}{
       /* Incidents timeline overlay */
-    }{incidents.length > 0 && <div className="mt-4 pt-4 border-t border-border-subtle flex flex-col gap-2"><span className="text-mono-meta font-mono text-text-muted uppercase tracking-wider">
-               stewards_incident_log
+    }{incidents.length > 0 && <div className="mt-4 pt-4 border-t border-border-subtle flex flex-col gap-2"><span className="text-mono-meta font-mono text-text-muted tracking-wider">
+               Stewards Incident Log
             </span><div className="flex flex-col gap-2">{incidents.map((inc, i) => <div
       key={i}
       onClick={() => onIncidentClick?.(i)}
       className="border border-accent-danger/30 bg-accent-danger/5 rounded-card p-3 text-xs leading-normal cursor-pointer hover:bg-accent-danger/10 transition-colors"
-    ><div className="flex justify-between font-mono text-[9px] text-accent-danger mb-1"><span>⚠ INCIDENT_REPORTER</span><span className="type-tabular">LAP {inc.lap}</span></div><p className="text-text-secondary">{inc.description}</p><div className="flex gap-2 mt-2">{inc.drivers.map((d) => <span key={d} className="font-mono text-[9px] bg-accent-danger/15 text-accent-danger px-1.5 py-0.5 border border-accent-danger/30 rounded-badge">{d}</span>)}</div></div>)}</div></div>}</div>;
+    ><div className="flex justify-between font-mono text-[10px] text-accent-danger mb-1"><span>⚠ Incident Log</span><span className="type-tabular">Lap {inc.lap}</span></div><p className="text-text-secondary">{inc.description}</p><div className="flex gap-2 mt-2">{inc.drivers.map((d) => <span key={d} className="font-mono text-[9px] bg-accent-danger/15 text-accent-danger px-1.5 py-0.5 border border-accent-danger/30 rounded-badge">{d}</span>)}</div></div>)}</div></div>}</div>;
   }
   return <div className="w-full bg-surface-base border border-border-subtle rounded-card p-3 select-none overflow-x-auto"><div className="min-w-[760px] flex items-center justify-between gap-1 relative before:absolute before:left-2 before:right-2 before:h-0.5 before:bg-border-subtle">{phases.map((phase, idx) => {
     const isActive = activePhaseIndex === idx;

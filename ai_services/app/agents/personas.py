@@ -177,11 +177,11 @@ class ExplainEngineer(BaseEngineer):
         import json
         from app.core.providers import reliable_llm_provider
         
-        # Try tool execution for conceptual knowledge terms
+        # Try tool execution for conceptual knowledge terms only when explicitly requested
         inputs = tool_inputs or {}
-        term_val = inputs.get("term") or inputs.get("topic") or inputs.get("concept") or inputs.get("query")
+        term_val = inputs.get("term") or inputs.get("topic") or inputs.get("concept")
         target_q = state.get("question", "")
-        if term_val or tool_name == "explain_mode_tool" or any(k in target_q.lower() for k in ["what is", "explain", "drs", "understeer", "oversteer", "tyre", "tire", "car", "spg", "tse", "difference"]):
+        if (tool_name == "explain_mode_tool" or term_val) and not any(k in evidence for k in ("web_search_tool", "knowledge_tool")):
             from app.tools.adapters import ExplainModeTool
             target_term = term_val or target_q
             res = ExplainModeTool().execute({"term": target_term, "target_audience": inputs.get("target_audience", "intermediate")})

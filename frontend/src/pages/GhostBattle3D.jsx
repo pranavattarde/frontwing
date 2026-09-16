@@ -288,7 +288,7 @@ export function GhostBattle3D() {
           { label: "Home", href: "/" },
           { label: "Ghost Battle 3D", href: "/ghost-battle" }
         ]}
-        sessionState="GHOST_BATTLE_3D"
+        sessionState="idle"
         onLogoClick={() => navigate("/")}
       />
 
@@ -299,10 +299,10 @@ export function GhostBattle3D() {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-mono-meta font-mono text-accent-primary tracking-widest uppercase">
-                GHOST_BATTLE // THREE.JS_3D_ENGINE
+                Ghost Battle • 3D Telemetry
               </span>
               <span className="text-badge font-mono px-2 py-0.5 rounded-badge bg-accent-primary/10 border border-accent-primary/30 text-accent-primary font-bold">
-                MULTI-CAR TIMING SYNC
+                Multi-Car Timing Sync
               </span>
             </div>
             <h1 className="text-display text-text-primary mt-1">
@@ -318,10 +318,10 @@ export function GhostBattle3D() {
         <div className="flex flex-col gap-6 p-5 rounded-card border border-border-subtle bg-surface-base/80 backdrop-blur-md shadow-card">
           <div className="flex items-center justify-between border-b border-border-subtle pb-3">
             <span className="text-mono-meta font-mono text-text-muted uppercase tracking-wider">
-              CONFIGURE GHOST BATTLE // 4-STEP SETUP
+              Configure Ghost Battle • Setup
             </span>
             <span className="text-mono-meta font-mono text-accent-primary font-semibold type-tabular">
-              {selectedDriverCodes.length}/22 DRIVERS SELECTED
+              {selectedDriverCodes.length}/22 Drivers Selected
             </span>
           </div>
 
@@ -332,7 +332,7 @@ export function GhostBattle3D() {
                 <span>Step 1: Select Season</span>
                 {selectedYear === 2026 && (
                   <span className="text-[9px] font-mono text-accent-primary px-1.5 py-0.5 rounded-badge bg-accent-primary/10 border border-accent-primary/30 font-bold">
-                    2026 GRID ACTIVE
+                    2026 Grid Active
                   </span>
                 )}
               </label>
@@ -396,10 +396,10 @@ export function GhostBattle3D() {
                 {isLoadingBattle ? (
                   <>
                     <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>EXTRACTING 3D TELEMETRY...</span>
+                    <span>Extracting 3D telemetry...</span>
                   </>
                 ) : (
-                  <span>GENERATE 3D GHOST BATTLE ({selectedDriverCodes.length} DRIVERS) →</span>
+                  <span>Generate 3D Ghost Battle ({selectedDriverCodes.length} Drivers) →</span>
                 )}
               </button>
             </div>
@@ -427,7 +427,7 @@ export function GhostBattle3D() {
                     }
                     className="text-badge font-mono text-accent-primary hover:underline cursor-pointer"
                   >
-                    SELECT ALL ({roster.drivers.length})
+                    Select All ({roster.drivers.length})
                   </button>
                   <span className="text-text-muted text-[10px]">•</span>
                   <button
@@ -435,7 +435,7 @@ export function GhostBattle3D() {
                     onClick={() => setSelectedDriverCodes([])}
                     className="text-badge font-mono text-text-muted hover:text-text-primary cursor-pointer"
                   >
-                    CLEAR
+                    Clear
                   </button>
                 </div>
               </div>

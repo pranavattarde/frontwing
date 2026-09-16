@@ -106,6 +106,14 @@ class BaseF1Tool(ABC):
                         raise ToolValidationError(f"knowledge_tool document missing required field: {r}")
                     if not isinstance(doc[r], str):
                         raise ToolValidationError(f"knowledge_tool field {r} must be a string")
+
+        elif name == "web_search_tool":
+            if not isinstance(output, dict):
+                raise ToolValidationError("web_search_tool output must be a dictionary")
+            required = ["status", "results", "sources"]
+            for r in required:
+                if r not in output:
+                    raise ToolValidationError(f"web_search_tool missing required field: {r}")
                         
         elif name == "investigation_tool":
             if not isinstance(output, dict):

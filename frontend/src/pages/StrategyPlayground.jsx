@@ -129,7 +129,7 @@ export function StrategyPlayground() {
         <div className="lg:col-span-2 flex flex-col gap-6">
           <div className="border-b border-[var(--border-subtle)] pb-4">
             <span className="text-[10px] font-mono text-[var(--accent-primary)] tracking-widest uppercase font-semibold">
-              STRATEGY_PLAYGROUND // WHAT-IF_ENVIRONMENT
+              Strategy Playground • What-If Simulation
             </span>
             <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-[var(--text-primary)] mt-1 font-sans">
               Carlos Sainz Strategy Simulator
@@ -152,7 +152,7 @@ export function StrategyPlayground() {
           {/* Strategy Timeline comparing Actual vs Simulated */}
           <section className="flex flex-col gap-3">
             <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider font-semibold">
-              STINT_TIMELINE_COMPARISON
+              Stint Timeline Comparison
             </span>
             <StrategyTimeline
               stints={STRATEGIES.SAI}
@@ -166,7 +166,7 @@ export function StrategyPlayground() {
           {/* AI Strategy Commentary */}
           <section className="bg-[var(--surface-base)] border border-[var(--border-subtle)] rounded-lg p-4 border-l-4 border-l-[var(--accent-primary)] shadow-sm">
             <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider block mb-1 font-semibold">
-              ENGINEER_TACTICAL_DEBRIEF
+              Tactical Debrief
             </span>
             <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
               {simData.commentary}
@@ -179,7 +179,7 @@ export function StrategyPlayground() {
           {/* Simulation Output Card */}
           <section className="flex flex-col gap-3">
             <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider font-semibold">
-              SIMULATED_PROJECTIONS
+              Simulated Projections
             </span>
             <SimulationResult
               result={simData.result}
@@ -191,7 +191,7 @@ export function StrategyPlayground() {
           {/* Traffic Visualizer */}
           <section className="flex flex-col gap-3">
             <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider font-semibold">
-              TRAFFIC_RE_ENTRY_MODEL
+              Traffic Re-Entry Model
             </span>
             <PitWindowVisualizer
               pittingDriver={{ code: "SAI", exitLap: pitLap, pitLossTime: 22 }}

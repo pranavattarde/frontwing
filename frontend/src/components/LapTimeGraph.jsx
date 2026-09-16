@@ -14,7 +14,7 @@ export function LapTimeGraph({
   if (!data || data.length === 0) {
     return (
       <div className={cn("bg-surface-base border border-border-subtle rounded p-4 text-xs font-mono text-text-muted", className)}>
-        NO_LAP_TIME_DATA_AVAILABLE
+        No lap time data available
       </div>
     );
   }
@@ -44,7 +44,7 @@ export function LapTimeGraph({
         <div className="flex justify-between items-center font-mono text-xs">
           <span className="text-text-primary font-bold tracking-wider flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-accent-primary animate-pulse" />
-            LAP_TIME_EVOLUTION // TELEMETRY_GRAPH
+            Lap Time Evolution • Telemetry Graph
           </span>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3 text-xs">
@@ -55,7 +55,7 @@ export function LapTimeGraph({
               onClick={() => setIsExpanded(true)}
               className="text-[11px] font-mono text-accent-primary hover:text-accent-primary-hover border border-accent-primary/30 hover:border-accent-primary px-2 py-0.5 rounded bg-accent-primary/5 hover:bg-accent-primary/10 transition-colors font-semibold"
             >
-              [EXPAND]
+              [Expand]
             </button>
           </div>
         </div>
@@ -73,7 +73,7 @@ export function LapTimeGraph({
               fontWeight="bold"
               className="font-mono tracking-wider"
             >
-              LAP TIME (s) ↑
+              Lap Time (s) ↑
             </text>
 
             {/* Horizontal Gridlines & Y-Axis Labels */}
@@ -123,7 +123,7 @@ export function LapTimeGraph({
               fontWeight="bold"
               className="font-mono tracking-wider"
             >
-              LAP NUMBER →
+              Lap Number →
             </text>
 
             <path d={pathA} fill="none" stroke="#E10600" strokeWidth="2.5" strokeLinecap="round" />
@@ -159,18 +159,18 @@ export function LapTimeGraph({
               }}
             >
               <div className="font-bold border-b border-border-subtle pb-1 mb-1 flex items-center justify-between gap-4">
-                <span>LAP {hoveredLap.lap}</span>
+                <span>Lap {hoveredLap.lap}</span>
                 {hoveredLap.lap_time === fastestLapTime && (
-                  <span className="text-timing-green font-bold text-[10px]">★ PERSONAL BEST</span>
+                  <span className="text-timing-green font-bold text-[10px]">★ Personal Best</span>
                 )}
               </div>
               <div className="flex justify-between gap-4 type-tabular">
-                <span className="text-text-muted">TIME:</span>
+                <span className="text-text-muted">Time:</span>
                 <span className="font-bold text-text-primary">{hoveredLap.lap_time.toFixed(3)}s</span>
               </div>
               {hoveredLap.compound && (
                 <div className="flex justify-between gap-4">
-                  <span className="text-text-muted">TYRE:</span>
+                  <span className="text-text-muted">Tyre:</span>
                   <span className="font-bold text-timing-yellow uppercase">{hoveredLap.compound}</span>
                 </div>
               )}
@@ -188,7 +188,7 @@ export function LapTimeGraph({
               <div className="flex flex-col gap-1">
                 <span className="font-mono text-xs font-bold text-accent-primary uppercase tracking-wider flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent-primary animate-pulse" />
-                  DETAILED_LAP_TIME_TELEMETRY // FULL_TRACE
+                  Detailed Lap Time Telemetry • Full Trace
                 </span>
                 <h3 className="text-lg font-heading font-bold text-text-primary">
                   {driverCode} Lap Time Telemetry Distribution
@@ -198,7 +198,7 @@ export function LapTimeGraph({
                 onClick={() => setIsExpanded(false)}
                 className="text-text-muted hover:text-text-primary font-mono text-xs px-2 py-1 rounded bg-surface-raised border border-border-subtle"
               >
-                [CLOSE]
+                [Close]
               </button>
             </div>
 
@@ -244,16 +244,16 @@ export function LapTimeGraph({
             {/* Lap-by-Lap Data Table */}
             <div className="flex flex-col gap-2">
               <span className="font-mono text-xs font-bold text-text-primary uppercase tracking-wider">
-                LAP_BY_LAP_TIMINGS_LOG
+                Lap-by-Lap Timings Log
               </span>
               <div className="overflow-x-auto max-h-[220px] overflow-y-auto border border-border-subtle rounded">
                 <table className="w-full font-mono text-xs text-left border-collapse">
                   <thead className="sticky top-0 bg-surface-raised border-b border-border-subtle text-text-muted text-[11px]">
                     <tr>
-                      <th className="py-2 px-3">LAP #</th>
-                      <th className="py-2 px-3">LAP TIME</th>
-                      <th className="py-2 px-3">DELTA TO PB</th>
-                      <th className="py-2 px-3">TYRE COMPOUND</th>
+                      <th className="py-2 px-3">Lap #</th>
+                      <th className="py-2 px-3">Lap Time</th>
+                      <th className="py-2 px-3">Delta to PB</th>
+                      <th className="py-2 px-3">Tyre Compound</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle">
@@ -262,7 +262,7 @@ export function LapTimeGraph({
                       const deltaPB = d.lap_time - fastestLapTime;
                       return (
                         <tr key={d.lap} className={cn("hover:bg-surface-raised transition-colors type-tabular", isPB ? "bg-accent-primary/10" : "")}>
-                          <td className="py-2 px-3 font-bold text-text-primary">LAP {d.lap}</td>
+                          <td className="py-2 px-3 font-bold text-text-primary">Lap {d.lap}</td>
                           <td className={cn("py-2 px-3 font-bold", isPB ? "text-timing-green font-extrabold" : "text-text-primary")}>
                             {d.lap_time.toFixed(3)}s {isPB && "★ (PB)"}
                           </td>

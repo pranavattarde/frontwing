@@ -50,11 +50,11 @@ export function GhostBattleControls({
           {/* Play/Pause Button */}
           <button
             onClick={onTogglePlay}
-            className="btn-f1-primary flex items-center gap-1.5 px-3.5 py-1.5 text-xs uppercase"
+            className="btn-f1-primary flex items-center gap-1.5 px-3.5 py-1.5 text-xs"
             title={isPlaying ? "Pause (Space)" : "Play (Space)"}
           >
             {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-            <span>{isPlaying ? "PAUSE" : "PLAY"}</span>
+            <span>{isPlaying ? "Pause" : "Play"}</span>
           </button>
 
           {/* Reset Button */}
@@ -64,13 +64,13 @@ export function GhostBattleControls({
             title="Reset to Lap Start"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">RESET</span>
+            <span className="hidden sm:inline">Reset</span>
           </button>
         </div>
 
         {/* Speed Multipliers */}
         <div className="flex items-center gap-1">
-          <span className="text-text-muted text-[11px] mr-1 hidden sm:inline">SPEED:</span>
+          <span className="text-text-muted text-[11px] mr-1 hidden sm:inline">Speed:</span>
           {speeds.map((s) => (
             <button
               key={s}

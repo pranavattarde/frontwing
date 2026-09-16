@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const PROGRESS_STAGES = [
-  { id: "session", label: "RESOLVING SESSION", matches: ["parsing", "session"] },
-  { id: "telemetry", label: "FETCHING TELEMETRY", matches: ["loading_data", "telemetry", "computing"] },
-  { id: "synthesizing", label: "SYNTHESIZING ANSWER", matches: ["generating", "synthesizing", "done"] }
+  { id: "session", label: "Resolving Session", matches: ["parsing", "session"] },
+  { id: "telemetry", label: "Gathering Data", matches: ["loading_data", "telemetry", "computing"] },
+  { id: "synthesizing", label: "Synthesizing Analysis", matches: ["generating", "synthesizing", "done"] }
 ];
 
 export function AIThinkingIndicator({ stage = "parsing", detail, className }) {
@@ -78,7 +78,7 @@ export function AIThinkingIndicator({ stage = "parsing", detail, className }) {
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-accent-primary animate-pulse" />
           <span className="text-text-primary font-semibold tracking-wide">
-            AI_RACE_ENGINEER
+            Race Engineer Analysis
           </span>
         </div>
         <span className="text-text-secondary font-mono italic">

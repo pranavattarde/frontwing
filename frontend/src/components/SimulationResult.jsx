@@ -23,20 +23,16 @@ export function SimulationResult({
     >
       {/* Header Row */}
       <div className="flex justify-between items-center text-xs font-mono mb-3 border-b border-border-subtle pb-2">
-        <span className="text-text-primary font-bold uppercase tracking-wider flex items-center gap-1.5">
+        <span className="text-text-primary font-bold tracking-wider flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-accent-primary" />
-          SIMULATION_RESULT // {String(simType || "STRATEGY").toUpperCase()}
+          Simulation Result • {String(simType || "Strategy")}
         </span>
-        <div className="flex items-center gap-1.5 type-tabular">
-          <span className="text-text-muted text-[10px]">CONFIDENCE:</span>
-          <span className="text-timing-green font-bold text-xs">{confidence}%</span>
-        </div>
       </div>
 
       {/* Main Stats Block */}
       <div className="flex items-center justify-between gap-4 border-b border-border-subtle pb-3">
         <div className="flex flex-col">
-          <span className="text-[10px] font-mono text-text-muted">POSITION_DELTA</span>
+          <span className="text-[10px] font-mono text-text-muted">Position Delta</span>
           <div className="flex items-baseline gap-1.5 mt-0.5 type-tabular">
             <span className="text-2xl font-bold font-sans text-text-primary">
               P{simulated.position}
@@ -53,7 +49,7 @@ export function SimulationResult({
         </div>
 
         <div className="flex flex-col items-end">
-          <span className="text-[10px] font-mono text-text-muted">TIME_DIFFERENCE</span>
+          <span className="text-[10px] font-mono text-text-muted">Time Difference</span>
           <span className="text-xl font-bold font-mono text-timing-yellow mt-1 type-tabular">
             {delta.seconds > 0 ? `+${delta.seconds.toFixed(3)}s` : `${delta.seconds.toFixed(3)}s`}
           </span>
@@ -64,20 +60,20 @@ export function SimulationResult({
       {isDetailed && (
         <div className="flex flex-col gap-2 pt-3">
           <div className="flex justify-between items-center text-xs font-mono type-tabular">
-            <span className="text-text-muted text-[11px]">ACTUAL_FINISH:</span>
+            <span className="text-text-muted text-[11px]">Actual Finish:</span>
             <span className="text-text-secondary font-medium">P{actual.position} ({actual.time.split(".")[0]})</span>
           </div>
           <div className="flex justify-between items-center text-xs font-mono type-tabular">
-            <span className="text-text-muted text-[11px]">SIMULATED_FINISH:</span>
+            <span className="text-text-muted text-[11px]">Simulated Finish:</span>
             <span className="text-text-secondary font-medium">P{simulated.position} ({simulated.time.split(".")[0]})</span>
           </div>
           <div className="flex gap-2 mt-2">
             {onDrillDown && (
               <button
                 onClick={onDrillDown}
-                className="btn-f1-secondary flex-1 py-1.5 text-xs uppercase"
+                className="btn-f1-secondary flex-1 py-1.5 text-xs capitalize"
               >
-                DRILL_DOWN
+                Drill Down
               </button>
             )}
             {onShareResult && (
@@ -86,7 +82,7 @@ export function SimulationResult({
                 className="btn-f1-secondary py-1.5 px-3 text-xs"
                 aria-label="Share simulation result"
               >
-                [SHARE]
+                Share
               </button>
             )}
           </div>

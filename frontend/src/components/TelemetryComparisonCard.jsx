@@ -36,11 +36,11 @@ export function TelemetryComparisonCard({
         <div className="flex items-center gap-3">
           <span className="w-2.5 h-2.5 rounded-full bg-accent-primary animate-pulse" />
           <div>
-            <h2 className="font-mono text-sm font-bold text-text-primary tracking-wider uppercase">
-              HEAD-TO-HEAD TELEMETRY COMPARISON // {trackName.toUpperCase()}
+            <h2 className="font-mono text-sm font-bold text-text-primary tracking-wider">
+              Head-to-Head Telemetry Comparison • {trackName}
             </h2>
             <span className="font-mono text-[10px] text-text-muted type-tabular">
-              SESSION PERSONAL BEST LAPS: {codeA} (LAP {lapNumberA}) VS {codeB} (LAP {lapNumberB})
+              Session Personal Best Laps: {codeA} (Lap {lapNumberA}) vs {codeB} (Lap {lapNumberB})
             </span>
           </div>
         </div>
@@ -48,13 +48,13 @@ export function TelemetryComparisonCard({
         {/* Faster Driver Pill */}
         <div
           className={cn(
-            "self-start sm:self-auto px-3 py-1.5 rounded font-mono text-xs font-bold uppercase tracking-wider flex items-center gap-2 border",
+            "self-start sm:self-auto px-3 py-1.5 rounded font-mono text-xs font-bold tracking-wider flex items-center gap-2 border",
             isAWinner
               ? "bg-accent-primary/15 border-accent-primary/40 text-accent-primary"
               : "bg-timing-yellow/15 border-timing-yellow/40 text-timing-yellow"
           )}
         >
-          <span>🏆 {fastDriver} FASTER</span>
+          <span>🏆 {fastDriver} Faster</span>
           <span className="text-[10px] opacity-80 type-tabular">(-{lapDelta.toFixed(3)}s)</span>
         </div>
       </div>
@@ -66,15 +66,15 @@ export function TelemetryComparisonCard({
           {/* Executive Summary Card */}
           {summary && (
             <div className="bg-surface-raised border border-border-subtle rounded p-3 font-mono text-xs text-text-secondary leading-relaxed">
-              <span className="text-accent-primary font-bold mr-1.5">[EXECUTIVE_SUMMARY]</span>
+              <span className="text-accent-primary font-bold mr-1.5">[Summary]</span>
               {summary.replace(/\*\*Executive Summary:\*\*/g, "").trim()}
             </div>
           )}
 
           {/* Table Tab Selector */}
           <div className="flex justify-between items-center border-b border-border-subtle pb-2">
-            <span className="font-mono text-[10px] text-text-muted uppercase tracking-wider">
-              COMPARATIVE_METRICS_MATRIX
+            <span className="font-mono text-[10px] text-text-muted tracking-wider">
+              Comparative Metrics Matrix
             </span>
             <div className="flex gap-1.5 font-mono text-[10px]">
               <button
@@ -86,7 +86,7 @@ export function TelemetryComparisonCard({
                     : "border-border-subtle text-text-muted hover:text-text-primary hover:bg-surface-raised"
                 )}
               >
-                SECTORS & PACE
+                Sectors & Pace
               </button>
               <button
                 onClick={() => setActiveTab("speeds")}
@@ -97,7 +97,7 @@ export function TelemetryComparisonCard({
                     : "border-border-subtle text-text-muted hover:text-text-primary hover:bg-surface-raised"
                 )}
               >
-                SPEEDS & THROTTLE
+                Speeds & Throttle
               </button>
             </div>
           </div>
@@ -107,19 +107,19 @@ export function TelemetryComparisonCard({
             <div className="overflow-x-auto">
               <table className="w-full font-mono text-xs text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-border-subtle text-[10px] text-text-muted uppercase">
-                    <th className="py-2 px-3">SECTOR / METRIC</th>
-                    <th className="py-2 px-3 text-accent-primary font-bold">{codeA} (LAP {lapNumberA})</th>
-                    <th className="py-2 px-3 text-timing-yellow font-bold">{codeB} (LAP {lapNumberB})</th>
-                    <th className="py-2 px-3">DELTA</th>
-                    <th className="py-2 px-3">ADVANTAGE</th>
+                  <tr className="border-b border-border-subtle text-[10px] text-text-muted">
+                    <th className="py-2 px-3">Sector / Metric</th>
+                    <th className="py-2 px-3 text-accent-primary font-bold">{codeA} (Lap {lapNumberA})</th>
+                    <th className="py-2 px-3 text-timing-yellow font-bold">{codeB} (Lap {lapNumberB})</th>
+                    <th className="py-2 px-3">Delta</th>
+                    <th className="py-2 px-3">Advantage</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
                   {/* S1 Row */}
                   {sectorBreakdown.S1 && (
                     <tr className="hover:bg-surface-raised transition-colors type-tabular">
-                      <td className="py-2.5 px-3 font-bold text-text-primary">SECTOR 1</td>
+                      <td className="py-2.5 px-3 font-bold text-text-primary">Sector 1</td>
                       <td className="py-2.5 px-3 text-accent-primary font-bold">{sectorBreakdown.S1.driver_a_time.toFixed(3)}s</td>
                       <td className="py-2.5 px-3 text-timing-yellow font-bold">{sectorBreakdown.S1.driver_b_time.toFixed(3)}s</td>
                       <td className="py-2.5 px-3">
@@ -129,7 +129,7 @@ export function TelemetryComparisonCard({
                       </td>
                       <td className="py-2.5 px-3">
                         <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold tracking-wide flex items-center gap-1 w-fit border", sectorBreakdown.S1.delta <= 0 ? "bg-accent-primary/15 text-accent-primary border-accent-primary/30" : "bg-timing-yellow/15 text-timing-yellow border-timing-yellow/30")}>
-                          {sectorBreakdown.S1.winner_badge || `🏆 ${sectorBreakdown.S1.delta <= 0 ? codeA : codeB} FASTER`}
+                          {sectorBreakdown.S1.winner_badge || `🏆 ${sectorBreakdown.S1.delta <= 0 ? codeA : codeB} Faster`}
                         </span>
                       </td>
                     </tr>
@@ -138,7 +138,7 @@ export function TelemetryComparisonCard({
                   {/* S2 Row */}
                   {sectorBreakdown.S2 && (
                     <tr className="hover:bg-surface-raised transition-colors type-tabular">
-                      <td className="py-2.5 px-3 font-bold text-text-primary">SECTOR 2</td>
+                      <td className="py-2.5 px-3 font-bold text-text-primary">Sector 2</td>
                       <td className="py-2.5 px-3 text-accent-primary font-bold">{sectorBreakdown.S2.driver_a_time.toFixed(3)}s</td>
                       <td className="py-2.5 px-3 text-timing-yellow font-bold">{sectorBreakdown.S2.driver_b_time.toFixed(3)}s</td>
                       <td className="py-2.5 px-3">
@@ -148,7 +148,7 @@ export function TelemetryComparisonCard({
                       </td>
                       <td className="py-2.5 px-3">
                         <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold tracking-wide flex items-center gap-1 w-fit border", sectorBreakdown.S2.delta <= 0 ? "bg-accent-primary/15 text-accent-primary border-accent-primary/30" : "bg-timing-yellow/15 text-timing-yellow border-timing-yellow/30")}>
-                          {sectorBreakdown.S2.winner_badge || `🏆 ${sectorBreakdown.S2.delta <= 0 ? codeA : codeB} FASTER`}
+                          {sectorBreakdown.S2.winner_badge || `🏆 ${sectorBreakdown.S2.delta <= 0 ? codeA : codeB} Faster`}
                         </span>
                       </td>
                     </tr>
@@ -157,7 +157,7 @@ export function TelemetryComparisonCard({
                   {/* S3 Row */}
                   {sectorBreakdown.S3 && (
                     <tr className="hover:bg-surface-raised transition-colors type-tabular">
-                      <td className="py-2.5 px-3 font-bold text-text-primary">SECTOR 3</td>
+                      <td className="py-2.5 px-3 font-bold text-text-primary">Sector 3</td>
                       <td className="py-2.5 px-3 text-accent-primary font-bold">{sectorBreakdown.S3.driver_a_time.toFixed(3)}s</td>
                       <td className="py-2.5 px-3 text-timing-yellow font-bold">{sectorBreakdown.S3.driver_b_time.toFixed(3)}s</td>
                       <td className="py-2.5 px-3">
@@ -167,7 +167,7 @@ export function TelemetryComparisonCard({
                       </td>
                       <td className="py-2.5 px-3">
                         <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold tracking-wide flex items-center gap-1 w-fit border", sectorBreakdown.S3.delta <= 0 ? "bg-accent-primary/15 text-accent-primary border-accent-primary/30" : "bg-timing-yellow/15 text-timing-yellow border-timing-yellow/30")}>
-                          {sectorBreakdown.S3.winner_badge || `🏆 ${sectorBreakdown.S3.delta <= 0 ? codeA : codeB} FASTER`}
+                          {sectorBreakdown.S3.winner_badge || `🏆 ${sectorBreakdown.S3.delta <= 0 ? codeA : codeB} Faster`}
                         </span>
                       </td>
                     </tr>
@@ -179,17 +179,17 @@ export function TelemetryComparisonCard({
             <div className="overflow-x-auto">
               <table className="w-full font-mono text-xs text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-border-subtle text-[10px] text-text-muted uppercase">
-                    <th className="py-2 px-3">TELEMETRY CHANNEL</th>
+                  <tr className="border-b border-border-subtle text-[10px] text-text-muted">
+                    <th className="py-2 px-3">Telemetry Channel</th>
                     <th className="py-2 px-3 text-accent-primary font-bold">{codeA}</th>
                     <th className="py-2 px-3 text-timing-yellow font-bold">{codeB}</th>
-                    <th className="py-2 px-3">DELTA</th>
-                    <th className="py-2 px-3">LEADER</th>
+                    <th className="py-2 px-3">Delta</th>
+                    <th className="py-2 px-3">Leader</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
                   <tr className="hover:bg-surface-raised transition-colors type-tabular">
-                    <td className="py-2.5 px-3 font-bold text-text-primary">TOP SPEED (V_MAX)</td>
+                    <td className="py-2.5 px-3 font-bold text-text-primary">Top Speed (V_Max)</td>
                     <td className="py-2.5 px-3 text-accent-primary font-bold">
                       {Math.round(Math.max(...(sectorBreakdown.S1 ? [sectorBreakdown.S1.driver_a_top_speed, sectorBreakdown.S2.driver_a_top_speed, sectorBreakdown.S3.driver_a_top_speed] : [300])))} km/h
                     </td>
@@ -206,7 +206,7 @@ export function TelemetryComparisonCard({
                     </td>
                   </tr>
                   <tr className="hover:bg-surface-raised transition-colors type-tabular">
-                    <td className="py-2.5 px-3 font-bold text-text-primary">FULL THROTTLE %</td>
+                    <td className="py-2.5 px-3 font-bold text-text-primary">Full Throttle %</td>
                     <td className="py-2.5 px-3 text-accent-primary font-bold">
                       {sectorBreakdown.S1 ? ((sectorBreakdown.S1.driver_a_throttle_pct + sectorBreakdown.S2.driver_a_throttle_pct + sectorBreakdown.S3.driver_a_throttle_pct) / 3).toFixed(1) : "62.5"}%
                     </td>
@@ -231,12 +231,12 @@ export function TelemetryComparisonCard({
           <div className="flex flex-wrap gap-2 pt-1 font-mono text-[10px]">
             {strongerA.length > 0 && (
               <span className="px-2.5 py-1 rounded bg-accent-primary/10 border border-accent-primary/30 text-accent-primary font-bold">
-                ✓ {codeA} STRONGER IN: {strongerA.join(", ")}
+                ✓ {codeA} Stronger in: {strongerA.join(", ")}
               </span>
             )}
             {strongerB.length > 0 && (
               <span className="px-2.5 py-1 rounded bg-timing-yellow/10 border border-timing-yellow/30 text-timing-yellow font-bold">
-                ✓ {codeB} STRONGER IN: {strongerB.join(", ")}
+                ✓ {codeB} Stronger in: {strongerB.join(", ")}
               </span>
             )}
           </div>

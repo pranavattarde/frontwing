@@ -85,28 +85,41 @@ function mapResponseToMessages(id, response, timestamp, isLast) {
   if (typeof rawVerdict === "string" && rawVerdict.includes("|")) {
     const lines = rawVerdict.split("\n").map(l => l.trim()).filter(Boolean);
     const cleanLines = lines.filter(l => !l.startsWith("|") && !l.startsWith("---") && !l.startsWith("Sector-by-Sector Breakdown") && !l.startsWith("**Sector-by-Sector"));
-    verdictText = cleanLines.slice(0, 4).join("\n");
+    verdictText = cleanLines.join("\n");
   }
+
+  if (Array.isArray(response.sources) && response.sources.length > 0) {
+    const sourcesFormatted = "\n\n**Sources:**\n" + response.sources.map(s => {
+      if (typeof s === "object" && s.title && s.url) {
+        return `- [${s.title}](${s.url})`;
+      }
+      return `- ${s}`;
+    }).join("\n");
+    if (!verdictText.includes("**Sources:**")) {
+      verdictText += sourcesFormatted;
+    }
+  }
+
   let narrativeContent = "";
   if (response.investigation_report) {
     const rep = response.investigation_report;
     const parts = [];
-    if (rep["Telemetry Findings"] && rep["Telemetry Findings"] !== "Unavailable" && !rep["Telemetry Findings"].includes("insufficient")) {
+    if (rep["Telemetry Findings"] && rep["Telemetry Findings"] !== "Unavailable" && !rep["Telemetry Findings"].includes("insufficient") && !rep["Telemetry Findings"].includes("No data available") && rep["Telemetry Findings"] !== "None.") {
       parts.push(`**Telemetry Findings:** ${rep["Telemetry Findings"]}`);
     }
-    if (rep["Simulation Findings"] && rep["Simulation Findings"] !== "Unavailable" && !rep["Simulation Findings"].includes("insufficient")) {
+    if (rep["Simulation Findings"] && rep["Simulation Findings"] !== "Unavailable" && !rep["Simulation Findings"].includes("insufficient") && !rep["Simulation Findings"].includes("No data available") && rep["Simulation Findings"] !== "None.") {
       parts.push(`**Simulation Findings:** ${rep["Simulation Findings"]}`);
     }
-    if (rep["Historical Findings"] && rep["Historical Findings"] !== "Unavailable" && rep["Historical Findings"] !== "No historical standings parsed.") {
+    if (rep["Historical Findings"] && rep["Historical Findings"] !== "Unavailable" && rep["Historical Findings"] !== "No historical standings parsed." && !rep["Historical Findings"].includes("No data available") && rep["Historical Findings"] !== "None.") {
       parts.push(`**Historical Findings:** ${rep["Historical Findings"]}`);
     }
-    if (rep["Regulations Findings"] && rep["Regulations Findings"] !== "Unavailable" && rep["Regulations Findings"] !== "No specific regulatory infractions logged.") {
+    if (rep["Regulations Findings"] && rep["Regulations Findings"] !== "Unavailable" && rep["Regulations Findings"] !== "No specific regulatory infractions logged." && !rep["Regulations Findings"].includes("No data available") && rep["Regulations Findings"] !== "None.") {
       parts.push(`**Regulations Findings:** ${rep["Regulations Findings"]}`);
     }
-    if (rep["Alternative Scenarios"] && rep["Alternative Scenarios"] !== "Unavailable") {
+    if (rep["Alternative Scenarios"] && rep["Alternative Scenarios"] !== "Unavailable" && !rep["Alternative Scenarios"].includes("No data available") && rep["Alternative Scenarios"] !== "None.") {
       parts.push(`**Alternative Scenarios:** ${rep["Alternative Scenarios"]}`);
     }
-    if (rep["Final Recommendation"] && rep["Final Recommendation"] !== "Unavailable") {
+    if (rep["Final Recommendation"] && rep["Final Recommendation"] !== "Unavailable" && !rep["Final Recommendation"].includes("No data available") && rep["Final Recommendation"] !== "None.") {
       parts.push(`**Recommendation:** ${rep["Final Recommendation"]}`);
     }
     if (parts.length > 0) {
@@ -375,6 +388,23 @@ export function InvestigationThread() {
     setIsLoading(false);
     setErrorMsg("Investigation thread not found. Please submit a question from the home screen.");
   };
+  const getInitialLoadingDetail = (text) => {
+    const q = (text || "").toLowerCase();
+    if (q.includes("telemetry") || q.includes("speed") || q.includes("throttle") || q.includes("brake") || q.includes("corner") || q.includes("sector")) {
+      return "Loading telemetry streams & sector timing...";
+    }
+    if (q.includes("strategy") || q.includes("pit") || q.includes("stint") || q.includes("tire") || q.includes("tyre") || q.includes("undercut")) {
+      return "Analyzing pit strategy & tyre degradation...";
+    }
+    if (q.includes("result") || q.includes("who won") || q.includes("position") || q.includes("podium") || q.includes("standings")) {
+      return "Retrieving official race results & classifications...";
+    }
+    if (q.includes("score") || q.includes("rate") || q.includes("performance")) {
+      return "Computing driver performance metrics...";
+    }
+    return "Searching knowledge base & race records...";
+  };
+
   const executeQuery = async (queryText, currentId, contextData = {}) => {
     const startTime = Date.now();
     const activeId = currentId || id || generateId();
@@ -383,7 +413,7 @@ export function InvestigationThread() {
     setIsLoading(true);
     setErrorMsg(null);
     setLoadingStage("parsing");
-    setLoadingDetail("Initializing AI Race Engineer...");
+    setLoadingDetail(getInitialLoadingDetail(queryText));
     setQuestionTitle(queryText);
     const controller = new AbortController();
     setAbortController(controller);
@@ -739,7 +769,7 @@ export function InvestigationThread() {
         }}
       />
       {/* Main Investigation Canvas — Full Viewport Width */}
-      <div className="flex-1 flex w-full max-w-[1600px] mx-auto overflow-hidden">
+      <div className="flex-1 flex w-full max-w-[1600px] mx-auto">
         <main
           className={cn(
             "flex-1 flex flex-col justify-between py-6 px-4 lg:px-8 w-full transition-all duration-300",
@@ -749,39 +779,29 @@ export function InvestigationThread() {
           {/* Question Header & Title Section */}
           <div className="border-b border-border-subtle pb-4 mb-6 flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <span className="text-mono-meta font-mono text-accent-primary uppercase tracking-widest">
-                INVESTIGATION_THREAD // {String(resolvedGrandPrix || sessionId || "ACTIVE_SESSION").toUpperCase().replace(/\s+/g, "_")}
+              <span className="text-mono-meta font-mono text-accent-primary tracking-widest">
+                Investigation Thread • {resolvedGrandPrix || sessionId || "Active Session"}
               </span>
               <button
                 onClick={handleToggleSave}
                 className={cn(
-                  "px-3 py-1 rounded-badge font-mono text-[10px] uppercase tracking-wider border transition-colors flex items-center gap-1.5",
+                  "px-3 py-1 rounded-badge font-mono text-[10px] tracking-wider border transition-colors flex items-center gap-1.5",
                   isSaved ? "border-accent-primary bg-accent-primary/10 text-accent-primary" : "border-border-subtle text-text-muted hover:text-text-primary hover:bg-surface-raised"
                 )}
               >
-                <span>{isSaved ? "★ SAVED" : "☆ SAVE DEBRIEF"}</span>
+                <span>{isSaved ? "★ Saved" : "☆ Save Debrief"}</span>
               </button>
             </div>
             <h1 className="text-display-sm text-text-primary">{questionTitle || "Live Telemetry Investigation"}</h1>
           </div>
           {/* Messages list container */}
-          <div className="flex flex-col gap-6 flex-1 overflow-y-auto pr-1">
-            {/* Latency & Metadata Bar */}
-            {latency && providerInfo && !isLoading && (
+          <div className="flex flex-col gap-6 flex-1 pr-1">
+            {/* Latency Bar */}
+            {latency && !isLoading && (
               <div className="flex items-center gap-4 text-[10px] font-mono text-text-muted border-b border-border-subtle pb-3 mb-2 animate-slide-up">
                 <div>
-                  <span>GENERATED_IN: </span>
+                  <span>Response Time: </span>
                   <span className="text-timing-green type-tabular font-semibold">{latency}s</span>
-                </div>
-                <div className="w-1.5 h-1.5 rounded-full bg-border-subtle" />
-                <div>
-                  <span>PROVIDER: </span>
-                  <span className="text-text-primary uppercase">{providerInfo.provider}</span>
-                </div>
-                <div className="w-1.5 h-1.5 rounded-full bg-border-subtle" />
-                <div>
-                  <span>MODEL: </span>
-                  <span className="text-text-muted font-mono">{providerInfo.model}</span>
                 </div>
               </div>
             )}
@@ -855,7 +875,7 @@ export function InvestigationThread() {
       const stratData = msg.evidenceData;
       return <EvidenceCard
         key={msg.id}
-        title="STINT_STRATEGY_DEVIATION"
+        title="Stint Strategy Deviation"
         subtitle={`${stratData.driverCode} Stint Length Plan`}
         variant="expanded"
         className="animate-slide-up"
@@ -908,8 +928,8 @@ export function InvestigationThread() {
       const lapNumber = telemetryToolData?.lap || vis.lapNumber || 22;
       return (
         <div key={msg.id} className="flex flex-col gap-6 animate-slide-up">
-          <div className="text-mono-meta font-mono text-accent-primary uppercase tracking-widest border-b border-border-subtle pb-2">
-            PRODUCTION_TELEMETRY_VISUALIZATION // 5_CHART_MATRIX
+          <div className="text-mono-meta font-mono text-accent-primary tracking-widest border-b border-border-subtle pb-2">
+            Telemetry Visualization • 5-Chart Matrix
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* 1. Lap Time Graph */}
@@ -970,7 +990,7 @@ export function InvestigationThread() {
     disabled={isStreaming || isLoading}
     onSubmit={handleFollowUpSubmit}
     prefillValue={prefillQuery}
-    contextLabel="RE_ENGINEER"
+    contextLabel="Race Engineer"
   /></div></main>{
     /* Right Pane: Split Screen Interactive Telemetry Overlay */
   }{expandedTelemetry && (() => {
@@ -980,14 +1000,14 @@ export function InvestigationThread() {
     return (
       <aside className="hidden lg:flex w-[600px] border-l border-border-subtle bg-surface-base flex-col animate-slide-in-right p-4 overflow-y-auto">
         <div className="flex justify-between items-center border-b border-border-subtle pb-3 mb-4">
-          <span className="text-mono-meta font-mono text-accent-primary uppercase tracking-widest">
-            SPLIT_SCREEN_ANALYSIS // OVERLAY
+          <span className="text-mono-meta font-mono text-accent-primary tracking-widest">
+            Split-Screen Analysis • Overlay
           </span>
           <button
             onClick={() => setExpandedTelemetry(null)}
             className="text-text-muted hover:text-text-primary font-mono text-mono-meta"
           >
-            [CLOSE]
+            [Close]
           </button>
         </div>
         <div className="flex flex-col gap-6">
