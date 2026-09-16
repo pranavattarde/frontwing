@@ -20,10 +20,10 @@ export function GhostBattleControls({
   const speeds = [0.5, 1, 2, 4];
 
   return (
-    <div className="flex flex-col gap-3 p-4 rounded-card border border-fw-border bg-panel/70 backdrop-blur-md shadow-lg">
+    <div className="flex flex-col gap-3 p-4 rounded border border-border-subtle bg-surface-base/95 backdrop-blur-md shadow-xl">
       {/* Scrubber and Timing Bar */}
       <div className="flex items-center gap-4">
-        <span className="font-mono text-xs text-drs-cyan font-bold min-w-[70px]">
+        <span className="font-mono text-xs text-accent-primary font-bold min-w-[70px] type-tabular">
           {formatTime(currentTime)}
         </span>
 
@@ -35,22 +35,22 @@ export function GhostBattleControls({
             step="0.05"
             value={currentTime}
             onChange={(e) => onSeek(parseFloat(e.target.value))}
-            className="w-full h-1.5 bg-surface rounded-lg appearance-none cursor-pointer accent-drs-cyan focus:outline-none"
+            className="w-full h-1.5 bg-surface-raised rounded appearance-none cursor-pointer accent-accent-primary focus:outline-none"
           />
         </div>
 
-        <span className="font-mono text-xs text-text-muted min-w-[70px] text-right">
+        <span className="font-mono text-xs text-text-muted min-w-[70px] text-right type-tabular">
           {formatTime(maxTime)}
         </span>
       </div>
 
       {/* Playback Controls Row */}
-      <div className="flex items-center justify-between flex-wrap gap-3 pt-1 border-t border-fw-border/40 text-xs font-mono">
+      <div className="flex items-center justify-between flex-wrap gap-3 pt-2 border-t border-border-subtle text-xs font-mono">
         <div className="flex items-center gap-2">
           {/* Play/Pause Button */}
           <button
             onClick={onTogglePlay}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm bg-drs-cyan text-canvas font-bold uppercase tracking-wider hover:brightness-110 transition-all shadow-sm"
+            className="btn-f1-primary flex items-center gap-1.5 px-3.5 py-1.5 text-xs uppercase"
             title={isPlaying ? "Pause (Space)" : "Play (Space)"}
           >
             {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -60,7 +60,7 @@ export function GhostBattleControls({
           {/* Reset Button */}
           <button
             onClick={onReset}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-sm bg-surface border border-fw-border text-text-muted hover:text-text-primary hover:border-fw-border-active transition-colors"
+            className="btn-f1-secondary flex items-center gap-1 px-3 py-1.5 text-xs"
             title="Reset to Lap Start"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -75,10 +75,10 @@ export function GhostBattleControls({
             <button
               key={s}
               onClick={() => onChangeSpeed(s)}
-              className={`px-2 py-1 rounded-sm text-[11px] font-mono transition-colors ${
+              className={`px-2 py-1 rounded text-[11px] font-mono transition-colors ${
                 playbackSpeed === s
-                  ? "bg-drs-cyan/15 border border-drs-cyan text-drs-cyan font-bold"
-                  : "bg-surface/50 border border-fw-border/60 text-text-muted hover:text-text-primary"
+                  ? "bg-accent-primary/20 border border-accent-primary text-accent-primary font-bold"
+                  : "bg-surface-raised border border-border-subtle text-text-muted hover:text-text-primary"
               }`}
             >
               {s}x
@@ -89,3 +89,4 @@ export function GhostBattleControls({
     </div>
   );
 }
+

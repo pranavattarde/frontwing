@@ -281,7 +281,7 @@ export function GhostBattle3D() {
   };
 
   return (
-    <div className="min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-drs-cyan/20 selection:text-drs-cyan">
+    <div className="min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-accent-primary/20 selection:text-accent-primary">
       {/* Header */}
       <BriefingHeader
         breadcrumbs={[
@@ -295,13 +295,13 @@ export function GhostBattle3D() {
       {/* Main Container */}
       <main className="flex-1 w-full max-w-[1500px] mx-auto px-4 py-6 flex flex-col gap-8">
         {/* Title Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-fw-border pb-5">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border-subtle pb-5">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-mono-meta font-mono text-drs-cyan tracking-widest uppercase">
+              <span className="text-mono-meta font-mono text-accent-primary tracking-widest uppercase">
                 GHOST_BATTLE // THREE.JS_3D_ENGINE
               </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-drs-cyan/10 border border-drs-cyan/30 text-drs-cyan font-bold">
+              <span className="text-badge font-mono px-2 py-0.5 rounded-badge bg-accent-primary/10 border border-accent-primary/30 text-accent-primary font-bold">
                 MULTI-CAR TIMING SYNC
               </span>
             </div>
@@ -315,12 +315,12 @@ export function GhostBattle3D() {
         </div>
 
         {/* 4-Step Selection Control Deck */}
-        <div className="flex flex-col gap-6 p-5 rounded-card border border-fw-border bg-panel/40 shadow-md">
-          <div className="flex items-center justify-between border-b border-fw-border/60 pb-3">
+        <div className="flex flex-col gap-6 p-5 rounded-card border border-border-subtle bg-surface-base/80 backdrop-blur-md shadow-card">
+          <div className="flex items-center justify-between border-b border-border-subtle pb-3">
             <span className="text-mono-meta font-mono text-text-muted uppercase tracking-wider">
               CONFIGURE GHOST BATTLE // 4-STEP SETUP
             </span>
-            <span className="text-mono-meta font-mono text-drs-cyan font-semibold">
+            <span className="text-mono-meta font-mono text-accent-primary font-semibold type-tabular">
               {selectedDriverCodes.length}/22 DRIVERS SELECTED
             </span>
           </div>
@@ -328,10 +328,10 @@ export function GhostBattle3D() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Step 1: Season Dropdown */}
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="year-select" className="text-[11px] font-mono uppercase text-text-muted flex items-center justify-between">
+              <label htmlFor="year-select" className="text-badge font-mono uppercase text-text-muted flex items-center justify-between">
                 <span>Step 1: Select Season</span>
                 {selectedYear === 2026 && (
-                  <span className="text-[9px] font-mono text-[#00E5FF] px-1.5 py-0.5 rounded bg-[#00E5FF]/10 border border-[#00E5FF]/30 font-bold">
+                  <span className="text-[9px] font-mono text-accent-primary px-1.5 py-0.5 rounded-badge bg-accent-primary/10 border border-accent-primary/30 font-bold">
                     2026 GRID ACTIVE
                   </span>
                 )}
@@ -353,10 +353,10 @@ export function GhostBattle3D() {
 
             {/* Step 2: Completed GP Dropdown */}
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="gp-select" className="text-[11px] font-mono uppercase text-text-muted flex items-center justify-between">
+              <label htmlFor="gp-select" className="text-badge font-mono uppercase text-text-muted flex items-center justify-between">
                 <span>Step 2: Select Grand Prix ({gps.length} Completed)</span>
                 {selectedGpName && (
-                  <span className="text-[9px] text-[#9BA4B5] truncate max-w-[140px]">
+                  <span className="text-[9px] text-text-muted truncate max-w-[140px]">
                     {selectedGpName}
                   </span>
                 )}
@@ -391,11 +391,11 @@ export function GhostBattle3D() {
                   selectedDriverCodes.length < 2 ||
                   selectedDriverCodes.length > 22
                 }
-                className="w-full py-2.5 px-4 rounded-sm bg-drs-cyan text-canvas font-mono font-bold text-xs uppercase tracking-wider hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full btn-f1-primary text-xs uppercase tracking-wider py-2.5 px-4 flex items-center justify-center gap-2 cursor-pointer shadow-md"
               >
                 {isLoadingBattle ? (
                   <>
-                    <span className="w-3.5 h-3.5 border-2 border-canvas border-t-transparent rounded-full animate-spin" />
+                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     <span>EXTRACTING 3D TELEMETRY...</span>
                   </>
                 ) : (
@@ -407,16 +407,16 @@ export function GhostBattle3D() {
 
           {/* Error Banner if any */}
           {battleError && (
-            <div className="p-3 rounded bg-f1-red/10 border border-f1-red/40 text-f1-red text-xs font-mono">
+            <div className="p-3 rounded-card bg-accent-danger/10 border border-accent-danger/40 text-accent-danger text-xs font-mono">
               ⚠ {battleError}
             </div>
           )}
 
           {/* Step 3: F1 Broadcast Style Team & Driver Multi-Select */}
           {roster && (
-            <div className="flex flex-col gap-4 pt-4 border-t border-fw-border/60">
+            <div className="flex flex-col gap-4 pt-4 border-t border-border-subtle">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-mono text-text-muted uppercase tracking-wider">
+                <span className="text-badge font-mono text-text-muted uppercase tracking-wider">
                   Step 3: Select Teams & Drivers ({selectedGpName || "Grand Prix"} Official Grid)
                 </span>
                 <div className="flex gap-2">
@@ -425,7 +425,7 @@ export function GhostBattle3D() {
                     onClick={() =>
                       setSelectedDriverCodes(roster.drivers.slice(0, 22).map((d) => d.code))
                     }
-                    className="text-[10px] font-mono text-drs-cyan hover:underline cursor-pointer"
+                    className="text-badge font-mono text-accent-primary hover:underline cursor-pointer"
                   >
                     SELECT ALL ({roster.drivers.length})
                   </button>
@@ -433,7 +433,7 @@ export function GhostBattle3D() {
                   <button
                     id="btn-clear-drivers"
                     onClick={() => setSelectedDriverCodes([])}
-                    className="text-[10px] font-mono text-text-muted hover:text-text-primary cursor-pointer"
+                    className="text-badge font-mono text-text-muted hover:text-text-primary cursor-pointer"
                   >
                     CLEAR
                   </button>
@@ -448,7 +448,7 @@ export function GhostBattle3D() {
                   const isPartiallySelected =
                     !isTeamSelected && teamCodes.some((c) => selectedDriverCodes.includes(c));
                   const teamName = team.name || team.team_name || "Unknown";
-                  const teamColor = team.color || team.team_color || "#00E5FF";
+                  const teamColor = team.color || team.team_color || "#E10600";
                   const teamSlug = teamName.toLowerCase().replace(/[^a-z0-9]/g, "-");
 
                   return (
@@ -458,10 +458,10 @@ export function GhostBattle3D() {
                       onClick={() => handleToggleTeam(team)}
                       className={`cursor-pointer p-3.5 rounded-card border transition-all duration-200 flex flex-col justify-between relative overflow-hidden select-none group ${
                         isTeamSelected
-                          ? "border-[#00E5FF] bg-[#12151B] shadow-[0_0_16px_rgba(0,229,255,0.2)] ring-1 ring-[#00E5FF]/40"
+                          ? "border-accent-primary bg-surface-raised shadow-[0_0_16px_rgba(225,6,0,0.2)] ring-1 ring-accent-primary/40"
                           : isPartiallySelected
-                          ? "border-white/30 bg-[#12151B]/90 shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
-                          : "border-white/10 bg-[#12151B]/60 hover:border-white/25 hover:bg-[#12151B]/90 shadow-[0_4px_12px_rgba(0,0,0,0.4)]"
+                          ? "border-border-strong bg-surface-raised/90 shadow-card"
+                          : "border-border-subtle bg-surface-base/80 hover:border-border-strong hover:bg-surface-raised shadow-card"
                       }`}
                     >
                       {/* Ambient Accent Tint */}
@@ -477,10 +477,10 @@ export function GhostBattle3D() {
                         <div className="flex items-center gap-2 min-w-0">
                           <TeamBadge teamName={teamName} teamColor={teamColor} size={28} />
                           <div className="flex flex-col min-w-0">
-                            <span className="text-xs font-mono font-bold text-white truncate group-hover:text-[#00E5FF] transition-colors">
+                            <span className="text-xs font-mono font-bold text-text-primary truncate group-hover:text-accent-primary transition-colors">
                               {teamName}
                             </span>
-                            <span className="text-[10px] font-mono text-[#9BA4B5] truncate">
+                            <span className="text-[10px] font-mono text-text-muted truncate">
                               {team.drivers.map((d) => d.code).join(" / ")}
                             </span>
                           </div>
@@ -489,10 +489,10 @@ export function GhostBattle3D() {
                         <span
                           className={`w-4 h-4 rounded-full shrink-0 flex items-center justify-center text-[10px] border transition-colors ${
                             isTeamSelected
-                              ? "bg-[#00E5FF] text-[#0B0D10] border-[#00E5FF] font-bold"
+                              ? "bg-accent-primary text-white border-accent-primary font-bold"
                               : isPartiallySelected
-                              ? "border-[#00E5FF] text-[#00E5FF]"
-                              : "border-white/20 text-transparent"
+                              ? "border-accent-primary text-accent-primary"
+                              : "border-border-subtle text-transparent"
                           }`}
                         >
                           {isTeamSelected ? "✓" : isPartiallySelected ? "•" : ""}
@@ -500,7 +500,7 @@ export function GhostBattle3D() {
                       </div>
 
                       {/* Middle: 3D Low-Poly Car Silhouette */}
-                      <div className="py-1 my-0.5 border-y border-white/5 bg-black/20 rounded relative z-10">
+                      <div className="py-1 my-0.5 border-y border-border-subtle/50 bg-black/20 rounded relative z-10">
                         <TeamCar3D teamName={teamName} primaryColor={teamColor} />
                       </div>
 
@@ -513,12 +513,12 @@ export function GhostBattle3D() {
                               key={drv.code}
                               className={`flex-1 flex items-center justify-between px-2 py-1 rounded text-[10px] font-mono border transition-all ${
                                 isDriverSelected
-                                  ? "bg-[#00E5FF]/15 text-[#00E5FF] font-bold border-[#00E5FF]/40 shadow-sm"
-                                  : "bg-white/[0.04] text-[#9BA4B5] border-white/5 hover:border-white/15"
+                                  ? "bg-accent-primary/15 text-accent-primary font-bold border-accent-primary/40 shadow-sm"
+                                  : "bg-surface-base text-text-muted border-border-subtle hover:border-border-strong"
                               }`}
                             >
                               <span>{drv.code}</span>
-                              <span className="text-[9px] font-sans text-[#5E6676] truncate max-w-[48px]">
+                              <span className="text-[9px] font-sans text-text-muted truncate max-w-[48px]">
                                 {drv.last_name || drv.name}
                               </span>
                             </div>
@@ -541,18 +541,18 @@ export function GhostBattle3D() {
                       onClick={() => handleToggleDriver(drv.code)}
                       className={`cursor-pointer p-2.5 rounded-card border transition-all select-none flex flex-col items-center justify-between text-center relative group ${
                         isSelected
-                          ? "border-[#00E5FF] bg-[#00E5FF]/10 shadow-[0_0_12px_rgba(0,229,255,0.2)] ring-1 ring-[#00E5FF]/30"
-                          : "border-white/10 bg-[#12151B]/70 hover:border-white/20 hover:bg-[#12151B]"
+                          ? "border-accent-primary bg-accent-primary/10 shadow-[0_0_12px_rgba(225,6,0,0.25)] ring-1 ring-accent-primary/30"
+                          : "border-border-subtle bg-surface-base/80 hover:border-border-strong hover:bg-surface-raised"
                       }`}
                     >
                       {/* Top Header: Number and Status indicator */}
-                      <div className="w-full flex items-center justify-between text-[10px] font-mono text-[#9BA4B5] mb-1">
-                        <span className="font-bold">#{drv.number}</span>
+                      <div className="w-full flex items-center justify-between text-[10px] font-mono text-text-muted mb-1">
+                        <span className="font-bold type-tabular">#{drv.number}</span>
                         <span
                           className={`w-3 h-3 rounded-full flex items-center justify-center text-[8px] border ${
                             isSelected
-                              ? "bg-[#00E5FF] text-[#0B0D10] border-[#00E5FF] font-bold"
-                              : "border-white/20 text-transparent"
+                              ? "bg-accent-primary text-white border-accent-primary font-bold"
+                              : "border-border-subtle text-transparent"
                           }`}
                         >
                           {isSelected ? "✓" : ""}
@@ -570,16 +570,16 @@ export function GhostBattle3D() {
                       </div>
 
                       {/* Driver Info */}
-                      <div className="w-full mt-1.5 pt-1 border-t border-white/5">
+                      <div className="w-full mt-1.5 pt-1 border-t border-border-subtle">
                         <h4 className={`text-xs font-mono font-bold leading-tight ${
-                          isSelected ? "text-[#00E5FF]" : "text-white"
+                          isSelected ? "text-accent-primary" : "text-text-primary"
                         }`}>
                           {drv.code}
                         </h4>
-                        <p className="text-[10px] font-sans text-[#9BA4B5] truncate mt-0.5">
+                        <p className="text-[10px] font-sans text-text-muted truncate mt-0.5">
                           {drv.last_name || drv.name}
                         </p>
-                        <p className="text-[9px] font-mono text-[#5E6676] truncate">
+                        <p className="text-[9px] font-mono text-text-muted/80 truncate">
                           {drv.team_name}
                         </p>
                       </div>

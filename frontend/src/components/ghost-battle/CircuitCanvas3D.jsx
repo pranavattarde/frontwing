@@ -6,7 +6,7 @@ import * as THREE from "three";
 /**
  * Low-poly stylized Formula 1 car mesh colored by team
  */
-function F1CarMesh({ color = "#00E5FF", isFinished = false }) {
+function F1CarMesh({ color = "#E10600", isFinished = false }) {
   const primaryColor = useMemo(() => new THREE.Color(color), [color]);
   const carbonColor = useMemo(() => new THREE.Color("#12151A"), []);
   const tireColor = useMemo(() => new THREE.Color("#0A0C0E"), []);
@@ -169,16 +169,16 @@ function SynchronizedGhostVehicle({ driver, currentTime }) {
         <div
           className={`flex items-center gap-1.5 px-2 py-0.5 rounded border text-[10px] font-mono font-bold shadow-md whitespace-nowrap transition-opacity ${
             isFinished
-              ? "bg-canvas/90 border-drs-cyan/40 text-drs-cyan opacity-80"
-              : "bg-canvas/90 border-fw-border text-text-primary"
+              ? "bg-surface-base/90 border-timing-green/40 text-timing-green opacity-80"
+              : "bg-surface-base/90 border-border-subtle text-text-primary"
           }`}
         >
           <span
             className="w-2 h-2 rounded-full shrink-0"
-            style={{ backgroundColor: driver.team_color || "#00E5FF" }}
+            style={{ backgroundColor: driver.team_color || "#E10600" }}
           />
           <span>{driver.code}</span>
-          <span className="text-text-muted font-normal">
+          <span className="text-text-muted font-normal type-tabular">
             {isFinished ? "FINISH" : `${speed} km/h`}
           </span>
         </div>
@@ -214,7 +214,7 @@ function CircuitTrackRibbon({ centerline }) {
       {/* Subtle Luminous Curbs / Edges */}
       <mesh>
         <tubeGeometry args={[curve, 500, 1.48, 4, true]} />
-        <meshBasicMaterial color="#00E5FF" wireframe opacity={0.12} transparent />
+        <meshBasicMaterial color="#E10600" wireframe opacity={0.15} transparent />
       </mesh>
 
       {/* Start/Finish Line Marker & Arch */}
@@ -229,11 +229,11 @@ function CircuitTrackRibbon({ centerline }) {
           {/* Glowing Start/Finish Marker Pillar */}
           <mesh position={[0, 2.5, 0]}>
             <cylinderGeometry args={[0.1, 0.1, 5, 8]} />
-            <meshBasicMaterial color="#00E5FF" opacity={0.6} transparent />
+            <meshBasicMaterial color="#E10600" opacity={0.6} transparent />
           </mesh>
 
           <Html position={[0, 5.5, 0]} center distanceFactor={30}>
-            <div className="px-2 py-0.5 rounded bg-drs-cyan text-canvas text-[9px] font-mono font-bold tracking-widest uppercase">
+            <div className="px-2 py-0.5 rounded bg-accent-primary text-text-primary text-[9px] font-mono font-bold tracking-widest uppercase shadow-sm">
               START / FINISH
             </div>
           </Html>

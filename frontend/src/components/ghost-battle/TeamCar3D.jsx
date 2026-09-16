@@ -215,7 +215,7 @@ function FallbackCarSilhouette({ primaryColor, secondaryColor }) {
  */
 export default function TeamCar3D({
   teamName,
-  primaryColor = "#00E5FF",
+  primaryColor = "#E10600",
   secondaryColor = null,
   className = ""
 }) {

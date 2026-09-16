@@ -6,8 +6,8 @@ import React from "react";
  * Dynamically color-coded with the driver's team accent color.
  * STRICTLY NO copyrighted photographs or official personal likenesses.
  */
-export default function DriverAvatar({ teamColor = "#00E5FF", size = 36, isSelected = false, className = "" }) {
-  const accent = teamColor || "#00E5FF";
+export default function DriverAvatar({ teamColor = "#E10600", size = 36, isSelected = false, className = "" }) {
+  const accent = teamColor || "#E10600";
 
   return (
     <div

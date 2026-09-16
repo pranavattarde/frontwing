@@ -122,7 +122,7 @@ const TEAM_METADATA = {
   }
 };
 
-export function getTeamMetadata(teamName = "", teamColor = "#00E5FF") {
+export function getTeamMetadata(teamName = "", teamColor = "#E10600") {
   const lower = (teamName || "").toLowerCase().trim();
   for (const [k, v] of Object.entries(TEAM_METADATA)) {
     if (lower.includes(k)) {
@@ -139,7 +139,7 @@ export function getTeamMetadata(teamName = "", teamColor = "#00E5FF") {
   return {
     shape: "hexagon",
     monogram: monogram || "F1",
-    primary: teamColor || "#00E5FF",
+    primary: teamColor || "#E10600",
     secondary: "#FFFFFF",
     name: teamName || "Formula 1 Team"
   };
