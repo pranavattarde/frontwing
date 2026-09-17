@@ -33,6 +33,7 @@ export function StrategyEngineer() {
   const [activeContext, setActiveContext] = useState({});
   const [question, setQuestion] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [submittedQuery, setSubmittedQuery] = useState("");
   const [error, setError] = useState(null);
 
   const messagesEndRef = useRef(null);
@@ -50,6 +51,7 @@ export function StrategyEngineer() {
     setChatHistory([]);
     setActiveContext({});
     setQuestion("");
+    setSubmittedQuery("");
     setError(null);
     inputRef.current?.focus();
   };
@@ -59,6 +61,7 @@ export function StrategyEngineer() {
     if (!textToSubmit || isLoading) return;
 
     setIsLoading(true);
+    setSubmittedQuery(textToSubmit);
     setError(null);
     setQuestion("");
 
@@ -134,7 +137,7 @@ export function StrategyEngineer() {
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="px-2 py-0.5 text-[10px] font-mono font-bold tracking-wider uppercase bg-accent-primary text-text-primary rounded-sm">
+                <span className="px-2 py-0.5 text-[10px] font-mono font-bold tracking-wide bg-accent-primary text-text-primary rounded-sm">
                   Pit Wall
                 </span>
                 <span className="text-xs font-mono text-text-muted">
@@ -204,7 +207,7 @@ export function StrategyEngineer() {
         {chatHistory.length === 0 && !isLoading && (
           <div className="rounded border border-border-subtle bg-surface-base p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-border-subtle pb-3">
-              <span className="text-xs font-mono font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
+              <span className="text-xs font-mono font-bold text-text-primary tracking-wide flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-accent-primary" />
                 Suggested Strategy Scenarios:
               </span>
@@ -216,7 +219,7 @@ export function StrategyEngineer() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {PRESET_QUERIES.map((cat) => (
                 <div key={cat.category} className="space-y-2">
-                  <span className="text-[11px] font-mono font-bold text-accent-primary tracking-wider uppercase">
+                  <span className="text-[11px] font-mono font-bold text-accent-primary tracking-wide">
                     {cat.category}
                   </span>
                   <div className="flex flex-col gap-2">
@@ -252,7 +255,7 @@ export function StrategyEngineer() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-mono text-text-muted uppercase tracking-wider">
+                      <span className="text-[10px] font-mono text-text-muted tracking-wide">
                         Race Engineer Inquiry
                       </span>
                       <span className="text-[10px] font-mono text-text-muted type-tabular">
@@ -296,24 +299,46 @@ export function StrategyEngineer() {
 
         {/* Loading Indicator */}
         <AnimatePresence>
-          {isLoading && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="rounded border border-border-subtle bg-surface-base p-6 text-center shadow-sm"
-            >
-              <div className="inline-flex items-center gap-3">
-                <div className="w-5 h-5 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
-                <span className="font-mono text-sm font-bold text-text-primary tracking-wider">
-                  Simulating strategy and evaluating counterfactuals...
-                </span>
-              </div>
-              <p className="text-xs font-mono text-text-muted mt-2">
-                Analyzing lap timings, tyre degradation models, and pit stop windows.
-              </p>
-            </motion.div>
-          )}
+          {isLoading && (() => {
+            const loadingText = (() => {
+              const q = (submittedQuery || "").toLowerCase();
+              if (q.includes("what if") || q.includes("pitted") || q.includes("earlier") || q.includes("later") || q.includes("soft") || q.includes("hard") || q.includes("medium")) {
+                return {
+                  title: "Simulating counterfactual pit window and re-entry traffic...",
+                  detail: "Running tire wear crossover regressions, estimating pit loss delta, and modeling traffic clean air."
+                };
+              }
+              if (q.includes("why") || q.includes("wrong") || q.includes("finish") || q.includes("lose") || q.includes("behind")) {
+                return {
+                  title: "Investigating tactical execution and stint degradation...",
+                  detail: "Querying session lap timing matrices, evaluating stint crossover points, and assessing competitor deltas."
+                };
+              }
+              return {
+                title: "Simulating strategy and evaluating race outcomes...",
+                detail: "Running PostgreSQL lap timing queries, calculating scoring models, and projecting pit stop outcomes."
+              };
+            })();
+
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="rounded border border-border-subtle bg-surface-base p-6 text-center shadow-sm"
+              >
+                <div className="inline-flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
+                  <span className="font-mono text-sm font-semibold text-text-primary tracking-wide">
+                    {loadingText.title}
+                  </span>
+                </div>
+                <p className="text-xs text-text-muted mt-2">
+                  {loadingText.detail}
+                </p>
+              </motion.div>
+            );
+          })()}
         </AnimatePresence>
 
         {/* Error Banner */}
@@ -324,7 +349,7 @@ export function StrategyEngineer() {
             className="rounded border border-accent-danger/40 bg-accent-danger/10 p-4 text-accent-danger"
           >
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-mono font-bold uppercase">Error Executing Strategy Query</span>
+              <span className="text-xs font-mono font-bold">Error Executing Strategy Query</span>
             </div>
             <p className="text-sm font-mono">{error}</p>
           </motion.div>
@@ -333,7 +358,7 @@ export function StrategyEngineer() {
         {/* Dynamic Contextual Follow-up Suggestions for Existing Thread */}
         {chatHistory.length > 0 && !isLoading && (
           <div className="p-3 rounded border border-border-subtle bg-surface-base flex flex-col gap-2">
-            <span className="text-[10px] font-mono text-text-muted uppercase tracking-wider flex items-center gap-1.5">
+            <span className="text-[10px] font-mono text-text-muted tracking-wide flex items-center gap-1.5">
               <span className="text-accent-primary font-bold">💬</span> Continuation Suggestions:
             </span>
             <div className="flex flex-wrap gap-2">

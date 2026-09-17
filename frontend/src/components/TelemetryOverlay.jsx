@@ -14,10 +14,10 @@ export function TelemetryOverlay({
   return (
     <div className="flex flex-col gap-4 bg-[var(--surface-base)] border border-[var(--border-subtle)] rounded-lg p-4 shadow-sm">
       <div className="flex justify-between items-center border-b border-[var(--border-subtle)] pb-2.5 mb-2 font-mono text-[10px]">
-        <span className="text-[var(--text-primary)] font-semibold uppercase tracking-wider">
-          SYNCHRONIZED_MULTI_CHANNEL_TELEMETRY
+        <span className="text-[var(--text-primary)] font-semibold tracking-wide">
+          Synchronized Multi-Channel Telemetry
         </span>
-        <span className="text-[var(--text-muted)] font-mono">ALIGNMENT: DISTANCE (10M BINS)</span>
+        <span className="text-[var(--text-muted)] font-mono">Alignment: Distance (10m Bins)</span>
       </div>
       <div className="flex flex-col gap-3">{
     /* Speed Channel */

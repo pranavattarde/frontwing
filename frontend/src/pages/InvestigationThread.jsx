@@ -237,6 +237,57 @@ function mapResponseToMessages(id, response, timestamp, isLast) {
   }
   return messages;
 }
+
+function getLoadingStagesForQuery(queryText = "") {
+  const q = (queryText || "").toLowerCase();
+  if (q.includes("telemetry") || q.includes("speed") || q.includes("throttle") || q.includes("corner") || q.includes("braking") || q.includes("trace")) {
+    return [
+      { stage: "parsing", detail: "Analyzing telemetry query parameters and targeted channels..." },
+      { stage: "loading_data", detail: "Querying high-frequency speed traces, braking points, and throttle profiles..." },
+      { stage: "computing", detail: "Aligning lap distances and calculating micro-sector speed deltas..." },
+      { stage: "generating", detail: "Synthesizing cornering telemetry breakdown and tactical insights..." }
+    ];
+  }
+  if (q.includes("pit") || q.includes("undercut") || q.includes("strategy") || q.includes("stint") || q.includes("tire") || q.includes("tyre") || q.includes("degradation") || q.includes("compound")) {
+    return [
+      { stage: "parsing", detail: "Evaluating strategy parameters, pit windows, and tire degradation models..." },
+      { stage: "loading_data", detail: "Fetching historical stint lengths, tire compound wear rates, and pit loss times..." },
+      { stage: "computing", detail: "Simulating undercut viability and projecting track re-entry gaps..." },
+      { stage: "generating", detail: "Compiling strategic debrief and pit stop recommendations..." }
+    ];
+  }
+  if (q.includes("driver") || q.includes("score") || q.includes("rating") || q.includes("rank") || q.includes("performance") || q.includes("grade")) {
+    return [
+      { stage: "parsing", detail: "Parsing driver evaluation criteria and session scope..." },
+      { stage: "loading_data", detail: "Querying lap-by-lap pace consistency and teammate delta matrices..." },
+      { stage: "computing", detail: "Calculating composite driver ratings across race craft and tire management..." },
+      { stage: "generating", detail: "Generating comprehensive driver debrief scorecard..." }
+    ];
+  }
+  if (q.includes("result") || q.includes("who won") || q.includes("podium") || q.includes("winner") || q.includes("standings") || q.includes("finish") || q.includes("order")) {
+    return [
+      { stage: "parsing", detail: "Identifying Grand Prix session and classification criteria..." },
+      { stage: "loading_data", detail: "Retrieving official race classifications, intervals, and pit stop logs..." },
+      { stage: "computing", detail: "Validating position changes, fastest lap honors, and safety car impacts..." },
+      { stage: "generating", detail: "Synthesizing race outcome report and finishing order..." }
+    ];
+  }
+  if (q.includes("rule") || q.includes("regulation") || q.includes("technical") || q.includes("engine") || q.includes("aero") || q.includes("penalty") || q.includes("steward")) {
+    return [
+      { stage: "parsing", detail: "Parsing technical topic and regulatory scope..." },
+      { stage: "loading_data", detail: "Searching FIA technical regulations and historical steward precedents..." },
+      { stage: "computing", detail: "Cross-referencing telemetry evidence with rulebook specifications..." },
+      { stage: "generating", detail: "Formulating regulatory assessment and engineering debrief..." }
+    ];
+  }
+  return [
+    { stage: "parsing", detail: "Interpreting engineering question and setting up data models..." },
+    { stage: "loading_data", detail: "Querying session timing matrices and official race logs..." },
+    { stage: "computing", detail: "Calculating statistical race pace and tactical models..." },
+    { stage: "generating", detail: "Synthesizing engineering summary and strategic debrief..." }
+  ];
+}
+
 export function InvestigationThread() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -245,9 +296,8 @@ export function InvestigationThread() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [loadingStage, setLoadingStage] = useState("parsing");
-  const [loadingDetail, setLoadingDetail] = useState("Initializing AI Race Engineer...");
+  const [loadingDetail, setLoadingDetail] = useState("Initializing race debrief analysis...");
   const [latency, setLatency] = useState(null);
-  const [providerInfo, setProviderInfo] = useState(null);
   const [abortController, setAbortController] = useState(null);
   const [isSaved, setIsSaved] = useState(false);
   const [questionTitle, setQuestionTitle] = useState("");
@@ -291,16 +341,19 @@ export function InvestigationThread() {
 
   const reasoningSteps = (planningSteps || []).map((step, idx) => {
     const [toolName, rawParams] = step.split("|");
+    const cleanToolName = (toolName || "")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
     return {
-      title: `Step ${idx + 1}: ${(toolName || "").replace("_", " ").toUpperCase()}`,
-      description: `Dispatched tool ${toolName} with parameters: ${rawParams || "None"}. Collected timing metrics and strategist inputs.`,
+      title: `Step ${idx + 1}: ${cleanToolName}`,
+      description: `Dispatched ${cleanToolName} with parameters: ${rawParams || "Default"}. Analyzed timing metrics and strategist inputs.`,
       dataReference: `Chief Race Engineer execution plan`,
       confidence: lastResponse?.confidence || 87
     };
   });
   const defaultReasoningSteps = [
     {
-      title: "Executing AI Race Engineer Plan",
+      title: "Executing Race Engineer Plan",
       description: lastResponse?.final_answer?.slice(0, 150) || "Analyzing race data...",
       dataReference: "Chief Race Engineer execution plan",
       confidence: lastResponse?.confidence || 80
@@ -309,20 +362,17 @@ export function InvestigationThread() {
   const activeReasoningSteps = reasoningSteps.length > 0 ? reasoningSteps : defaultReasoningSteps;
   useEffect(() => {
     if (!isLoading) return;
-    const stages = [
-      { stage: "parsing", detail: "Parsing intent and telemetry parameters..." },
-      { stage: "loading_data", detail: "Querying FastF1 timing matrices..." },
-      { stage: "computing", detail: "Running strategy regressions & simulations..." },
-      { stage: "generating", detail: "Synthesizing race debrief report..." }
-    ];
+    const stages = getLoadingStagesForQuery(questionTitle);
     let idx = 0;
+    setLoadingStage(stages[0].stage);
+    setLoadingDetail(stages[0].detail);
     const interval = setInterval(() => {
       idx = (idx + 1) % stages.length;
       setLoadingStage(stages[idx].stage);
       setLoadingDetail(stages[idx].detail);
-    }, 1200);
+    }, 1400);
     return () => clearInterval(interval);
-  }, [isLoading]);
+  }, [isLoading, questionTitle]);
   useEffect(() => {
     if (!id) return;
     initInvestigation(id);
@@ -346,13 +396,6 @@ export function InvestigationThread() {
             const msgs = mapResponseToMessages(targetId, lastEx.response, lastEx.timestamp || Date.now(), true);
             setMessages(msgs);
             const trace = lastEx.response.intelligence_trace || {};
-            const provider = trace.llm_provider || "Gemini";
-            const model = trace.llm_model || "gemini-2.0-flash";
-            const hasFailover = trace.failover_reason && trace.failover_reason !== "None";
-            setProviderInfo({
-              provider: hasFailover ? `${provider} (Failover)` : provider,
-              model
-            });
             const elapsed = trace.llm_latency ? (trace.llm_latency / 1e3).toFixed(1) : "2.1";
             setLatency(parseFloat(elapsed));
             setIsLoading(false);
@@ -538,15 +581,7 @@ export function InvestigationThread() {
       lastResponseRef.current = apiResponse;
       const endTime = Date.now();
       const elapsedSeconds = ((endTime - startTime) / 1e3).toFixed(1);
-      const trace = apiResponse.intelligence_trace || {};
-      const provider = trace.llm_provider || "Gemini";
-      const model = trace.llm_model || "gemini-2.0-flash";
-      const hasFailover = trace.failover_reason && trace.failover_reason !== "None";
       setLatency(parseFloat(elapsedSeconds));
-      setProviderInfo({
-        provider: hasFailover ? `${provider} (Failover)` : provider,
-        model
-      });
       const backendUuid = apiResponse.id;
       const targetId = backendUuid || activeId;
       if (backendUuid) {
@@ -735,19 +770,19 @@ export function InvestigationThread() {
             <span className="text-accent-danger font-bold text-lg font-mono">!</span>
           </div>
           <div className="flex flex-col gap-2">
-            <h2 className="text-md font-mono text-text-primary uppercase tracking-widest">System Alert</h2>
+            <h2 className="text-base font-semibold text-text-primary">System Notice</h2>
             <p className="text-text-muted text-xs leading-relaxed">{errorMsg}</p>
           </div>
           <div className="flex gap-4 w-full pt-2">
             <button
               onClick={handleRetryConnection}
-              className="flex-1 btn-f1-primary py-2.5 px-4 text-xs font-mono font-bold uppercase tracking-wider"
+              className="flex-1 btn-f1-primary py-2.5 px-4 text-xs font-semibold rounded-badge"
             >
               Retry Connection
             </button>
             <button
               onClick={handleGoHome}
-              className="flex-1 py-2.5 px-4 rounded-badge border border-border-subtle text-text-primary hover:bg-surface-raised transition-colors font-mono text-xs uppercase tracking-wider"
+              className="flex-1 py-2.5 px-4 rounded-badge border border-border-subtle text-text-primary hover:bg-surface-raised transition-colors text-xs font-semibold"
             >
               Go Home
             </button>
@@ -889,8 +924,8 @@ export function InvestigationThread() {
     }
     if (msg.type === "evidence-simulation" && msg.evidenceData) {
       const telemetryToolData = lastResponse?.evidence?.telemetry_tool;
-      const driverCodeA = telemetryToolData?.driver_id ? String(telemetryToolData.driver_id).toUpperCase() : "DRIVER_A";
-      const driverCodeB = telemetryToolData?.comparative_driver_id ? String(telemetryToolData.comparative_driver_id).toUpperCase() : "DRIVER_B";
+      const driverCodeA = telemetryToolData?.driver_id ? String(telemetryToolData.driver_id).toUpperCase() : "Driver A";
+      const driverCodeB = telemetryToolData?.comparative_driver_id ? String(telemetryToolData.comparative_driver_id).toUpperCase() : "Driver B";
       const telemetryDataA = telemetryToolData?.telemetry || [];
       const telemetryDataB = telemetryToolData?.comparative_telemetry || [];
       const lapNumber = telemetryToolData?.lap_number || 42;
@@ -919,7 +954,7 @@ export function InvestigationThread() {
     if (msg.type === "production-visualizations" && msg.evidenceData) {
       const vis = msg.evidenceData;
       const telemetryToolData = lastResponse?.evidence?.telemetry_tool;
-      const driverCodeA = telemetryToolData?.driver_id ? String(telemetryToolData.driver_id).toUpperCase() : (vis.driverCode ? String(vis.driverCode).toUpperCase() : "DRIVER_A");
+      const driverCodeA = telemetryToolData?.driver_id ? String(telemetryToolData.driver_id).toUpperCase() : (vis.driverCode ? String(vis.driverCode).toUpperCase() : "Driver A");
       const driverCodeB = telemetryToolData?.comparative_driver_id ? String(telemetryToolData.comparative_driver_id).toUpperCase() : null;
 
       const telemetryDataA = telemetryToolData?.telemetry || [];

@@ -33,7 +33,7 @@ export function RaceBriefing() {
   }).sort((a, b) => b.scores[sortKey] - a.scores[sortKey]);
   const teamFilter = {
     id: "teams",
-    label: "FILTER_TEAMS",
+    label: "Filter Teams",
     options: [
       { value: "mclaren", label: "McLaren" },
       { value: "redbull", label: "Red Bull" },

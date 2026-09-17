@@ -38,7 +38,7 @@ export function ExplanationPanel({ steps = [], conclusion, reasoningGraph, plann
               {/* Conclusion Block */}
               {conclusion && (
                 <div className="bg-surface-raised border border-border-subtle p-3 rounded-card text-text-primary border-l-2 border-l-accent-primary leading-relaxed">
-                  <span className="text-[10px] font-mono text-text-muted uppercase block mb-1 font-bold">
+                  <span className="text-[10px] font-mono text-text-muted block mb-1 font-bold">
                     Synthesis Conclusion
                   </span>
                   <p className="text-xs text-text-secondary">{conclusion}</p>
@@ -48,7 +48,7 @@ export function ExplanationPanel({ steps = [], conclusion, reasoningGraph, plann
               {/* Root Cause Reasoning Graph (if available) */}
               {reasoningGraph && (
                 <div className="bg-surface-raised border border-border-subtle p-3 rounded-card flex flex-col gap-2">
-                  <span className="text-[10px] font-mono text-accent-primary uppercase font-bold tracking-wider">
+                  <span className="text-[10px] font-mono text-accent-primary font-bold tracking-wide">
                     Root Cause Reasoning Chain
                   </span>
                   <pre className="text-[11px] font-mono text-text-secondary whitespace-pre-wrap overflow-x-auto bg-surface-base p-2.5 rounded border border-border-subtle">
@@ -60,7 +60,7 @@ export function ExplanationPanel({ steps = [], conclusion, reasoningGraph, plann
               {/* Raw Planning Steps & Parameters */}
               {planningSteps && planningSteps.length > 0 && (
                 <div className="bg-surface-raised border border-border-subtle p-3 rounded-card flex flex-col gap-2">
-                  <span className="text-[10px] font-mono text-timing-yellow uppercase font-bold tracking-wider">
+                  <span className="text-[10px] font-mono text-timing-yellow font-bold tracking-wide">
                     Dispatched Tool Invocations
                   </span>
                   <div className="flex flex-col gap-1.5">

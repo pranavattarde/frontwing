@@ -14,19 +14,25 @@
   - Removed artificial line slicing (`cleanLines.slice(0, 4)`) in `InvestigationThread.jsx`, ensuring the full synthesized verdict is visible.
   - Replaced plain text display with `<MarkdownContent content={verdict} />` to render markdown formatting, headings, bullet lists, and source links natively.
   - Eliminated inner scroll trapping (`overflow-y-auto` inside `overflow-hidden`), allowing seamless downward scrolling through narrative findings and telemetry evidence cards.
-- **FIX DD: Elimination of Internal Provider/Model Names & Title Case Standardization (`VerdictBlock.jsx`, `BriefingHeader.jsx`, `InvestigationThread.jsx`, `BriefingRoom.jsx`, `StrategyEngineer.jsx`, `GhostBattle.jsx`, `GhostBattle3D.jsx`, `StrategyPlayground.jsx`, `RaceBriefing.jsx`, 17+ components)**:
-  - Removed all user-facing traces of internal provider names (Gemini, Groq) and model names (`gemini-3.6-flash`, `openai/gpt-oss-120b`, `gemini-2.0-flash`).
-  - Removed `AI_ENGINEER_ACTIVE` badge and all confidence percentage badges / confidence strips from the interface.
-  - Converted all `ALL_CAPS_WITH_UNDERSCORES` labels across buttons, tabs, section headers, and cards into clean Title Case.
-  - Replaced technical loading messages with query-tailored progress descriptions ("Resolving Session", "Gathering Telemetry", "Synthesizing Analysis").
+- **FIX DD: Elimination of Internal Provider/Model Names & Title Case Standardization Across ENTIRE Frontend (`VerdictBlock.jsx`, `BriefingHeader.jsx`, `InvestigationThread.jsx`, `BriefingRoom.jsx`, `StrategyEngineer.jsx`, `GhostBattle.jsx`, `GhostBattle3D.jsx`, `StrategyPlayground.jsx`, `RaceBriefing.jsx`, `CommandPalette.jsx`, `ComparisonSlider.jsx`, `DriverCard.jsx`, `ErrorBoundary.jsx`, `ExplanationPanel.jsx`, `FollowUpSuggestions.jsx`, `ReasoningTimeline.jsx`, `SearchOverlay.jsx`, `SourceViewer.jsx`, `TeamCard.jsx`, `TelemetryCard.jsx`, `TelemetryComparison.jsx`, `TelemetryComparisonCard.jsx`, `TelemetryOverlay.jsx`, `index.css`)**:
+  - Removed all user-facing traces of internal provider names (Gemini, Groq), model names (`gemini-3.6-flash`, `openai/gpt-oss-120b`, `gemini-2.0-flash`), and internal state indicators across all pages.
+  - Completely excised `providerInfo` state and all provider/model setters from `InvestigationThread.jsx`.
+  - Removed `AI_ENGINEER_ACTIVE` badge, confidence percentage badges, and confidence strips across the product.
+  - Converted fallback driver codes (`DRV_A`, `DRV_B`, `DRIVER_A`, `DRIVER_B`) to clean human-readable names (`Driver A`, `Driver B`).
+  - Converted all `ALL_CAPS_WITH_UNDERSCORES` labels across buttons, tabs, section headers, badges, and cards into clean, human-readable Title Case across 20+ components and pages.
+  - Removed forced `text-transform: uppercase` from `.btn-f1-primary` in `index.css` and removed uppercase utility classes on headings/badges in `StrategyEngineer.jsx` and `InvestigationThread.jsx`.
+  - Replaced generic technical loading messages with dynamic, query-tailored progress descriptions in `InvestigationThread.jsx` (`getLoadingStagesForQuery`) and `StrategyEngineer.jsx` (`getStrategyLoadingText`), describing real actions tailored to telemetry, strategy/pit, scoring, race results, and technical knowledge.
+  - Cleaned collapsed technical reasoning panel in `InvestigationThread.jsx` and `ExplanationPanel.jsx` with Title Case step headers (`Step 1: Fastf1 Telemetry`).
 
 ### Verification
 - `python scratch/verify_bb_queries.py`: All 3 out-of-scope/knowledge queries passed:
   1. Adrian Newey RB19: SUCCESS, tools=['knowledge_tool', 'web_search_tool'], 5 sources cited, factual answer generated, 0 dummy telemetry sections.
   2. 107% Qualifying Rule: SUCCESS, tools=['knowledge_tool', 'web_search_tool'], 5 sources cited, factual answer generated, 0 dummy telemetry sections.
   3. F1 Brake Disc Materials: SUCCESS, tools=['knowledge_tool', 'web_search_tool'], 5 sources cited, factual answer generated, 0 dummy telemetry sections.
+- Comprehensive UI Audit: Automated regex/AST search across entire `frontend/src` directory returned 0 occurrences of `ALL_CAPS_WITH_UNDERSCORES` or internal provider/model text in user-facing UI.
 - `npm test` in `backend/`: 14/14 security and input validation tests passed.
 - `npm run build` in `frontend/`: 0 errors, production bundle generated successfully.
+- Visual browser verification: Captured and inspected full-viewport screenshots of Strategy Engineer and Investigation Room confirming clean Title Case typography, natural styling, and zero internal telemetry/provider markers.
 
 ---
 

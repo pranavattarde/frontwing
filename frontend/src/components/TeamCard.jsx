@@ -33,14 +33,14 @@ export function TeamCard({
       onDriverClick?.(d.code);
     }}
     className="font-mono text-mono-meta text-text-muted hover:text-accent-primary hover:underline transition-colors"
-  >{d.code}</button>)}</div></div><div className="flex items-center gap-2"><span className="font-mono text-[9px] text-text-muted uppercase">STRAT_GRADE</span><span className="font-data text-base font-semibold text-timing-green type-tabular">{strategyGrade}</span></div></div>{
+  >{d.code}</button>)}</div></div><div className="flex items-center gap-2"><span className="font-mono text-[9px] text-text-muted">Strategy Grade</span><span className="font-data text-base font-semibold text-timing-green type-tabular">{strategyGrade}</span></div></div>{
     /* Content Body */
-  }{isExpanded ? <div className="flex flex-col gap-4 border-t border-border-subtle pt-3"><div className="grid grid-cols-2 gap-4"><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">PIT_CREW_RANK</span><span className="text-xs font-mono text-text-secondary type-tabular">P{pitCrewRank}</span></div><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">AVG_WEAR_SLOPE</span><span className="text-xs font-mono text-text-secondary type-tabular">{avgWearSlope.toFixed(3)} s/lap</span></div></div>{
+  }{isExpanded ? <div className="flex flex-col gap-4 border-t border-border-subtle pt-3"><div className="grid grid-cols-2 gap-4"><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">Pit Crew Rank</span><span className="text-xs font-mono text-text-secondary type-tabular">P{pitCrewRank}</span></div><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">Tire Wear Slope</span><span className="text-xs font-mono text-text-secondary type-tabular">{avgWearSlope.toFixed(3)} s/lap</span></div></div>{
     /* Constructor Score Ring */
   }<div className="flex items-center justify-between border-t border-border-subtle pt-3"><span className="text-mono-meta font-mono text-text-muted max-w-[140px] leading-tight">
-                CONSTRUCTOR EFFICIENCY SCORE OVER WEEKEND
-              </span><ScoreRing value={constructorScore} label="CONSTRUCTOR" size="md" color={team.color || "#00D2BE"} /></div></div> : (
+                Constructor Efficiency Score
+              </span><ScoreRing value={constructorScore} label="Team Score" size="md" color={team.color || "#00D2BE"} /></div></div> : (
     /* Summary View */
-    <div className="flex items-center justify-between border-t border-border-subtle pt-2 text-mono-meta font-mono"><div><span className="text-text-muted">PIT_RANK:</span>{" "}<span className="text-text-secondary type-tabular">P{pitCrewRank}</span></div><div><span className="text-text-muted">WEAR:</span>{" "}<span className="text-text-secondary type-tabular">{avgWearSlope.toFixed(3)}s</span></div><span className="text-text-primary font-semibold type-tabular">{constructorScore.toFixed(1)}</span></div>
+    <div className="flex items-center justify-between border-t border-border-subtle pt-2 text-mono-meta font-mono"><div><span className="text-text-muted">Pit Rank:</span>{" "}<span className="text-text-secondary type-tabular">P{pitCrewRank}</span></div><div><span className="text-text-muted">Wear:</span>{" "}<span className="text-text-secondary type-tabular">{avgWearSlope.toFixed(3)}s</span></div><span className="text-text-primary font-semibold type-tabular">{constructorScore.toFixed(1)}</span></div>
   )}</div></motion.div>;
 }

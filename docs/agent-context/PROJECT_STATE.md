@@ -32,14 +32,41 @@
   - Converted verdict text display to `<MarkdownContent content={verdict} />` to render bold text, lists, and markdown formatting natively.
   - Removed nested scroll trapping (`overflow-y-auto` inside `overflow-hidden`) so the page flows naturally down into narrative findings and evidence cards.
 
-### Elimination of Internal Provider/Model Names & Clean Title Case UI (SESSION 043 - FIX DD VERIFIED LIVE)
-- **Removal of Internal AI Engine & Provider Badges Everywhere**:
+### Elimination of Internal Provider/Model Names & Clean Title Case UI Everywhere (SESSION 043 - FIX DD VERIFIED LIVE)
+- **Complete Removal of Internal AI Engine & Provider Badges Everywhere**:
   - Removed `AI_ENGINEER_ACTIVE` badge from `BriefingHeader.jsx`.
-  - Removed provider names (Gemini / Groq), model names (`gemini-3.6-flash`, `openai/gpt-oss-120b`, `gemini-2.0-flash`), and raw latency readouts from user-facing UI in `VerdictBlock.jsx`, `BriefingRoom.jsx`, and `InvestigationThread.jsx`.
-  - Removed confidence percentage badges and confidence strips from `VerdictBlock.jsx`, `ExplanationPanel.jsx`, and cards across the product.
-- **Title Case & User-Friendly Labels Across All Pages**:
-  - Converted all `ALL_CAPS_WITH_UNDERSCORES` labels to clean Title Case across `BriefingRoom.jsx`, `StrategyEngineer.jsx`, `GhostBattle.jsx`, `GhostBattle3D.jsx`, `StrategyPlayground.jsx`, `RaceBriefing.jsx`, and 17+ component cards.
-  - Replaced technical loading messages with clean, query-tailored progress descriptions (e.g. "Resolving Session", "Gathering Telemetry", "Synthesizing Analysis").
+  - Removed provider names (Gemini / Groq), model names (`gemini-3.6-flash`, `openai/gpt-oss-120b`, `gemini-2.0-flash`), and internal status indicators across all user-facing UI (`VerdictBlock.jsx`, `BriefingRoom.jsx`, `InvestigationThread.jsx`, `StrategyEngineer.jsx`).
+  - Completely excised `providerInfo` state and all provider/model setters from `InvestigationThread.jsx`.
+  - Removed confidence percentage badges and confidence strips from `VerdictBlock.jsx`, `DriverCard.jsx`, `ExplanationPanel.jsx`, and cards across the product.
+  - Updated fallback driver codes (`DRV_A`, `DRV_B`, `DRIVER_A`, `DRIVER_B`) to clean human-readable names (`Driver A`, `Driver B`).
+- **Comprehensive Title Case & Clean Section Labels Across the ENTIRE Frontend**:
+  - Replaced all `ALL_CAPS_WITH_UNDERSCORES` labels with clean human-readable Title Case across all components and pages:
+    - `CommandPalette.jsx`: Cleaned category labels (`Navigation`, `Actions`), `[Esc to Close]`, and empty query message `No matching commands found`.
+    - `ComparisonSlider.jsx`: Changed `STRATEGY_DECISION_SLIDER // PIT_STOP_WINDOW` to `Strategy Decision Slider • Pit Stop Window`, `RE_COMPUTING...` to `Computing Projection...`, and `LAP` to `Lap`.
+    - `DriverCard.jsx`: Changed `GRID_START` to `Grid Start`, `GRID_DIFF` to `Grid Delta`, `TEAM` to `Team`, `STATUS` to `Status`, `COMPOSITE` to `Overall`, `SCORE` to `Score`, `COMPARE WITH TEAMMATE` to `Compare with Teammate`.
+    - `ErrorBoundary.jsx`: Changed `SYSTEM_DIAGNOSTIC // COMPONENT_FAULT` to `System Diagnostic • Component Notice`, user message cleaned.
+    - `ExplanationPanel.jsx`: Removed uppercase styling from `Synthesis Conclusion`, `Root Cause Reasoning Chain`, and `Dispatched Tool Invocations`.
+    - `FollowUpSuggestions.jsx`: Changed `FOLLOW_UP_SUGGESTIONS` to `Suggested Follow-Ups`, `[ASK]` to `Ask →`.
+    - `ReasoningTimeline.jsx`: Changed `REASONING_PIPELINE_LATENCY` to `Reasoning Pipeline Latency`, `TOTAL_DURATION` to `Total Duration`, `TYPE:` to `Type:`.
+    - `SearchOverlay.jsx`: Changed `RECENT_INVESTIGATIONS` to `Recent Investigations`, `TRENDING_INVESTIGATIVE_LOOPS` to `Suggested Analyses`, `FILTERED_TACTICAL_RESULTS` to `Matching Queries`, `[VIEW]` to `[Select]`, `NO_RECORDS_MATCHING_CRITERIA` to `No matching queries found`.
+    - `SourceViewer.jsx`: Changed `SOURCE_EVIDENCE_LOG` to `Source Evidence Log`, `[VIEW_SUMMARY]` to `[View Summary]`, `[INSPECT_RAW_JSON]` to `[Inspect Raw JSON]`, `IDENTIFIER:`, `TIMESTAMP:`, `TYPE:`.
+    - `TeamCard.jsx`: Changed `STRAT_GRADE` to `Strategy Grade`, `PIT_CREW_RANK` to `Pit Crew Rank`, `AVG_WEAR_SLOPE` to `Tire Wear Slope`, `CONSTRUCTOR EFFICIENCY SCORE OVER WEEKEND` to `Constructor Efficiency Score`.
+    - `TelemetryComparison.jsx`: Changed `TELEMETRY_DELTA_ANNOTATIONS` to `Telemetry Delta Annotations`, `DELTA:` to `Delta:`.
+    - `TelemetryOverlay.jsx`: Changed `SYNCHRONIZED_MULTI_CHANNEL_TELEMETRY` to `Synchronized Multi-Channel Telemetry`, `ALIGNMENT: DISTANCE (10M BINS)` to `Alignment: Distance (10m Bins)`.
+    - `RaceBriefing.jsx`: Changed `FILTER_TEAMS` to `Filter Teams`.
+    - `StrategyPlayground.jsx`: Changed markers `EARLY_TRAFFIC`, `OPTIMAL_P2`, `ACTUAL_P3`, `LATE_LOSS` to `Early Traffic`, `Optimal P2`, `Actual P3`, `Late Loss`.
+    - `StrategyEngineer.jsx`: Cleaned section headings (`Suggested Strategy Scenarios`, `Strategy Analysis`, `What-If Counterfactuals`, `Pit Wall`), and removed uppercase text-transforms.
+    - `index.css`: Removed forced `text-transform: uppercase` from `.btn-f1-primary`.
+- **Dynamic Query-Tailored Progress Messages**:
+  - Replaced generic hardcoded loading interval in `InvestigationThread.jsx` with intent-aware stages (`getLoadingStagesForQuery`) tailored dynamically to the question type:
+    - Telemetry queries: *"Analyzing telemetry query parameters and targeted channels..."* / *"Querying high-frequency speed traces, braking points, and throttle profiles..."* / *"Aligning lap distances and calculating micro-sector speed deltas..."* / *"Synthesizing cornering telemetry breakdown and tactical insights..."*
+    - Strategy / Pit queries: *"Evaluating strategy parameters, pit windows, and tire degradation models..."* / *"Fetching historical stint lengths, tire compound wear rates, and pit loss times..."* / *"Simulating undercut viability and projecting track re-entry gaps..."* / *"Compiling strategic debrief and pit stop recommendations..."*
+    - Scoring / Driver queries: *"Parsing driver evaluation criteria and session scope..."* / *"Querying lap-by-lap pace consistency and teammate delta matrices..."* / *"Calculating composite driver ratings across race craft and tire management..."* / *"Generating comprehensive driver debrief scorecard..."*
+    - Race Results queries: *"Identifying Grand Prix session and classification criteria..."* / *"Retrieving official race classifications, intervals, and pit stop logs..."* / *"Validating position changes, fastest lap honors, and safety car impacts..."* / *"Synthesizing race outcome report and finishing order..."*
+    - Technical Knowledge / Rules queries: *"Parsing technical topic and regulatory scope..."* / *"Searching FIA technical regulations and historical steward precedents..."* / *"Cross-referencing telemetry evidence with rulebook specifications..."* / *"Formulating regulatory assessment and engineering debrief..."*
+  - Added dynamic query-tailored loading indicator to `StrategyEngineer.jsx` with counterfactual vs tactical execution vs lap timing models.
+  - Collapsed technical reasoning panel in `InvestigationThread.jsx` formats step titles cleanly in Title Case (`Step 1: Fastf1 Telemetry`) with natural language parameter summaries.
+  - Automated regex and AST audits verified 0 remaining `ALL_CAPS_WITH_UNDERSCORES` or provider/model strings in frontend user-facing UI. Production bundle builds with 0 errors (`npm run build`); backend security tests 14/14 passing.
 
 ### Upcoming Race Hero & FastF1 4-Hour Cadence (SESSION 042 - FIX X VERIFIED LIVE)
 - **FastF1 Schedule Selection Logic (`hero_service.py`, `hero.service.js`)**:

@@ -23,11 +23,21 @@ export function ComparisonSlider({
   const handleMouseUpOrChange = () => {
     onChange?.(internalVal);
   };
-  return <div className={cn("flex flex-col gap-3 p-3 bg-surface-base border border-border-subtle rounded-card select-none w-full", className)}><div className="flex justify-between items-center text-mono-meta font-mono"><span className="text-text-primary font-semibold tracking-wider">
-          STRATEGY_DECISION_SLIDER // PIT_STOP_WINDOW
-        </span><div className="flex items-center gap-2">{isComputing && <span className="text-timing-yellow animate-pulse text-[10px]">
-              RE_COMPUTING...
-            </span>}<span className="text-accent-primary text-xs font-semibold type-tabular">LAP {internalVal}</span></div></div>{
+  return (
+    <div className={cn("flex flex-col gap-3 p-3 bg-surface-base border border-border-subtle rounded-card select-none w-full", className)}>
+      <div className="flex justify-between items-center text-mono-meta font-mono">
+        <span className="text-text-primary font-semibold tracking-wide">
+          Strategy Decision Slider • Pit Stop Window
+        </span>
+        <div className="flex items-center gap-2">
+          {isComputing && (
+            <span className="text-timing-yellow animate-pulse text-[10px]">
+              Updating Simulation...
+            </span>
+          )}
+          <span className="text-accent-primary text-xs font-semibold type-tabular">Lap {internalVal}</span>
+        </div>
+      </div>{
     /* Slider Input */
   }<div className="relative mt-2 flex items-center"><input
     type="range"
@@ -75,5 +85,6 @@ export function ComparisonSlider({
         isMatch ? "text-accent-primary" : m.type === "optimal" ? "text-timing-green" : m.type === "actual" ? "text-accent-danger" : "text-text-muted"
       )}
     >{m.label}</span></div>;
-  })}</div>}</div>;
+  })}</div>}</div>
+  );
 }

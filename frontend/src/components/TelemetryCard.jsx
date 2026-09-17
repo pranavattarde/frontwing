@@ -542,7 +542,7 @@ export function TelemetryCard({
                 {/* Primary Metric Value */}
                 <div className="flex flex-col gap-1 text-[11px]">
                   <div className="flex justify-between items-center font-bold" style={{ color: driverA?.color || "#E10600" }}>
-                    <span>{driverA?.code || "DRV_A"}:</span>
+                    <span>{driverA?.code || "Driver A"}:</span>
                     <span className="type-tabular">
                       {formatVal(ptA, activeMetric === "multi" ? "speed" : activeMetric)}{" "}
                       {getMetricConfig(activeMetric === "multi" ? "speed" : activeMetric).unit}

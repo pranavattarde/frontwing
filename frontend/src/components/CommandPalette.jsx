@@ -8,12 +8,12 @@ export function CommandPalette({ isOpen, onClose }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef(null);
   const commands = [
-    { id: "nav-home", label: "Go to Home / Briefing Room", category: "NAVIGATION", shortcut: "G H", action: () => navigate("/") },
-    { id: "nav-strategy", label: "Go to Strategy Engineer Workspace", category: "NAVIGATION", shortcut: "G S", action: () => navigate("/strategy") },
-    { id: "nav-ghost", label: "Go to 3D Ghost Battle Studio", category: "NAVIGATION", shortcut: "G G", action: () => navigate("/ghost-battle") },
-    { id: "nav-briefing", label: "Go to Race Briefing Portal", category: "NAVIGATION", shortcut: "G B", action: () => navigate("/race/aut-2024") },
-    { id: "action-export", label: "Export active telemetry trace", category: "ACTIONS", shortcut: "⌘E", action: () => console.log("Export PNG") },
-    { id: "action-reset", label: "Reset all active what-if simulation states", category: "ACTIONS", shortcut: "⌘R", action: () => console.log("Reset sims") }
+    { id: "nav-home", label: "Go to Home / Briefing Room", category: "Navigation", shortcut: "G H", action: () => navigate("/") },
+    { id: "nav-strategy", label: "Go to Strategy Engineer Workspace", category: "Navigation", shortcut: "G S", action: () => navigate("/strategy") },
+    { id: "nav-ghost", label: "Go to 3D Ghost Battle Studio", category: "Navigation", shortcut: "G G", action: () => navigate("/ghost-battle") },
+    { id: "nav-briefing", label: "Go to Race Briefing Portal", category: "Navigation", shortcut: "G B", action: () => navigate("/race/aut-2024") },
+    { id: "action-export", label: "Export active telemetry trace", category: "Actions", shortcut: "⌘E", action: () => console.log("Export PNG") },
+    { id: "action-reset", label: "Reset all active what-if simulation states", category: "Actions", shortcut: "⌘R", action: () => console.log("Reset sims") }
   ];
   const filtered = commands.filter(
     (cmd) => cmd.label.toLowerCase().includes(value.toLowerCase()) || cmd.category.toLowerCase().includes(value.toLowerCase())
@@ -80,7 +80,7 @@ export function CommandPalette({ isOpen, onClose }) {
     className="flex-1 bg-transparent outline-none placeholder:text-text-muted text-text-primary font-mono text-xs"
     autoFocus
   /><span className="text-text-muted text-[10px] select-none pl-3 border-l border-border-subtle">
-                [ESC_CLOSE]
+                [Esc to Close]
               </span></div>{
     /* List */
   }<div className="max-h-[300px] overflow-y-auto divide-y divide-border-subtle/30 p-2">{filtered.length > 0 ? filtered.map((cmd, idx) => {
@@ -97,11 +97,10 @@ export function CommandPalette({ isOpen, onClose }) {
       )}
     ><div className="flex items-center gap-3"><span className={cn(
       "text-[9px] font-semibold border px-1.5 py-0.5 rounded-badge uppercase tracking-wider",
-      cmd.category === "NAVIGATION" && "text-accent-primary border-accent-primary/30 bg-accent-primary/10",
-      cmd.category === "ACTIONS" && "text-accent-danger border-accent-danger/30 bg-accent-danger/10",
-      cmd.category === "QUERIES" && "text-timing-yellow border-timing-yellow/30 bg-timing-yellow/10"
+      cmd.category === "Navigation" && "text-accent-primary border-accent-primary/30 bg-accent-primary/10",
+      cmd.category === "Actions" && "text-accent-danger border-accent-danger/30 bg-accent-danger/10"
     )}>{cmd.category}</span><span className="text-text-secondary font-medium">{cmd.label}</span></div>{cmd.shortcut && <span className="text-text-muted text-[10px] type-tabular">{cmd.shortcut}</span>}</div>;
   }) : <div className="p-3 text-text-muted">
-                  NO_COMMANDS_FOUND
+                  No commands found
                 </div>}</div></motion.div></div>}</AnimatePresence>;
 }

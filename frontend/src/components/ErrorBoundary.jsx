@@ -29,26 +29,26 @@ export class ErrorBoundary extends Component {
               <span className="text-accent-danger font-bold text-lg font-mono">!</span>
             </div>
             <div className="flex flex-col gap-2">
-              <span className="text-mono-meta font-mono text-accent-danger tracking-widest uppercase">
-                SYSTEM_DIAGNOSTIC // COMPONENT_FAULT
+              <span className="text-mono-meta font-mono text-accent-danger tracking-wide">
+                System Notice • Interface Error
               </span>
-              <h2 className="text-md font-mono text-text-primary uppercase tracking-widest">
-                An Unexpected Exception Occurred
+              <h2 className="text-base font-semibold text-text-primary">
+                Something went wrong
               </h2>
-              <p className="text-text-muted text-xs leading-relaxed font-mono">
-                {this.state.error?.message || "The AI Race Engineer encountered an unexpected UI rendering fault."}
+              <p className="text-text-muted text-xs leading-relaxed">
+                {this.state.error?.message || "We encountered an unexpected display issue while rendering this view."}
               </p>
             </div>
             <div className="flex gap-4 w-full pt-2">
               <button
                 onClick={this.handleReset}
-                className="flex-1 btn-f1-primary py-2.5 px-4 text-xs font-mono font-bold uppercase tracking-wider"
+                className="flex-1 btn-f1-primary py-2.5 px-4 text-xs font-semibold rounded-badge"
               >
-                Reset State
+                Try Again
               </button>
               <button
                 onClick={this.handleGoHome}
-                className="flex-1 py-2.5 px-4 rounded-badge border border-border-subtle text-text-primary hover:bg-surface-raised transition-colors font-mono text-xs uppercase tracking-wider"
+                className="flex-1 py-2.5 px-4 rounded-badge border border-border-subtle text-text-primary hover:bg-surface-raised transition-colors text-xs font-semibold"
               >
                 Go Home
               </button>

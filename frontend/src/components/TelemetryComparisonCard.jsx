@@ -6,8 +6,8 @@ export function TelemetryComparisonCard({
   comparativeAnalysis,
   telemetryDataA = [],
   telemetryDataB = [],
-  driverA = { code: "DRV_A", name: "Driver A" },
-  driverB = { code: "DRV_B", name: "Driver B" },
+  driverA = { code: "Driver A", name: "Driver A" },
+  driverB = { code: "Driver B", name: "Driver B" },
   trackName = "Grand Prix Circuit",
   lapNumberA = 1,
   lapNumberB = 1,
@@ -22,8 +22,8 @@ export function TelemetryComparisonCard({
   const strongerA = comparativeAnalysis?.driver_a_stronger_sectors || [];
   const strongerB = comparativeAnalysis?.driver_b_stronger_sectors || [];
 
-  const nameA = driverA?.name || driverA?.code || "DRIVER A";
-  const nameB = driverB?.name || driverB?.code || "DRIVER B";
+  const nameA = driverA?.name || driverA?.code || "Driver A";
+  const nameB = driverB?.name || driverB?.code || "Driver B";
   const codeA = driverA?.code || nameA.slice(0, 3).toUpperCase();
   const codeB = driverB?.code || nameB.slice(0, 3).toUpperCase();
 

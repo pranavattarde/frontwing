@@ -37,28 +37,58 @@ export function DriverCard({
               P{position}</span><span className={cn(
     "text-[9px] font-mono leading-none mt-0.5 type-tabular",
     posChange > 0 ? "text-timing-green" : posChange < 0 ? "text-accent-danger" : "text-text-muted"
-  )}>{posChange > 0 ? `▲${posChange}` : posChange < 0 ? `▼${Math.abs(posChange)}` : "static"}</span></div></div>{
-    /* Content Section */
-  }{isDetailed ? <div className="flex flex-col gap-4">{
-    /* Detailed Stats Grid */
-  }<div className="grid grid-cols-2 gap-3 border-t border-b border-border-subtle py-3"><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">TEAM</span><span className="text-xs font-medium text-text-secondary truncate">{driver.teamName}</span></div><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">STATUS</span><span className="text-xs font-mono text-text-secondary">{status}</span></div><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">GRID_START</span><span className="text-xs font-mono text-text-secondary type-tabular">P{gridPosition}</span></div><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">GRID_DIFF</span><span className={cn(
-    "text-xs font-mono type-tabular",
-    posChange > 0 ? "text-timing-green" : posChange < 0 ? "text-accent-danger" : "text-text-secondary"
-  )}>{posChange > 0 ? `+${posChange}` : posChange}</span></div></div>{
-    /* Scores Overview */
-  }<div className="flex items-center justify-between"><ScoreRing value={scores.composite} label="COMPOSITE" size="lg" color={driver.teamColor || "#00D2BE"} /><div className="flex flex-col gap-1.5 flex-1 pl-6">{Object.entries(scores).filter(([key]) => key !== "composite").map(([key, val]) => <div key={key} className="flex justify-between items-center text-mono-meta font-mono"><span className="text-text-muted uppercase text-[9px]">{key}</span><div className="flex items-center gap-2"><div className="w-16 h-1.5 bg-surface-raised rounded-sm overflow-hidden border border-border-subtle"><div
-    className="h-full bg-timing-green"
-    style={{ width: `${val}%` }}
-  /></div><span className="text-text-primary text-[10px] w-6 text-right type-tabular">{val}</span></div></div>)}</div></div></div> : (
-    /* Compact View */
-    <div className="flex items-center justify-between border-t border-border-subtle pt-2.5"><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted uppercase">Constructor</span><span className="text-xs text-text-secondary font-medium truncate max-w-[120px]">{driver.teamName}</span></div><ScoreRing value={scores.composite} label="SCORE" size="md" color={driver.teamColor || "#00D2BE"} /></div>
-  )}</div>{isDetailed && onCompare && <button
-    onClick={(e) => {
-      e.stopPropagation();
-      onCompare();
-    }}
-    className="mt-4 w-full py-1.5 border border-border-subtle rounded-badge text-mono-meta font-mono text-text-secondary hover:bg-surface-raised hover:text-text-primary hover:border-border-strong transition-all duration-[80ms]"
-  >
-          COMPARE WITH TEAMMATE
-        </button>}</motion.div>;
+  )}>{posChange > 0 ? `▲${posChange}` : posChange < 0 ? `▼${Math.abs(posChange)}` : "static"}</span></div></div>
+  {isDetailed ? (
+    <div className="flex flex-col gap-4">
+        {/* Detailed Stats Grid */}
+        <div className="grid grid-cols-2 gap-3 border-t border-b border-border-subtle py-3">
+          <div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">Team</span><span className="text-xs font-medium text-text-secondary truncate">{driver.teamName}</span></div>
+          <div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">Status</span><span className="text-xs font-mono text-text-secondary">{status}</span></div>
+          <div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">Grid Start</span><span className="text-xs font-mono text-text-secondary type-tabular">P{gridPosition}</span></div>
+          <div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">Grid Delta</span><span className={cn(
+            "text-xs font-mono type-tabular",
+            posChange > 0 ? "text-timing-green" : posChange < 0 ? "text-accent-danger" : "text-text-secondary"
+          )}>{posChange > 0 ? `+${posChange}` : posChange}</span></div>
+        </div>
+
+        {/* Scores Overview */}
+        <div className="flex items-center justify-between">
+          <ScoreRing value={scores.composite} label="Overall" size="lg" color={driver.teamColor || "#00D2BE"} />
+          <div className="flex flex-col gap-1.5 flex-1 pl-6">
+            {Object.entries(scores).filter(([key]) => key !== "composite").map(([key, val]) => (
+              <div key={key} className="flex justify-between items-center text-mono-meta font-mono">
+                <span className="text-text-muted capitalize text-[9px]">{key.replace(/_/g, " ")}</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-16 h-1.5 bg-surface-raised rounded-sm overflow-hidden border border-border-subtle">
+                    <div className="h-full bg-timing-green" style={{ width: `${val}%` }} />
+                  </div>
+                  <span className="text-text-primary text-[10px] w-6 text-right type-tabular">{val}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>) : (
+        /* Compact View */
+        <div className="flex items-center justify-between border-t border-border-subtle pt-2.5">
+          <div className="flex flex-col">
+            <span className="text-[9px] font-mono text-text-muted">Constructor</span>
+            <span className="text-xs text-text-secondary font-medium truncate max-w-[120px]">{driver.teamName}</span>
+          </div>
+          <ScoreRing value={scores.composite} label="Score" size="md" color={driver.teamColor || "#00D2BE"} />
+        </div>
+      )}
+    </div>
+    {isDetailed && onCompare && (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onCompare();
+        }}
+        className="mt-4 w-full py-1.5 border border-border-subtle rounded-badge text-mono-meta font-mono text-text-secondary hover:bg-surface-raised hover:text-text-primary hover:border-border-strong transition-all duration-[80ms]"
+      >
+        Compare with Teammate
+      </button>
+    )}
+  </motion.div>;
 }

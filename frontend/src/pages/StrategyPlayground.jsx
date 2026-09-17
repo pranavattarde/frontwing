@@ -98,10 +98,10 @@ export function StrategyPlayground() {
     };
   }, [pitLap]);
   const sliderMarkers = [
-    { value: 18, label: "EARLY_TRAFFIC", type: "default" },
-    { value: 20, label: "OPTIMAL_P2", type: "optimal" },
-    { value: 22, label: "ACTUAL_P3", type: "actual" },
-    { value: 24, label: "LATE_LOSS", type: "default" }
+    { value: 18, label: "Early Traffic", type: "default" },
+    { value: 20, label: "Optimal P2", type: "optimal" },
+    { value: 22, label: "Actual P3", type: "actual" },
+    { value: 24, label: "Late Loss", type: "default" }
   ];
   const handleSliderChange = (val) => {
     setIsComputing(true);
