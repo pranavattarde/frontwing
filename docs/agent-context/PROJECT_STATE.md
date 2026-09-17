@@ -1,11 +1,35 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-09-17 by Antigravity (Session 043 - Web Search Fallback for Out-of-Scope Queries, AI Verdict Dynamic Sizing & Markdown Flow, Global Internal Model/Provider Badging Elimination & Title Case Everywhere)
-> Audit method: Verified live via automated comprehensive regex/AST audit across the frontend, backend security and history management test suites (`npm test`, `node tests/history_management.test.js` - 14/14 security passed, all history management tests passed), and frontend production build (`npm run build` completed in 28.3s with 0 errors). Captured browser screenshots across Investigation Room, Strategy Engineer, and Homepage verifying: 0 provider names (Gemini, Groq), 0 model names (gemini-3.6-flash, openai/gpt-oss-120b, gemini-2.0-flash), 0 confidence percentage badges, 0 AI_ENGINEER_ACTIVE badges, clean Title Case headings everywhere, dynamic query-tailored loading messages, and zero scroll trapping.
+> Last updated: 2026-09-17 by Antigravity (Session 044 - Collapsible/Expandable Sidebar with Responsive Main Content Reflow & Persistence - FIX FF)
+> Audit method: Verified live via browser subagent (`sidebar_collapse_verification_1789649994509.webp`), capturing screenshots across desktop (1280x800) expanded/collapsed states and tablet (820x1000) responsive view (`sidebar_expanded_desktop_1789650135805.png`, `sidebar_collapsed_desktop_1789650363060.png`, `investigation_sidebar_expanded_1789650603713.png`, `investigation_sidebar_collapsed_1789650616001.png`, `tablet_responsive_view_1789650668447.png`). Verified 0 text label leaks in collapsed slim rail, persistent state across reloads via localStorage (`frontwing_sidebar_collapsed`), smooth 240ms cubic-bezier transition, automatic window resize dispatch triggering chart reflow, backend security tests 14/14 passed (`npm test`), history management tests passed (`node tests/history_management.test.js`), and frontend production build succeeded (`npm run build` completed in 21.93s with 0 errors).
 
 ---
 
 ## 1. What Works Right Now
+
+### Collapsible & Expandable Sidebar with Responsive Layout Reflow (SESSION 044 - FIX FF VERIFIED LIVE)
+- **Collapsible Sidebar Architecture (`Sidebar.jsx`, `App.jsx`, `BriefingHeader.jsx`)**:
+  - Engineered dual-mode responsive sidebar: expanded full panel (`w-64` / 256px width) and collapsed slim icon-only rail (`w-16` / 64px width).
+  - Collapsed rail displays strictly icon-only controls with zero text labels: FrontWing connected speed mark logo, expand double-chevron toggle (`»`), new investigation action (`＋`), global search (`🔍`), navigation route icons (`🏁` Briefing Room, `📊` Strategy Engineer, `⚡` Ghost Battle), pinned quick-access pips (`📌`), and user circular avatar profile pip (`PI` / `🔑`).
+  - Implemented accessible `aria-label`s and native tooltip titles for all slim rail icons.
+- **Hardware-Accelerated Motion System Tokens (`Sidebar.jsx`, `index.css`)**:
+  - Smooth width transition using FrontWing motion tokens: `transition-[width] duration-[240ms] [transition-timing-function:cubic-bezier(0.2,0,0,1)] select-none`.
+  - Content containers within both expanded and collapsed shells utilize GPU-accelerated opacity fades (`animate-fade-in`), avoiding layout thrashing or stuttering.
+- **Dynamic Content Reflow & Window Resize Dispatch (`Sidebar.jsx`, `App.jsx`)**:
+  - Main application container in `App.jsx` uses `flex-1 flex flex-col min-w-0 h-full overflow-y-auto`.
+  - When the sidebar collapses, the main content area smoothly expands to occupy `calc(100vw - 64px)` without horizontal scrollbars, clipped text, or layout jumps.
+  - Automatically dispatches `window.dispatchEvent(new Event("resize"))` 250ms after collapse/expand transitions to trigger chart recalculations across Recharts, SVG delta overlays, and Three.js canvases.
+- **Cross-Session Persistence & Hotkey Integration (`Sidebar.jsx`)**:
+  - User collapse/expand preference is persisted across browser refreshes and sessions in `localStorage.getItem("frontwing_sidebar_collapsed")`.
+  - Added global keyboard shortcut `Ctrl+B` (or `Cmd+B`) to toggle sidebar collapse/expand from anywhere in the app.
+  - Added `Ctrl+N` shortcut to initiate a new investigation and smoothly focus the input bar via `frontwing-focus-input`.
+- **Verified Desktop & Tablet Responsive Proofs**:
+  - Verified live in browser subagent across 5 screenshots:
+    1. `sidebar_expanded_desktop_1789650135805.png`: Full 256px sidebar on desktop homepage.
+    2. `sidebar_collapsed_desktop_1789650363060.png`: Slim 64px icon-only rail with clean reflow of countdown hero and last race results.
+    3. `investigation_sidebar_expanded_1789650603713.png`: Investigation room with full sidebar.
+    4. `investigation_sidebar_collapsed_1789650616001.png`: Investigation room with collapsed rail, card naturally filling the wider viewport width.
+    5. `tablet_responsive_view_1789650668447.png`: Tablet viewport (820x1000) showing clean responsive reflow.
 
 ### Web Search Fallback for Out-of-Scope Queries & Critical Scope Rules (SESSION 043 - FIX BB VERIFIED LIVE)
 - **Zero-Paid-API Web Search Engine (`ai_services/app/tools/web_search.py`, `adapters.py`)**:

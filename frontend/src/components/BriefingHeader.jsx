@@ -23,8 +23,11 @@ export const BriefingHeader = memo(function BriefingHeader2({
         {/* Logo + Breadcrumbs */}
         <div className="flex items-center gap-2.5 min-w-0">
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent("toggle-sidebar"))}
-            className="lg:hidden p-1.5 -ml-1 text-text-muted hover:text-text-primary rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent("toggle-sidebar"));
+              window.dispatchEvent(new CustomEvent("frontwing-toggle-sidebar"));
+            }}
+            className="md:hidden p-1.5 -ml-1 text-text-muted hover:text-text-primary rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
             aria-label="Toggle Navigation Sidebar"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

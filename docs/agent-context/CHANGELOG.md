@@ -1,3 +1,30 @@
+## Session 044 -- 2026-09-17 -- Collapsible/Expandable Sidebar with Responsive Main Content Reflow & Persistence (FIX FF)
+
+### What Was Changed
+- **FIX FF: Collapsible/Expandable Sidebar (`Sidebar.jsx`, `App.jsx`, `BriefingHeader.jsx`)**:
+  - Implemented dual-state collapsible sidebar: full panel (`w-64`, 256px) and collapsed slim icon-only rail (`w-16`, 64px) with double-chevron collapse/expand toggle controls (`«` / `»`).
+  - Strict icon-only rail design in collapsed mode: FrontWing mark logo, expand button, new investigation icon (`＋`), search icon (`🔍`), navigation route icons (`🏁`, `📊`, `⚡`), pinned quick-access pips (`📌`), and user circular profile avatar (`PI` / `🔑`). Zero text labels leak into the collapsed rail.
+  - Implemented smooth hardware-accelerated motion transition using FrontWing motion tokens: `transition-[width] duration-[240ms] [transition-timing-function:cubic-bezier(0.2,0,0,1)] select-none` with GPU-accelerated opacity fades (`animate-fade-in`).
+  - Main container in `App.jsx` dynamically flexes (`flex-1 flex flex-col min-w-0 h-full overflow-y-auto`) to take up all remaining viewport width (`calc(100vw - 64px)` when collapsed) with zero horizontal overflow, clipped text, or layout jump.
+  - Added automatic window resize dispatch (`window.dispatchEvent(new Event("resize"))`) 250ms after collapse/expand transitions to trigger chart recalculations across Recharts, SVG delta overlays, and Three.js canvases.
+  - Persisted user collapsed/expanded preference in `localStorage.getItem("frontwing_sidebar_collapsed")` across browser sessions.
+  - Added global keyboard shortcut `Ctrl+B` (or `Cmd+B`) to toggle sidebar collapse/expand from anywhere in the app, and `Ctrl+N` to start a new investigation with auto-focusing on the question console.
+
+### Verification
+- Ran browser subagent verification (`sidebar_collapse_verification_1789649994509.webp`) and captured 5 real browser screenshots:
+  1. `sidebar_expanded_desktop_1789650135805.png`: Desktop expanded sidebar showing navigation, groups, and user profile.
+  2. `sidebar_collapsed_desktop_1789650363060.png`: Desktop collapsed slim rail (64px) with zero text labels and clean countdown hero reflow.
+  3. `investigation_sidebar_expanded_1789650603713.png`: Investigation room with full expanded sidebar.
+  4. `investigation_sidebar_collapsed_1789650616001.png`: Investigation room with collapsed rail, card and follow-ups expanding into full width.
+  5. `tablet_responsive_view_1789650668447.png`: Tablet viewport (820x1000) showing clean responsive reflow.
+- Ran backend test suites:
+  - `npm test`: 14/14 security tests passed (rate limiting, input validation, CORS, error handling).
+  - `node tests/history_management.test.js`: All history management, groups, pinning, and deletion tests passed.
+- Ran frontend production build:
+  - `npm run build`: Succeeded in 21.93s with 0 errors.
+
+---
+
 ## Session 043 -- 2026-09-17 -- Web Search Fallback for Out-of-Scope Queries (FIX BB), AI Verdict Card Dynamic Sizing & Markdown (FIX CC), and Complete Elimination of Internal Model/Provider Badging & Title Case Everywhere (FIX DD)
 
 ### What Was Changed

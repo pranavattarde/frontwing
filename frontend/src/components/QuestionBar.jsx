@@ -23,6 +23,15 @@ export function QuestionBar({
     }
   }, [prefillValue]);
 
+  useEffect(() => {
+    const handleFocusInput = () => {
+      inputRef.current?.focus();
+      inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+    window.addEventListener("frontwing-focus-input", handleFocusInput);
+    return () => window.removeEventListener("frontwing-focus-input", handleFocusInput);
+  }, []);
+
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim();
     if (trimmed && !disabled) {

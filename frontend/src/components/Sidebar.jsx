@@ -51,6 +51,27 @@ export function Sidebar({ className }) {
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
+  // Collapsible Sidebar preference (persisted across sessions via localStorage)
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("frontwing_sidebar_collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleCollapse = useCallback(() => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("frontwing_sidebar_collapsed", String(next));
+      } catch (err) {
+        console.warn("[Sidebar] Could not save collapsed state:", err.message);
+      }
+      return next;
+    });
+  }, []);
+
   const menuRef = useRef(null);
 
   // Helper to sort history items: pinned first, then newest timestamp
@@ -213,6 +234,45 @@ export function Sidebar({ className }) {
   useEffect(() => {
     loadUserHistory();
   }, [loadUserHistory, user]);
+
+  // Dispatch window resize event after collapse/expand transition so charts and canvases reflow cleanly
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new Event("resize"));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [isCollapsed]);
+
+  // Keyboard shortcut Ctrl+B / Cmd+B to toggle sidebar, Ctrl+N / Cmd+N for new investigation, and custom events
+  useEffect(() => {
+    const handleToggle = () => toggleCollapse();
+    const handleOpenMobile = () => setIsMobileOpen((prev) => !prev);
+    window.addEventListener("frontwing-toggle-sidebar", handleToggle);
+    window.addEventListener("toggle-sidebar", handleOpenMobile);
+
+    const handleKeyDown = (e) => {
+      if (["INPUT", "TEXTAREA"].includes(e.target?.tagName)) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleCollapse();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        navigate("/");
+        setIsMobileOpen(false);
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent("frontwing-focus-input"));
+        }, 50);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("frontwing-toggle-sidebar", handleToggle);
+      window.removeEventListener("toggle-sidebar", handleOpenMobile);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [toggleCollapse, navigate]);
 
   // Auth Submit
   const handleAuthSubmit = async (e) => {
@@ -687,14 +747,14 @@ export function Sidebar({ className }) {
       {isMobileOpen && (
         <div
           onClick={() => setIsMobileOpen(false)}
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden animate-fade-in"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden animate-fade-in"
         />
       )}
 
       {/* Mobile Toggle Button */}
       <button
         onClick={() => setIsMobileOpen(!isMobileOpen)}
-        className="lg:hidden fixed top-3 left-3 z-50 p-2 rounded-sm bg-surface-raised border border-border-subtle text-text-primary shadow-md"
+        className="md:hidden fixed top-3 left-3 z-50 p-2 rounded-sm bg-surface-raised border border-border-subtle text-text-primary shadow-md"
         aria-label="Toggle Navigation"
       >
         <span className="text-sm">☰</span>
@@ -703,469 +763,667 @@ export function Sidebar({ className }) {
       {/* Main Sidebar Shell */}
       <aside
         className={cn(
-          "w-64 h-screen border-r border-border-subtle bg-surface-base flex flex-col justify-between shrink-0 z-40 transition-transform duration-200",
-          "fixed top-0 left-0 lg:static lg:translate-x-0",
-          isMobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full",
+          "h-screen border-r border-border-subtle bg-surface-base flex flex-col justify-between shrink-0 z-40 overflow-hidden",
+          "transition-[width] duration-[240ms] [transition-timing-function:cubic-bezier(0.2,0,0,1)] select-none",
+          "fixed top-0 left-0 md:static md:translate-x-0",
+          isCollapsed ? "w-16" : "w-64",
+          isMobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full md:translate-x-0",
           className
         )}
       >
-        {/* Top: Branding & Primary Navigation */}
-        <div className="flex flex-col border-b border-border-subtle">
-          <div className="p-4 flex items-center justify-between">
-            <FrontWingLogo />
-            <button
-              onClick={() => setIsMobileOpen(false)}
-              className="lg:hidden text-text-muted hover:text-text-primary p-1"
-            >
-              ✕
-            </button>
-          </div>
-
-          <div className="px-3 pb-3 flex flex-col gap-1 text-xs font-mono">
-            <button
-              onClick={() => {
-                navigate("/");
-                setIsMobileOpen(false);
-              }}
-              className={cn(
-                "flex items-center gap-2.5 px-3 py-2 rounded-sm transition-colors text-left",
-                isCurrentRoute("/")
-                  ? "bg-surface-raised text-text-primary border-l-2 border-accent-primary font-bold shadow-sm"
-                  : "text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
-              )}
-            >
-              <span>🏁</span>
-              <span>Briefing Room</span>
-            </button>
-
-            <button
-              onClick={() => {
-                navigate("/strategy");
-                setIsMobileOpen(false);
-              }}
-              className={cn(
-                "flex items-center gap-2.5 px-3 py-2 rounded-sm transition-colors text-left",
-                isCurrentRoute("/strategy")
-                  ? "bg-surface-raised text-text-primary border-l-2 border-accent-primary font-bold shadow-sm"
-                  : "text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
-              )}
-            >
-              <span>📊</span>
-              <span>Strategy Engineer</span>
-            </button>
-
-            <button
-              onClick={() => {
-                navigate("/ghost-battle");
-                setIsMobileOpen(false);
-              }}
-              className={cn(
-                "flex items-center gap-2.5 px-3 py-2 rounded-sm transition-colors text-left",
-                isCurrentRoute("/ghost-battle")
-                  ? "bg-surface-raised text-text-primary border-l-2 border-accent-primary font-bold shadow-sm"
-                  : "text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
-              )}
-            >
-              <span>⚡</span>
-              <span>Ghost Battle</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Center: Real User Investigation History & Groups */}
-        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-3 gap-2">
-          {/* History Header & Add Group Button */}
-          <div className="flex items-center justify-between text-mono-meta font-mono text-[10px] text-text-muted tracking-wider pb-1">
-            <div className="flex items-center gap-1.5">
-              <span>Investigations</span>
-              {isLoadingHistory && (
-                <span className="w-1.5 h-1.5 rounded-full bg-accent-primary animate-ping" />
-              )}
-            </div>
-
-            {user && (
+        {isCollapsed ? (
+          /* COLLAPSED SLIM ICON-ONLY RAIL (w-16) */
+          <div className="flex flex-col justify-between h-full w-16 py-3 items-center animate-fade-in">
+            {/* Top: Logo + Expand Toggle + Primary Actions */}
+            <div className="flex flex-col items-center gap-2 w-full">
+              {/* Logo Mark */}
               <button
-                onClick={() => setIsCreatingGroup(!isCreatingGroup)}
-                title="Create Group"
-                className="hover:text-text-primary text-[10px] px-1.5 py-0.5 rounded border border-border-subtle bg-surface-canvas hover:bg-surface-raised transition-colors"
+                onClick={() => navigate("/")}
+                title="FrontWing Home"
+                className="p-1.5 rounded hover:bg-surface-raised transition-colors group"
+                aria-label="FrontWing Home"
               >
-                + Group
+                <FrontWingLogo variant="mark" size={24} />
               </button>
-            )}
-          </div>
 
-          {/* Inline Create Group Box */}
-          {isCreatingGroup && (
-            <div className="p-2 border border-border-subtle rounded bg-surface-raised flex flex-col gap-1.5 mb-1 font-mono text-xs animate-slide-down">
-              <span className="text-[10px] font-bold text-text-secondary">New Group</span>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="text"
-                  placeholder="e.g. Monza 2024, Telemetry Drills..."
-                  value={newGroupName}
-                  onChange={(e) => setNewGroupName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleCreateGroupAndMove(e, null);
-                    if (e.key === "Escape") setIsCreatingGroup(false);
-                  }}
-                  autoFocus
-                  className="flex-1 bg-surface-base border border-border-subtle text-text-primary text-[11px] px-2 py-1 rounded outline-none focus:border-accent-primary"
-                />
-                <button
-                  onClick={(e) => handleCreateGroupAndMove(e, null)}
-                  className="px-2 py-1 rounded bg-accent-primary text-white text-[11px] font-semibold hover:bg-accent-primary/80"
-                >
-                  Create
-                </button>
-                <button
-                  onClick={() => setIsCreatingGroup(false)}
-                  className="px-2 py-1 rounded border border-border-subtle text-text-muted hover:text-text-primary text-[11px]"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          )}
-
-          {!user ? (
-            <div className="p-3 rounded-md border border-border-subtle bg-surface-canvas text-center font-mono text-[11px] text-text-muted flex flex-col gap-2 my-auto">
-              <span className="text-accent-primary font-bold">🔒 Sign In Required</span>
-              <p className="text-[10px] leading-relaxed text-text-secondary">
-                Sign in to save and access your telemetry investigations, pin queries, and organize into groups.
-              </p>
+              {/* Expand Toggle Control */}
               <button
-                onClick={() => setIsAuthOpen(true)}
-                className="text-[10px] text-accent-primary underline font-bold hover:text-text-primary"
+                onClick={toggleCollapse}
+                title="Expand Sidebar (Ctrl+B)"
+                className="p-1.5 rounded hover:bg-surface-raised text-text-muted hover:text-text-primary transition-colors"
+                aria-label="Expand Sidebar"
               >
-                Sign In / Register Below ↓
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              <div className="w-8 h-[1px] bg-border-subtle my-0.5" />
+
+              {/* New Investigation Icon Button */}
+              <button
+                onClick={() => {
+                  navigate("/");
+                  window.dispatchEvent(new CustomEvent("frontwing-focus-input"));
+                }}
+                title="New Investigation (Ctrl+N)"
+                className="w-10 h-10 rounded flex items-center justify-center text-accent-primary hover:bg-surface-raised border border-border-subtle/50 hover:border-accent-primary/50 transition-colors shadow-xs"
+                aria-label="New Investigation"
+              >
+                <span className="text-base font-bold leading-none">＋</span>
+              </button>
+
+              {/* Search Icon Button */}
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent("toggle-search-overlay"))}
+                title="Search Investigations (Ctrl+K)"
+                className="w-10 h-10 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-raised transition-colors text-sm"
+                aria-label="Search Investigations"
+              >
+                <span>🔍</span>
+              </button>
+
+              <div className="w-8 h-[1px] bg-border-subtle my-0.5" />
+
+              {/* Navigation Icons (Strictly no text labels) */}
+              <button
+                onClick={() => navigate("/")}
+                title="Briefing Room"
+                className={cn(
+                  "w-10 h-10 rounded flex items-center justify-center transition-colors text-base relative",
+                  isCurrentRoute("/")
+                    ? "bg-surface-raised text-accent-primary border-l-2 border-accent-primary shadow-sm"
+                    : "text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
+                )}
+                aria-label="Briefing Room"
+              >
+                <span>🏁</span>
+              </button>
+
+              <button
+                onClick={() => navigate("/strategy")}
+                title="Strategy Engineer"
+                className={cn(
+                  "w-10 h-10 rounded flex items-center justify-center transition-colors text-base relative",
+                  isCurrentRoute("/strategy")
+                    ? "bg-surface-raised text-accent-primary border-l-2 border-accent-primary shadow-sm"
+                    : "text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
+                )}
+                aria-label="Strategy Engineer"
+              >
+                <span>📊</span>
+              </button>
+
+              <button
+                onClick={() => navigate("/ghost-battle")}
+                title="Ghost Battle"
+                className={cn(
+                  "w-10 h-10 rounded flex items-center justify-center transition-colors text-base relative",
+                  isCurrentRoute("/ghost-battle")
+                    ? "bg-surface-raised text-accent-primary border-l-2 border-accent-primary shadow-sm"
+                    : "text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
+                )}
+                aria-label="Ghost Battle"
+              >
+                <span>⚡</span>
               </button>
             </div>
-          ) : historyItems.length === 0 ? (
-            <div className="p-3 text-center font-mono text-[11px] text-text-muted my-auto">
-              {isLoadingHistory ? (
-                <span>Loading investigation logs...</span>
-              ) : (
-                <span className="italic">// No investigations recorded yet</span>
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3 overflow-y-auto pr-1">
-              {/* SECTION 1: PINNED CHATS */}
+
+            {/* Center: Pinned Quick Access Pips (if any) */}
+            <div className="flex flex-col items-center gap-1.5 w-full flex-1 overflow-y-auto overflow-x-hidden my-2 py-1">
               {pinnedItems.length > 0 && (
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-accent-primary uppercase tracking-wider font-semibold px-1">
-                    <span>📌</span>
-                    <span>Pinned Chats</span>
-                    <span className="text-[9px] text-text-muted font-normal">({pinnedItems.length})</span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    {pinnedItems.map(renderHistoryItem)}
-                  </div>
-                </div>
-              )}
-
-              {/* SECTION 2: GROUPS / FOLDERS */}
-              {groups.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  {groups.map((group) => {
-                    const isCollapsed = !!collapsedGroups[group.id];
-                    const itemsInGroup = groupedItemsMap[group.id] || [];
-                    const isEditingGroup = editingGroupId === group.id;
-
-                    return (
-                      <div key={group.id} className="flex flex-col rounded border border-border-subtle/70 bg-surface-canvas/50">
-                        {/* Group Header */}
-                        <div
-                          onClick={() => handleToggleGroupCollapse(group.id)}
-                          className="flex items-center justify-between p-2 cursor-pointer hover:bg-surface-raised rounded-t transition-colors text-xs font-mono"
-                        >
-                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                            <span className="text-[9px] text-text-muted transition-transform">
-                              {isCollapsed ? "▶" : "▼"}
-                            </span>
-                            <span className="text-xs">📁</span>
-                            {isEditingGroup ? (
-                              <div
-                                className="flex items-center gap-1 flex-1"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <input
-                                  type="text"
-                                  value={editingGroupName}
-                                  onChange={(e) => setEditingGroupName(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") handleSaveRenameGroup(group.id);
-                                    if (e.key === "Escape") setEditingGroupId(null);
-                                  }}
-                                  autoFocus
-                                  className="bg-surface-base border border-accent-primary text-text-primary text-[11px] px-1.5 py-0.5 rounded w-full outline-none"
-                                />
-                                <button
-                                  onClick={() => handleSaveRenameGroup(group.id)}
-                                  className="text-[10px] px-1 py-0.5 bg-accent-primary text-white rounded"
-                                >
-                                  ✓
-                                </button>
-                                <button
-                                  onClick={() => setEditingGroupId(null)}
-                                  className="text-[10px] px-1 py-0.5 border border-border-subtle rounded text-text-muted"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            ) : (
-                              <span className="truncate text-[11px] font-semibold text-text-primary">
-                                {group.name}
-                              </span>
-                            )}
-                          </div>
-
-                          {!isEditingGroup && (
-                            <div
-                              className="flex items-center gap-1 shrink-0 ml-1"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <span className="text-[9px] text-text-muted font-mono bg-surface-raised px-1.5 py-0.5 rounded">
-                                {itemsInGroup.length}
-                              </span>
-                              <button
-                                onClick={() => {
-                                  setEditingGroupId(group.id);
-                                  setEditingGroupName(group.name);
-                                }}
-                                title="Rename group"
-                                className="opacity-0 group-hover:opacity-100 hover:text-text-primary text-[10px] text-text-muted px-1"
-                              >
-                                ✏️
-                              </button>
-                              <button
-                                onClick={() => setDeletingGroupItem(group)}
-                                title="Delete group (ungroups chats)"
-                                className="hover:text-accent-danger text-[10px] text-text-muted px-1"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Group Children */}
-                        {!isCollapsed && (
-                          <div className="flex flex-col gap-1 p-1.5 pt-0 border-t border-border-subtle/30">
-                            {itemsInGroup.length === 0 ? (
-                              <div className="py-2 px-3 text-[10px] text-text-muted italic">
-                                No chats in this group
-                              </div>
-                            ) : (
-                              itemsInGroup.map(renderHistoryItem)
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* SECTION 3: UNGROUPED / RECENT */}
-              {(ungroupedItems.length > 0 || groups.length === 0) && (
-                <div className="flex flex-col gap-1">
-                  {groups.length > 0 && (
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-text-muted uppercase tracking-wider font-semibold px-1 pt-1">
-                      <span>📂</span>
-                      <span>Ungrouped</span>
-                      <span className="text-[9px] font-normal">({ungroupedItems.length})</span>
-                    </div>
-                  )}
-                  <div className="flex flex-col gap-1">
-                    {ungroupedItems.map(renderHistoryItem)}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Delete Confirmation Modal (Item) */}
-        {deletingItem && (
-          <div
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
-            onClick={() => setDeletingItem(null)}
-          >
-            <div
-              className="bg-surface-raised border border-border-subtle rounded-lg max-w-sm w-full p-4 flex flex-col gap-3 font-mono shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center gap-2 text-accent-danger font-bold text-sm">
-                <span>⚠️</span>
-                <span>Confirm Deletion</span>
-              </div>
-              <p className="text-xs text-text-secondary leading-relaxed">
-                Are you sure you want to delete this investigation? This action cannot be undone.
-              </p>
-              <div className="p-2.5 rounded bg-surface-base border border-border-subtle text-xs text-text-primary line-clamp-2 italic">
-                "{deletingItem.display_title || deletingItem.question}"
-              </div>
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-subtle">
-                <button
-                  onClick={() => setDeletingItem(null)}
-                  className="px-3 py-1.5 rounded text-xs text-text-secondary hover:text-text-primary border border-border-subtle hover:bg-surface-canvas transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmDelete}
-                  className="px-3 py-1.5 rounded text-xs bg-accent-danger text-white hover:bg-accent-danger/80 transition-colors font-bold"
-                >
-                  Delete Investigation
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Delete Confirmation Modal (Group) */}
-        {deletingGroupItem && (
-          <div
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
-            onClick={() => setDeletingGroupItem(null)}
-          >
-            <div
-              className="bg-surface-raised border border-border-subtle rounded-lg max-w-sm w-full p-4 flex flex-col gap-3 font-mono shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center gap-2 text-accent-danger font-bold text-sm">
-                <span>⚠️</span>
-                <span>Delete Group</span>
-              </div>
-              <p className="text-xs text-text-secondary leading-relaxed">
-                Delete group <strong className="text-text-primary">"{deletingGroupItem.name}"</strong>? Chats inside will not be deleted; they will be moved to Ungrouped.
-              </p>
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-subtle">
-                <button
-                  onClick={() => setDeletingGroupItem(null)}
-                  className="px-3 py-1.5 rounded text-xs text-text-secondary hover:text-text-primary border border-border-subtle hover:bg-surface-canvas transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmDeleteGroup}
-                  className="px-3 py-1.5 rounded text-xs bg-accent-danger text-white hover:bg-accent-danger/80 transition-colors font-bold"
-                >
-                  Delete Group
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Bottom: Standard Chat App Auth Widget */}
-        <div className="p-3 border-t border-border-subtle bg-surface-base/90 flex flex-col gap-2.5">
-          {user ? (
-            /* Logged In State */
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-accent-primary/20 border border-accent-primary/50 text-accent-primary font-mono font-bold flex items-center justify-center shrink-0 text-xs">
-                  {user.name ? user.name.slice(0, 2).toUpperCase() : user.email.slice(0, 2).toUpperCase()}
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-semibold text-text-primary truncate">
-                    {user.name || "Pit Wall Engineer"}
-                  </span>
-                  <span className="text-[10px] font-mono text-text-muted truncate">
-                    {user.email}
-                  </span>
-                </div>
-              </div>
-
-              <button
-                onClick={handleLogout}
-                title="Sign Out"
-                className="p-1.5 rounded border border-border-subtle text-text-muted hover:text-accent-danger hover:border-accent-danger/40 transition-colors text-xs font-mono"
-              >
-                Sign Out
-              </button>
-            </div>
-          ) : (
-            /* Logged Out / Collapsible Auth State */
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={() => setIsAuthOpen(!isAuthOpen)}
-                className="btn-f1-primary w-full py-2 text-xs font-mono font-bold tracking-wider flex items-center justify-center gap-2"
-              >
-                <span>🔑</span>
-                <span>Sign In / Register</span>
-                <span className="text-[10px] ml-auto">{isAuthOpen ? "▲" : "▼"}</span>
-              </button>
-
-              {isAuthOpen && (
-                <form
-                  onSubmit={handleAuthSubmit}
-                  className="flex flex-col gap-2 p-2.5 rounded border border-border-subtle bg-surface-canvas font-mono text-xs animate-slide-down"
-                >
-                  <div className="flex items-center justify-between pb-1 border-b border-border-subtle">
-                    <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">
-                      {authMode === "login" ? "Account Sign In" : "New Account"}
-                    </span>
+                <>
+                  <div className="w-8 h-[1px] bg-border-subtle my-0.5" />
+                  {pinnedItems.slice(0, 3).map((item) => (
                     <button
-                      type="button"
-                      onClick={() => {
-                        setAuthMode(authMode === "login" ? "register" : "login");
-                        setAuthError("");
-                      }}
-                      className="text-[10px] text-accent-primary underline hover:text-text-primary"
+                      key={item.id}
+                      onClick={() => navigate(`/investigate/${item.id}`)}
+                      title={`📌 ${item.display_title || item.question}`}
+                      className="w-10 h-8 rounded flex items-center justify-center text-accent-primary hover:bg-surface-raised transition-colors text-xs"
+                      aria-label={`Pinned Investigation: ${item.display_title || item.question}`}
                     >
-                      {authMode === "login" ? "Need account?" : "Already registered?"}
+                      <span>📌</span>
                     </button>
+                  ))}
+                </>
+              )}
+            </div>
+
+            {/* Bottom: User Avatar (Strictly no text labels) */}
+            <div className="flex flex-col items-center gap-2 w-full pt-2 border-t border-border-subtle">
+              <button
+                onClick={() => {
+                  if (!user) {
+                    setIsAuthOpen(true);
+                  }
+                  toggleCollapse();
+                }}
+                title={user ? `${user.name || "Pit Wall Engineer"} • ${user.email} (Click to expand)` : "Sign In / Register"}
+                className="w-9 h-9 rounded-full bg-accent-primary/20 border border-accent-primary/50 text-accent-primary font-mono font-bold flex items-center justify-center text-xs hover:border-accent-primary hover:scale-105 transition-all shadow-sm"
+                aria-label="User Profile"
+              >
+                {user ? (
+                  user.name ? user.name.slice(0, 2).toUpperCase() : user.email.slice(0, 2).toUpperCase()
+                ) : (
+                  <span>🔑</span>
+                )}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* EXPANDED FULL SIDEBAR (w-64) */
+          <div className="flex flex-col justify-between h-full w-64 min-w-[256px] animate-fade-in">
+            {/* Top: Branding & Primary Navigation */}
+            <div className="flex flex-col border-b border-border-subtle">
+              <div className="p-3.5 flex items-center justify-between">
+                <button
+                  onClick={() => navigate("/")}
+                  className="focus-visible:outline-none"
+                  title="FrontWing Home"
+                >
+                  <FrontWingLogo variant="full" size="md" />
+                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={toggleCollapse}
+                    title="Collapse Sidebar (Ctrl+B)"
+                    className="p-1.5 rounded hover:bg-surface-raised text-text-muted hover:text-text-primary transition-colors"
+                    aria-label="Collapse Sidebar"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setIsMobileOpen(false)}
+                    className="md:hidden text-text-muted hover:text-text-primary p-1"
+                    aria-label="Close Mobile Sidebar"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Actions: New Investigation + Search */}
+              <div className="px-3 pb-2.5 flex flex-col gap-1.5 font-mono text-xs">
+                <button
+                  onClick={() => {
+                    navigate("/");
+                    setIsMobileOpen(false);
+                    window.dispatchEvent(new CustomEvent("frontwing-focus-input"));
+                  }}
+                  className="flex items-center justify-between px-3 py-1.5 rounded bg-surface-canvas hover:bg-surface-raised border border-border-subtle text-text-primary transition-colors group shadow-xs"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-accent-primary font-bold text-sm">＋</span>
+                    <span className="font-semibold text-[11px]">New Investigation</span>
                   </div>
+                  <span className="text-[10px] text-text-muted">Ctrl+N</span>
+                </button>
 
-                  {authError && (
-                    <div className="p-1.5 rounded bg-accent-danger/10 border border-accent-danger/30 text-accent-danger text-[10px]">
-                      {authError}
-                    </div>
+                <button
+                  onClick={() => {
+                    setIsMobileOpen(false);
+                    window.dispatchEvent(new CustomEvent("toggle-search-overlay"));
+                  }}
+                  className="flex items-center justify-between px-3 py-1.5 rounded bg-surface-canvas hover:bg-surface-raised border border-border-subtle text-text-muted hover:text-text-primary transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs">🔍</span>
+                    <span className="text-[11px]">Search</span>
+                  </div>
+                  <kbd className="text-[9px] bg-surface-base px-1.5 py-0.5 rounded border border-border-subtle">Ctrl+K</kbd>
+                </button>
+              </div>
+
+              {/* Navigation Links */}
+              <div className="px-3 pb-3 flex flex-col gap-1 text-xs font-mono border-t border-border-subtle/50 pt-2">
+                <button
+                  onClick={() => {
+                    navigate("/");
+                    setIsMobileOpen(false);
+                  }}
+                  className={cn(
+                    "flex items-center gap-2.5 px-3 py-2 rounded-sm transition-colors text-left",
+                    isCurrentRoute("/")
+                      ? "bg-surface-raised text-text-primary border-l-2 border-accent-primary font-bold shadow-sm"
+                      : "text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
                   )}
+                >
+                  <span>🏁</span>
+                  <span>Briefing Room</span>
+                </button>
 
-                  {authMode === "register" && (
+                <button
+                  onClick={() => {
+                    navigate("/strategy");
+                    setIsMobileOpen(false);
+                  }}
+                  className={cn(
+                    "flex items-center gap-2.5 px-3 py-2 rounded-sm transition-colors text-left",
+                    isCurrentRoute("/strategy")
+                      ? "bg-surface-raised text-text-primary border-l-2 border-accent-primary font-bold shadow-sm"
+                      : "text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
+                  )}
+                >
+                  <span>📊</span>
+                  <span>Strategy Engineer</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    navigate("/ghost-battle");
+                    setIsMobileOpen(false);
+                  }}
+                  className={cn(
+                    "flex items-center gap-2.5 px-3 py-2 rounded-sm transition-colors text-left",
+                    isCurrentRoute("/ghost-battle")
+                      ? "bg-surface-raised text-text-primary border-l-2 border-accent-primary font-bold shadow-sm"
+                      : "text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
+                  )}
+                >
+                  <span>⚡</span>
+                  <span>Ghost Battle</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Center: Real User Investigation History & Groups */}
+            <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-3 gap-2">
+              {/* History Header & Add Group Button */}
+              <div className="flex items-center justify-between text-mono-meta font-mono text-[10px] text-text-muted tracking-wider pb-1">
+                <div className="flex items-center gap-1.5">
+                  <span>Investigations</span>
+                  {isLoadingHistory && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent-primary animate-ping" />
+                  )}
+                </div>
+
+                {user && (
+                  <button
+                    onClick={() => setIsCreatingGroup(!isCreatingGroup)}
+                    title="Create Group"
+                    className="hover:text-text-primary text-[10px] px-1.5 py-0.5 rounded border border-border-subtle bg-surface-canvas hover:bg-surface-raised transition-colors"
+                  >
+                    + Group
+                  </button>
+                )}
+              </div>
+
+              {/* Inline Create Group Box */}
+              {isCreatingGroup && (
+                <div className="p-2 border border-border-subtle rounded bg-surface-raised flex flex-col gap-1.5 mb-1 font-mono text-xs animate-slide-down">
+                  <span className="text-[10px] font-bold text-text-secondary">New Group</span>
+                  <div className="flex items-center gap-1.5">
                     <input
                       type="text"
-                      placeholder="Engineer Name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="bg-surface-base border border-border-subtle text-text-primary text-[11px] px-2 py-1 rounded outline-none focus:border-accent-primary"
+                      placeholder="e.g. Monza 2024, Telemetry Drills..."
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleCreateGroupAndMove(e, null);
+                        if (e.key === "Escape") setIsCreatingGroup(false);
+                      }}
+                      autoFocus
+                      className="flex-1 bg-surface-base border border-border-subtle text-text-primary text-[11px] px-2 py-1 rounded outline-none focus:border-accent-primary"
                     />
+                    <button
+                      onClick={(e) => handleCreateGroupAndMove(e, null)}
+                      className="px-2 py-1 rounded bg-accent-primary text-white text-[11px] font-semibold hover:bg-accent-primary/80"
+                    >
+                      Create
+                    </button>
+                    <button
+                      onClick={() => setIsCreatingGroup(false)}
+                      className="px-2 py-1 rounded border border-border-subtle text-text-muted hover:text-text-primary text-[11px]"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!user ? (
+                <div className="p-3 rounded-md border border-border-subtle bg-surface-canvas text-center font-mono text-[11px] text-text-muted flex flex-col gap-2 my-auto">
+                  <span className="text-accent-primary font-bold">🔒 Sign In Required</span>
+                  <p className="text-[10px] leading-relaxed text-text-secondary">
+                    Sign in to save and access your telemetry investigations, pin queries, and organize into groups.
+                  </p>
+                  <button
+                    onClick={() => setIsAuthOpen(true)}
+                    className="text-[10px] text-accent-primary underline font-bold hover:text-text-primary"
+                  >
+                    Sign In / Register Below ↓
+                  </button>
+                </div>
+              ) : historyItems.length === 0 ? (
+                <div className="p-3 text-center font-mono text-[11px] text-text-muted my-auto">
+                  {isLoadingHistory ? (
+                    <span>Loading investigation logs...</span>
+                  ) : (
+                    <span className="italic">// No investigations recorded yet</span>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 overflow-y-auto pr-1">
+                  {/* SECTION 1: PINNED CHATS */}
+                  {pinnedItems.length > 0 && (
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5 text-[10px] font-mono text-accent-primary uppercase tracking-wider font-semibold px-1">
+                        <span>📌</span>
+                        <span>Pinned Chats</span>
+                        <span className="text-[9px] text-text-muted font-normal">({pinnedItems.length})</span>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        {pinnedItems.map(renderHistoryItem)}
+                      </div>
+                    </div>
                   )}
 
-                  <input
-                    type="email"
-                    placeholder="Email address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="bg-surface-base border border-border-subtle text-text-primary text-[11px] px-2 py-1 rounded outline-none focus:border-accent-primary"
-                  />
+                  {/* SECTION 2: GROUPS / FOLDERS */}
+                  {groups.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      {groups.map((group) => {
+                        const isCollapsedGroup = !!collapsedGroups[group.id];
+                        const itemsInGroup = groupedItemsMap[group.id] || [];
+                        const isEditingGroup = editingGroupId === group.id;
 
-                  <input
-                    type="password"
-                    placeholder="Password (min 6 chars)"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="bg-surface-base border border-border-subtle text-text-primary text-[11px] px-2 py-1 rounded outline-none focus:border-accent-primary"
-                  />
+                        return (
+                          <div key={group.id} className="flex flex-col rounded border border-border-subtle/70 bg-surface-canvas/50">
+                            {/* Group Header */}
+                            <div
+                              onClick={() => handleToggleGroupCollapse(group.id)}
+                              className="flex items-center justify-between p-2 cursor-pointer hover:bg-surface-raised rounded-t transition-colors text-xs font-mono"
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                <span className="text-[9px] text-text-muted transition-transform">
+                                  {isCollapsedGroup ? "▶" : "▼"}
+                                </span>
+                                <span className="text-xs">📁</span>
+                                {isEditingGroup ? (
+                                  <div
+                                    className="flex items-center gap-1 flex-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <input
+                                      type="text"
+                                      value={editingGroupName}
+                                      onChange={(e) => setEditingGroupName(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") handleSaveRenameGroup(group.id);
+                                        if (e.key === "Escape") setEditingGroupId(null);
+                                      }}
+                                      autoFocus
+                                      className="bg-surface-base border border-accent-primary text-text-primary text-[11px] px-1.5 py-0.5 rounded w-full outline-none"
+                                    />
+                                    <button
+                                      onClick={() => handleSaveRenameGroup(group.id)}
+                                      className="text-[10px] px-1 py-0.5 bg-accent-primary text-white rounded"
+                                    >
+                                      ✓
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingGroupId(null)}
+                                      className="text-[10px] px-1 py-0.5 border border-border-subtle rounded text-text-muted"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="truncate text-[11px] font-semibold text-text-primary">
+                                    {group.name}
+                                  </span>
+                                )}
+                              </div>
 
-                  <button
-                    type="submit"
-                    disabled={isSubmittingAuth}
-                    className="w-full mt-1 py-1.5 rounded bg-accent-primary text-white text-[11px] font-bold tracking-wider hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
-                  >
-                    {isSubmittingAuth ? "Processing..." : authMode === "login" ? "Sign In" : "Register"}
-                  </button>
-                </form>
+                              {!isEditingGroup && (
+                                <div
+                                  className="flex items-center gap-1 shrink-0 ml-1"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <span className="text-[9px] text-text-muted font-mono bg-surface-raised px-1.5 py-0.5 rounded">
+                                    {itemsInGroup.length}
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      setEditingGroupId(group.id);
+                                      setEditingGroupName(group.name);
+                                    }}
+                                    title="Rename group"
+                                    className="opacity-0 group-hover:opacity-100 hover:text-text-primary text-[10px] text-text-muted px-1"
+                                  >
+                                    ✏️
+                                  </button>
+                                  <button
+                                    onClick={() => setDeletingGroupItem(group)}
+                                    title="Delete group (ungroups chats)"
+                                    className="hover:text-accent-danger text-[10px] text-text-muted px-1"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Group Children */}
+                            {!isCollapsedGroup && (
+                              <div className="flex flex-col gap-1 p-1.5 pt-0 border-t border-border-subtle/30">
+                                {itemsInGroup.length === 0 ? (
+                                  <div className="py-2 px-3 text-[10px] text-text-muted italic">
+                                    No chats in this group
+                                  </div>
+                                ) : (
+                                  itemsInGroup.map(renderHistoryItem)
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* SECTION 3: UNGROUPED / RECENT */}
+                  {(ungroupedItems.length > 0 || groups.length === 0) && (
+                    <div className="flex flex-col gap-1">
+                      {groups.length > 0 && (
+                        <div className="flex items-center gap-1.5 text-[10px] font-mono text-text-muted uppercase tracking-wider font-semibold px-1 pt-1">
+                          <span>📂</span>
+                          <span>Ungrouped</span>
+                          <span className="text-[9px] font-normal">({ungroupedItems.length})</span>
+                        </div>
+                      )}
+                      <div className="flex flex-col gap-1">
+                        {ungroupedItems.map(renderHistoryItem)}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
+
+            {/* Bottom: Standard Chat App Auth Widget */}
+            <div className="p-3 border-t border-border-subtle bg-surface-base/90 flex flex-col gap-2.5">
+              {user ? (
+                /* Logged In State */
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-accent-primary/20 border border-accent-primary/50 text-accent-primary font-mono font-bold flex items-center justify-center shrink-0 text-xs">
+                      {user.name ? user.name.slice(0, 2).toUpperCase() : user.email.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-semibold text-text-primary truncate">
+                        {user.name || "Pit Wall Engineer"}
+                      </span>
+                      <span className="text-[10px] font-mono text-text-muted truncate">
+                        {user.email}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleLogout}
+                    title="Sign Out"
+                    className="p-1.5 rounded border border-border-subtle text-text-muted hover:text-accent-danger hover:border-accent-danger/40 transition-colors text-xs font-mono"
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              ) : (
+                /* Logged Out / Collapsible Auth State */
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => setIsAuthOpen(!isAuthOpen)}
+                    className="btn-f1-primary w-full py-2 text-xs font-mono font-bold tracking-wider flex items-center justify-center gap-2"
+                  >
+                    <span>🔑</span>
+                    <span>Sign In / Register</span>
+                    <span className="text-[10px] ml-auto">{isAuthOpen ? "▲" : "▼"}</span>
+                  </button>
+
+                  {isAuthOpen && (
+                    <form
+                      onSubmit={handleAuthSubmit}
+                      className="flex flex-col gap-2 p-2.5 rounded border border-border-subtle bg-surface-canvas font-mono text-xs animate-slide-down"
+                    >
+                      <div className="flex items-center justify-between pb-1 border-b border-border-subtle">
+                        <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">
+                          {authMode === "login" ? "Account Sign In" : "New Account"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuthMode(authMode === "login" ? "register" : "login");
+                            setAuthError("");
+                          }}
+                          className="text-[10px] text-accent-primary underline hover:text-text-primary"
+                        >
+                          {authMode === "login" ? "Need account?" : "Already registered?"}
+                        </button>
+                      </div>
+
+                      {authError && (
+                        <div className="p-1.5 rounded bg-accent-danger/10 border border-accent-danger/30 text-accent-danger text-[10px]">
+                          {authError}
+                        </div>
+                      )}
+
+                      {authMode === "register" && (
+                        <input
+                          type="text"
+                          placeholder="Engineer Name"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          className="bg-surface-base border border-border-subtle text-text-primary text-[11px] px-2 py-1 rounded outline-none focus:border-accent-primary"
+                        />
+                      )}
+
+                      <input
+                        type="email"
+                        placeholder="Email address"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        className="bg-surface-base border border-border-subtle text-text-primary text-[11px] px-2 py-1 rounded outline-none focus:border-accent-primary"
+                      />
+
+                      <input
+                        type="password"
+                        placeholder="Password (min 6 chars)"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        className="bg-surface-base border border-border-subtle text-text-primary text-[11px] px-2 py-1 rounded outline-none focus:border-accent-primary"
+                      />
+
+                      <button
+                        type="submit"
+                        disabled={isSubmittingAuth}
+                        className="w-full mt-1 py-1.5 rounded bg-accent-primary text-white text-[11px] font-bold tracking-wider hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
+                      >
+                        {isSubmittingAuth ? "Processing..." : authMode === "login" ? "Sign In" : "Register"}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </aside>
+
+      {/* Delete Confirmation Modal (Item) - Rendered outside aside so never clipped */}
+      {deletingItem && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setDeletingItem(null)}
+        >
+          <div
+            className="bg-surface-raised border border-border-subtle rounded-lg max-w-sm w-full p-4 flex flex-col gap-3 font-mono shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 text-accent-danger font-bold text-sm">
+              <span>⚠️</span>
+              <span>Confirm Deletion</span>
+            </div>
+            <p className="text-xs text-text-secondary leading-relaxed">
+              Are you sure you want to delete this investigation? This action cannot be undone.
+            </p>
+            <div className="p-2.5 rounded bg-surface-base border border-border-subtle text-xs text-text-primary line-clamp-2 italic">
+              "{deletingItem.display_title || deletingItem.question}"
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-subtle">
+              <button
+                onClick={() => setDeletingItem(null)}
+                className="px-3 py-1.5 rounded text-xs text-text-secondary hover:text-text-primary border border-border-subtle hover:bg-surface-canvas transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="px-3 py-1.5 rounded text-xs bg-accent-danger text-white hover:bg-accent-danger/80 transition-colors font-bold"
+              >
+                Delete Investigation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal (Group) - Rendered outside aside so never clipped */}
+      {deletingGroupItem && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setDeletingGroupItem(null)}
+        >
+          <div
+            className="bg-surface-raised border border-border-subtle rounded-lg max-w-sm w-full p-4 flex flex-col gap-3 font-mono shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 text-accent-danger font-bold text-sm">
+              <span>⚠️</span>
+              <span>Delete Group</span>
+            </div>
+            <p className="text-xs text-text-secondary leading-relaxed">
+              Delete group <strong className="text-text-primary">"{deletingGroupItem.name}"</strong>? Chats inside will not be deleted; they will be moved to Ungrouped.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-subtle">
+              <button
+                onClick={() => setDeletingGroupItem(null)}
+                className="px-3 py-1.5 rounded text-xs text-text-secondary hover:text-text-primary border border-border-subtle hover:bg-surface-canvas transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDeleteGroup}
+                className="px-3 py-1.5 rounded text-xs bg-accent-danger text-white hover:bg-accent-danger/80 transition-colors font-bold"
+              >
+                Delete Group
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
