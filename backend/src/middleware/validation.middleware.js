@@ -166,6 +166,23 @@ const uuidParamSchema = z.object({
   id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'Valid investigation UUID is required')
 });
 
+const groupParamSchema = z.object({
+  groupId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'Valid group UUID is required')
+});
+
+const updateInvestigationSchema = z.object({
+  pinned: z.boolean().optional(),
+  display_title: z.string().trim().max(255).nullable().optional(),
+  group_id: z.union([
+    z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'Valid group UUID is required'),
+    z.null()
+  ]).optional()
+});
+
+const createGroupSchema = z.object({
+  name: z.string().trim().min(1, 'Group name is required').max(100, 'Group name too long')
+});
+
 module.exports = {
   validateBody,
   validateParams,
@@ -177,5 +194,8 @@ module.exports = {
   strategyQuerySchema,
   ghostBattleDataSchema,
   sessionLoadSchema,
-  uuidParamSchema
+  uuidParamSchema,
+  groupParamSchema,
+  updateInvestigationSchema,
+  createGroupSchema
 };

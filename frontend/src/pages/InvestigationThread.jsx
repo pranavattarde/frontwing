@@ -19,7 +19,7 @@ import { ScoreCard } from "@/components/ScoreCard";
 import { SimulationCard } from "@/components/SimulationCard";
 import { TelemetryComparisonCard } from "@/components/TelemetryComparisonCard";
 import { cn, generateId } from "@/lib/utils";
-import { submitEngineerQuery, fetchInvestigationById, toggleSaveInvestigation, fetchBackfillStatus } from "@/lib/api";
+import { submitEngineerQuery, fetchInvestigationById, fetchBackfillStatus } from "@/lib/api";
 export function normalizeStints(stintsList, isActual) {
   if (!stintsList || !Array.isArray(stintsList)) return [];
   return stintsList.map((s) => ({
@@ -175,8 +175,8 @@ function mapResponseToMessages(id, response, timestamp, isLast) {
 
   // 2.5 Head-to-Head Comparative Telemetry & Ghost Fight Card
   if (telemData && telemData.comparative_driver_id && (telemData.comparative_telemetry || telemData.comparative_analysis || telemData.sector_times)) {
-    const driverCodeA = String(telemData.driver_id || "DRIVER_A").toUpperCase();
-    const driverCodeB = String(telemData.comparative_driver_id || "DRIVER_B").toUpperCase();
+    const driverCodeA = telemData.driver_id ? String(telemData.driver_id).toUpperCase() : "Driver A";
+    const driverCodeB = telemData.comparative_driver_id ? String(telemData.comparative_driver_id).toUpperCase() : "Driver B";
     messages.push({
       id: `comparison-${id}-${timestamp}`,
       type: "telemetry-comparison",
@@ -299,7 +299,6 @@ export function InvestigationThread() {
   const [loadingDetail, setLoadingDetail] = useState("Initializing race debrief analysis...");
   const [latency, setLatency] = useState(null);
   const [abortController, setAbortController] = useState(null);
-  const [isSaved, setIsSaved] = useState(false);
   const [questionTitle, setQuestionTitle] = useState("");
   const [prefillQuery, setPrefillQuery] = useState("");
   const [currentResponse, setCurrentResponse] = useState(null);
@@ -386,7 +385,6 @@ export function InvestigationThread() {
       try {
         const data = JSON.parse(storedItem);
         setQuestionTitle(data.question || "Investigation Thread");
-        setIsSaved(!!data.is_saved);
         if (data.status === "completed" || data.exchanges && data.exchanges.length > 0 || data.response) {
           executedQueriesRef.current.add(targetId);
           const lastEx = data.exchanges ? data.exchanges[data.exchanges.length - 1] : { question: data.question, response: data.response, timestamp: data.timestamp || Date.now() };
@@ -418,7 +416,6 @@ export function InvestigationThread() {
         lastResponseRef.current = remoteItem.ai_response;
         setCurrentResponse(remoteItem.ai_response);
         setQuestionTitle(remoteItem.question);
-        setIsSaved(!!remoteItem.is_saved);
         const msgs = mapResponseToMessages(targetId, remoteItem.ai_response, new Date(remoteItem.timestamp).getTime(), true);
         setMessages(msgs);
         setIsLoading(false);
@@ -612,6 +609,23 @@ export function InvestigationThread() {
       if (backendUuid && backendUuid !== id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(backendUuid)) {
         window.history.replaceState(null, "", `/investigate/${backendUuid}`);
       }
+      // Real-time sidebar update: notify sidebar of synchronized real investigation item
+      window.dispatchEvent(
+        new CustomEvent("frontwing-chat-synced", {
+          detail: {
+            tempId: activeId,
+            realItem: {
+              id: targetId,
+              question: queryText,
+              display_title: queryText,
+              timestamp: new Date().toISOString(),
+              session: apiResponse.session || contextData.session || null,
+              pinned: false,
+              group_id: null
+            }
+          }
+        })
+      );
     } catch (error) {
       inFlightRef.current = false;
       if (error.name === "AbortError") {
@@ -622,22 +636,6 @@ export function InvestigationThread() {
       setIsLoading(false);
       setAbortController(null);
       setErrorMsg(error.message || "An error occurred while communicating with the AI Race Engineer.");
-    }
-  };
-  const handleToggleSave = async () => {
-    if (!id) return;
-    try {
-      const res = await toggleSaveInvestigation(id);
-      setIsSaved(res.saved);
-    } catch {
-      const nextSaved = !isSaved;
-      setIsSaved(nextSaved);
-      const stored = localStorage.getItem(`frontwing_investigation_${id}`);
-      if (stored) {
-        const data = JSON.parse(stored);
-        data.is_saved = nextSaved;
-        localStorage.setItem(`frontwing_investigation_${id}`, JSON.stringify(data));
-      }
     }
   };
   const handleCancel = () => {
@@ -817,15 +815,6 @@ export function InvestigationThread() {
               <span className="text-mono-meta font-mono text-accent-primary tracking-widest">
                 Investigation Thread • {resolvedGrandPrix || sessionId || "Active Session"}
               </span>
-              <button
-                onClick={handleToggleSave}
-                className={cn(
-                  "px-3 py-1 rounded-badge font-mono text-[10px] tracking-wider border transition-colors flex items-center gap-1.5",
-                  isSaved ? "border-accent-primary bg-accent-primary/10 text-accent-primary" : "border-border-subtle text-text-muted hover:text-text-primary hover:bg-surface-raised"
-                )}
-              >
-                <span>{isSaved ? "★ Saved" : "☆ Save Debrief"}</span>
-              </button>
             </div>
             <h1 className="text-display-sm text-text-primary">{questionTitle || "Live Telemetry Investigation"}</h1>
           </div>

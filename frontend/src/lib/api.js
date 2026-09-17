@@ -123,6 +123,100 @@ export async function deleteHistory(id) {
   return response.ok;
 }
 
+export async function updateInvestigation(id, updates) {
+  const backendUrl = getBackendUrl();
+  const response = await fetch(`${backendUrl}/history/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders()
+    },
+    body: JSON.stringify(updates)
+  });
+  if (response.status === 401) {
+    handleAuthUnauthorized();
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error("Failed to update investigation");
+  }
+  return await response.json();
+}
+
+export async function fetchGroups() {
+  const backendUrl = getBackendUrl();
+  const response = await fetch(`${backendUrl}/history/groups`, {
+    method: "GET",
+    headers: getAuthHeaders()
+  });
+  if (response.status === 401) {
+    handleAuthUnauthorized();
+    return [];
+  }
+  if (!response.ok) {
+    throw new Error("Failed to fetch groups");
+  }
+  const data = await response.json();
+  return data.groups || [];
+}
+
+export async function createGroup(name) {
+  const backendUrl = getBackendUrl();
+  const response = await fetch(`${backendUrl}/history/groups`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders()
+    },
+    body: JSON.stringify({ name })
+  });
+  if (response.status === 401) {
+    handleAuthUnauthorized();
+    throw new Error("Authentication required to create groups");
+  }
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || "Failed to create group");
+  }
+  const data = await response.json();
+  return data.group;
+}
+
+export async function deleteGroup(groupId) {
+  const backendUrl = getBackendUrl();
+  const response = await fetch(`${backendUrl}/history/groups/${groupId}`, {
+    method: "DELETE",
+    headers: getAuthHeaders()
+  });
+  if (response.status === 401) {
+    handleAuthUnauthorized();
+    return false;
+  }
+  return response.ok;
+}
+
+export async function renameGroup(groupId, name) {
+  const backendUrl = getBackendUrl();
+  const response = await fetch(`${backendUrl}/history/groups/${groupId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders()
+    },
+    body: JSON.stringify({ name })
+  });
+  if (response.status === 401) {
+    handleAuthUnauthorized();
+    throw new Error("Authentication required to rename groups");
+  }
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || "Failed to rename group");
+  }
+  const data = await response.json();
+  return data.group;
+}
+
 export async function toggleSaveInvestigation(id) {
   const backendUrl = getBackendUrl();
   const response = await fetch(`${backendUrl}/history/save/${id}`, {

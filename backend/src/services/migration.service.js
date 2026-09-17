@@ -25,6 +25,9 @@ async function runDatabaseMigrations() {
     '02_intelligence_tables.sql',
     '03_auth_and_history.sql',
     '04_add_user_id_to_conversations.sql',
+    '05_hero_and_editorial_content.sql',
+    '06_performance_indexes.sql',
+    '07_investigation_groups_and_customizations.sql',
   ];
 
   if (migrationDir) {
@@ -132,11 +135,29 @@ async function runDatabaseMigrations() {
 
     CREATE INDEX IF NOT EXISTS idx_editorial_category ON editorial_content(category);
     CREATE INDEX IF NOT EXISTS idx_editorial_published ON editorial_content(published_at DESC);
+
+    CREATE TABLE IF NOT EXISTS investigation_groups (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT unique_user_group_name UNIQUE (user_id, name)
+    );
+    CREATE INDEX IF NOT EXISTS idx_investigation_groups_user_id ON investigation_groups(user_id);
+
+    ALTER TABLE investigations 
+    ADD COLUMN IF NOT EXISTS pinned BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS display_title TEXT,
+    ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES investigation_groups(id) ON DELETE SET NULL;
+
+    CREATE INDEX IF NOT EXISTS idx_investigations_pinned ON investigations(user_id, pinned);
+    CREATE INDEX IF NOT EXISTS idx_investigations_group_id ON investigations(group_id);
   `;
 
   try {
     await pool.query(inlineDdl);
-    console.log('[Migration] Database tables verified (users, investigations, conversations, hero_content, editorial_content).');
+    console.log('[Migration] Database tables verified (users, investigations, groups, conversations, hero_content, editorial_content).');
   } catch (err) {
     console.error('[Migration] Fallback DDL execution warning:', err.message);
   }

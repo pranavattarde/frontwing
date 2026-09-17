@@ -77,7 +77,7 @@ export default function App() {
               <Route
                 path="/ghost-battle"
                 element={
-                  <Suspense fallback={<div className="flex-1 flex items-center justify-center text-text-muted font-mono text-xs p-12">LOADING_3D_ENGINE // INITIALIZING_TRACK...</div>}>
+                  <Suspense fallback={<div className="flex-1 flex items-center justify-center text-text-muted font-mono text-xs p-12">Loading 3D Engine • Initializing Track Geometry...</div>}>
                     <GhostBattle3D />
                   </Suspense>
                 }
@@ -85,7 +85,7 @@ export default function App() {
               <Route
                 path="/ghost-battle/:raceId"
                 element={
-                  <Suspense fallback={<div className="flex-1 flex items-center justify-center text-text-muted font-mono text-xs p-12">LOADING_3D_ENGINE // INITIALIZING_TRACK...</div>}>
+                  <Suspense fallback={<div className="flex-1 flex items-center justify-center text-text-muted font-mono text-xs p-12">Loading 3D Engine • Initializing Track Geometry...</div>}>
                     <GhostBattle3D />
                   </Suspense>
                 }

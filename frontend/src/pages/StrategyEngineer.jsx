@@ -68,9 +68,45 @@ export function StrategyEngineer() {
     // Optimistic user turn placeholder or tracking
     const currentConvId = conversationId;
     const currentContext = { ...activeContext };
+    const tempChatId = currentConvId || generateId();
+
+    // Real-time sidebar update: optimistic insertion
+    window.dispatchEvent(
+      new CustomEvent("frontwing-chat-created", {
+        detail: {
+          id: tempChatId,
+          question: textToSubmit,
+          display_title: textToSubmit,
+          timestamp: new Date().toISOString(),
+          session: currentContext.grand_prix || "Strategy",
+          pinned: false,
+          group_id: null
+        }
+      })
+    );
 
     try {
       const data = await submitStrategyQuery(textToSubmit, currentConvId, currentContext);
+
+      // Real-time sidebar update: sync with real backend ID
+      if (data && data.id) {
+        window.dispatchEvent(
+          new CustomEvent("frontwing-chat-synced", {
+            detail: {
+              tempId: tempChatId,
+              realItem: {
+                id: data.id,
+                question: textToSubmit,
+                display_title: textToSubmit,
+                timestamp: new Date().toISOString(),
+                session: data.grand_prix || currentContext.grand_prix || "Strategy",
+                pinned: false,
+                group_id: null
+              }
+            }
+          })
+        );
+      }
       
       const newTurn = {
         id: `turn-${Date.now()}-${generateId()}`,

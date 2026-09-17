@@ -147,11 +147,18 @@ export function BriefingRoom() {
     const newInvestigation = {
       id: generatedId,
       question: query,
+      display_title: query,
       status: "loading",
       exchanges: [],
-      timestamp: Date.now()
+      timestamp: new Date().toISOString(),
+      pinned: false,
+      group_id: null
     };
     localStorage.setItem(`frontwing_investigation_${generatedId}`, JSON.stringify(newInvestigation));
+    // Real-time sidebar update: optimistic insertion
+    window.dispatchEvent(
+      new CustomEvent("frontwing-chat-created", { detail: newInvestigation })
+    );
     setSessionState("idle");
     navigate(`/investigate/${generatedId}`);
   };
@@ -593,7 +600,7 @@ export function BriefingRoom() {
                 >
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between text-[10px] font-mono text-text-muted">
-                      <span className="text-accent-primary font-bold uppercase">
+                      <span className="text-accent-primary font-bold">
                         {item.session || item.grand_prix || "Active Session"}
                       </span>
                       <span className="type-tabular">
@@ -601,7 +608,7 @@ export function BriefingRoom() {
                       </span>
                     </div>
                     <h4 className="text-sm font-semibold text-text-primary group-hover:text-accent-primary transition-colors line-clamp-2">
-                      {item.question}
+                      {item.display_title || item.question}
                     </h4>
                   </div>
                   <div className="flex items-center justify-between border-t border-border-subtle pt-3 text-[10px] font-mono">

@@ -30,10 +30,10 @@ export function DesignSystemShowcase() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="type-caption text-text-muted">STATUS:</span>
+            <span className="type-caption text-text-muted">Status:</span>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-timing-green/15 text-timing-green border border-timing-green/40 font-mono text-xs font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-timing-green animate-pulse" />
-              TOKENS_VERIFIED
+              Tokens Verified
             </span>
           </div>
         </div>
@@ -483,12 +483,12 @@ export function DesignSystemShowcase() {
 
                 <div>
                   <label className="type-caption text-text-muted mb-1 block">
-                    DISABLED INPUT:
+                    Disabled Input:
                   </label>
                   <input
                     type="text"
                     disabled
-                    value="LOCKED_SESSION_PARAMETERS"
+                    value="Locked Session Parameters"
                     className="input-f1"
                   />
                 </div>
@@ -501,20 +501,20 @@ export function DesignSystemShowcase() {
 
             {/* Interactive Card Hover */}
             <div className="bg-surface-base border border-border-medium rounded-md p-6 space-y-4">
-              <h3 className="type-caption text-text-muted">MECHANICAL CARD LIFT</h3>
+              <h3 className="type-caption text-text-muted">Mechanical Card Lift</h3>
               <div tabIndex={0} className="card-interactive p-4 cursor-pointer">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="type-caption text-accent-primary">TELEMETRY MODULE</span>
-                  <span className="text-[10px] font-mono text-text-muted">120MS MECHANICAL</span>
+                  <span className="type-caption text-accent-primary">Telemetry Module</span>
+                  <span className="text-[10px] font-mono text-text-muted">120ms Mechanical</span>
                 </div>
-                <h4 className="type-h4 text-text-primary mb-1">HOVER THIS CARD</h4>
+                <h4 className="type-h4 text-text-primary mb-1">Hover This Card</h4>
                 <p className="type-body-sm text-text-secondary">
                   Smooth 120ms mechanical lift with high-contrast border brightening and elevation shadow.
                 </p>
               </div>
 
               <div className="p-3 bg-surface-canvas border border-border-subtle rounded text-xs text-text-muted font-mono">
-                TRANSITIONS: 120ms (Hover) &bull; 240ms (Panel) &bull; 400ms (Route)
+                Transitions: 120ms (Hover) &bull; 240ms (Panel) &bull; 400ms (Route)
               </div>
             </div>
           </div>
