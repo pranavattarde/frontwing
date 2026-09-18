@@ -1,0 +1,133 @@
+name: FrontWing CD (Publish & Deploy)
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # =========================================================================
+  # 1. BUILD & PUBLISH PRODUCTION DOCKER IMAGES
+  # =========================================================================
+  publish-images:
+    name: Build & Push Images to GHCR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lower case repository name
+        id: repo-name
+        run: |
+          echo "IMAGE_REPO=ghcr.io/${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]' >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry (ghcr.io)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- Backend Image ---
+      - name: Build and push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_REPO }}/frontwing-backend:latest
+            ${{ env.IMAGE_REPO }}/frontwing-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- AI Services Image ---
+      - name: Build and push AI Services Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ai_services
+          file: ./ai_services/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_REPO }}/frontwing-ai-services:latest
+            ${{ env.IMAGE_REPO }}/frontwing-ai-services:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- Frontend Image ---
+      - name: Build and push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_REPO }}/frontwing-frontend:latest
+            ${{ env.IMAGE_REPO }}/frontwing-frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # =========================================================================
+  # 2. DEPLOYMENT & HEALTH CHECK (HOSTING PLATFORM PLACEHOLDER)
+  # =========================================================================
+  deploy-placeholder:
+    name: Deploy to Production & Health Check
+    needs: [publish-images]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deployment Instructions & Target Documentation
+        run: |
+          echo "================================================================="
+          echo "FRONTWING PRODUCTION DEPLOYMENT PLACEHOLDER"
+          echo "================================================================="
+          echo "Container images have been built and pushed to GitHub Container Registry:"
+          echo " - ${{ env.IMAGE_REPO }}/frontwing-backend:latest"
+          echo " - ${{ env.IMAGE_REPO }}/frontwing-ai-services:latest"
+          echo " - ${{ env.IMAGE_REPO }}/frontwing-frontend:latest"
+          echo ""
+          echo "MANUAL STEPS TO COMPLETE ONCE HOSTING PLATFORM IS CHOSEN:"
+          echo "1. Choose target infrastructure:"
+          echo "   - Option A: Single VM / VPS (DigitalOcean Droplet, AWS EC2, Hetzner)"
+          echo "     * Pull images via docker compose using docker-compose.prod.yml"
+          echo "     * Authenticate server to ghcr.io: echo \$CR_PAT | docker login ghcr.io -u \$USER --password-stdin"
+          echo "   - Option B: Managed PaaS (Render, Railway, Fly.io)"
+          echo "     * Configure service deployment webhook trigger in repository settings"
+          echo "     * Provide GHCR credentials in PaaS project settings"
+          echo "   - Option C: Container Orchestrator (AWS ECS / Fargate, Google Cloud Run)"
+          echo "     * Add aws-actions/amazon-ecs-deploy-task-definition step"
+          echo "2. Populate production secrets in hosting provider vault:"
+          echo "   - POSTGRES_PASSWORD, DATABASE_URL, REDIS_URL"
+          echo "   - JWT_SECRET (generated via 'openssl rand -hex 32')"
+          echo "   - GEMINI_API_KEY, GROQ_API_KEY, LANGCHAIN_API_KEY"
+          echo "3. Wire the real production URL into the health-check step below."
+          echo "================================================================="
+
+      # ---------------------------------------------------------------------
+      # PLACEHOLDER: Post-Deployment Zero-Downtime Health Check
+      # Once hosting URL is provisioned (e.g., https://api.frontwing.racing or
+      # https://app.frontwing.racing), uncomment this step to verify deployment.
+      # ---------------------------------------------------------------------
+      - name: Post-Deployment Health Check (Placeholder)
+        run: |
+          echo "Simulating production health verification..."
+          TARGET_URL="${{ vars.PRODUCTION_HEALTH_URL || 'http://localhost:8000/health' }}"
+          echo "Target Health Check Endpoint: $TARGET_URL"
+          
+          # In live production, execute:
+          # curl --fail --retry 10 --retry-delay 5 --retry-connrefused "$TARGET_URL" || {
+          #   echo "::error::Production health check failed after deployment!";
+          #   exit 1;
+          # }
+          
+          echo "Health check placeholder executed successfully. Wire PRODUCTION_HEALTH_URL secret once hosted."

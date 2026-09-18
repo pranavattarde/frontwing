@@ -8,7 +8,9 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "migrate": "node src/config/migrate.js",
-    "test": "node tests/security.test.js"
+    "test": "node tests/security.test.js",
+    "test:multiturn": "node tests/multiturn_thread_integrity.test.js",
+    "lint": "eslint src/ tests/"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -21,5 +23,8 @@
     "redis": "^4.6.14",
     "ws": "^8.17.0",
     "zod": "^4.6.2"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1"
   }
 }

@@ -484,6 +484,38 @@ def run_strategy_analysis(
             "simulated_stints": fallback_sim.get("run_parameters", {}).get("stints") or []
         }
 
+    sim_laps_formatted = []
+    for idx, l in enumerate(suggested_alternative.get("simulated_lap_times") or []):
+        if isinstance(l, dict):
+            sim_laps_formatted.append(l)
+        else:
+            lap_num = idx + 1
+            comp = suggested_alternative["actual_compound"] if lap_num < suggested_alternative["simulated_pit_lap"] else suggested_alternative["target_compound"]
+            sim_laps_formatted.append({
+                "lap_number": lap_num,
+                "lap_time": round(float(l), 3),
+                "compound": comp,
+                "is_pit_lap": lap_num == suggested_alternative["simulated_pit_lap"]
+            })
+
+    act_pit_laps = [p["lap"] for p in actual_pit_stops] if actual_pit_stops else [suggested_alternative["actual_pit_lap"]]
+    act_laps_formatted = []
+    for idx, l in enumerate(suggested_alternative.get("actual_lap_times") or []):
+        if isinstance(l, dict):
+            act_laps_formatted.append({
+                "lap_number": int(l.get("lap_number", idx + 1)),
+                "lap_time": round(float(l.get("lap_time", 0.0)), 3),
+                "compound": str(l.get("compound", suggested_alternative.get("actual_compound", "HARD"))).upper(),
+                "is_pit_lap": int(l.get("lap_number", idx + 1)) in act_pit_laps
+            })
+        else:
+            act_laps_formatted.append({
+                "lap_number": idx + 1,
+                "lap_time": round(float(l), 3),
+                "compound": suggested_alternative.get("actual_compound", "HARD"),
+                "is_pit_lap": (idx + 1) in act_pit_laps
+            })
+
     telemetry_comparison = {
         "driver_name": driver_name,
         "driver_id": driver_id,
@@ -491,10 +523,11 @@ def run_strategy_analysis(
         "actual": {
             "finish_position": finish_pos or suggested_alternative["actual_finish_position"],
             "total_time_seconds": suggested_alternative.get("actual_total_time_seconds"),
-            "pit_laps": [p["lap"] for p in actual_pit_stops] if actual_pit_stops else [suggested_alternative["actual_pit_lap"]],
+            "pit_laps": act_pit_laps,
             "compounds": [s.get("compound") for s in actual_stints] if actual_stints else [suggested_alternative["actual_compound"]],
             "stints": actual_stints,
-            "lap_times": suggested_alternative.get("actual_lap_times", [])
+            "lap_times": act_laps_formatted,
+            "traffic_loss_s": suggested_alternative.get("traffic_loss_s", 0.0)
         },
         "simulated": {
             "finish_position": suggested_alternative["simulated_finish_position"],
@@ -503,7 +536,7 @@ def run_strategy_analysis(
             "pit_laps": [suggested_alternative["simulated_pit_lap"]],
             "compounds": [s.get("compound") for s in suggested_alternative.get("simulated_stints", [])] or [suggested_alternative["target_compound"]],
             "stints": suggested_alternative.get("simulated_stints", []),
-            "lap_times": suggested_alternative.get("simulated_lap_times", []),
+            "lap_times": sim_laps_formatted,
             "net_time_delta_s": suggested_alternative["net_time_delta_s"],
             "undercut_gain_s": suggested_alternative["undercut_gain_s"],
             "traffic_loss_s": suggested_alternative["traffic_loss_s"],
@@ -756,6 +789,38 @@ def run_strategy_whatif(
 
     scenario_label = f"Pit Lap {target_lap} ({target_compound}) instead of Lap {actual_pit_lap} ({actual_compound_out})"
 
+    sim_laps_formatted = []
+    for idx, l in enumerate(sim_res.get("simulated_lap_times") or []):
+        if isinstance(l, dict):
+            sim_laps_formatted.append(l)
+        else:
+            lap_num = idx + 1
+            comp = actual_compound_out if lap_num < target_lap else target_compound
+            sim_laps_formatted.append({
+                "lap_number": lap_num,
+                "lap_time": round(float(l), 3),
+                "compound": comp,
+                "is_pit_lap": lap_num == target_lap
+            })
+
+    act_pit_laps = [p["lap"] for p in actual_pit_stops] if actual_pit_stops else [actual_pit_lap]
+    act_laps_formatted = []
+    for idx, l in enumerate(sim_res.get("actual_lap_times") or []):
+        if isinstance(l, dict):
+            act_laps_formatted.append({
+                "lap_number": int(l.get("lap_number", idx + 1)),
+                "lap_time": round(float(l.get("lap_time", 0.0)), 3),
+                "compound": str(l.get("compound", actual_compound_out)).upper(),
+                "is_pit_lap": int(l.get("lap_number", idx + 1)) in act_pit_laps
+            })
+        else:
+            act_laps_formatted.append({
+                "lap_number": idx + 1,
+                "lap_time": round(float(l), 3),
+                "compound": actual_compound_out,
+                "is_pit_lap": (idx + 1) in act_pit_laps
+            })
+
     telemetry_comparison = {
         "driver_name": driver_name,
         "driver_id": driver_id,
@@ -763,10 +828,11 @@ def run_strategy_whatif(
         "actual": {
             "finish_position": act_pos,
             "total_time_seconds": sim_res.get("actual_total_time_seconds"),
-            "pit_laps": [p["lap"] for p in actual_pit_stops] if actual_pit_stops else [actual_pit_lap],
+            "pit_laps": act_pit_laps,
             "compounds": [s.get("compound") for s in actual_stints] if actual_stints else [actual_compound_out],
             "stints": actual_stints,
-            "lap_times": sim_res.get("actual_lap_times", [])
+            "lap_times": act_laps_formatted,
+            "traffic_loss_s": round(float(sim_res.get("traffic_loss", 0.0)), 2)
         },
         "simulated": {
             "finish_position": sim_pos,
@@ -775,7 +841,7 @@ def run_strategy_whatif(
             "pit_laps": [target_lap],
             "compounds": [s.get("compound") for s in sim_res.get("run_parameters", {}).get("stints", [])] or [target_compound],
             "stints": sim_res.get("run_parameters", {}).get("stints", []),
-            "lap_times": sim_res.get("simulated_lap_times", []),
+            "lap_times": sim_laps_formatted,
             "net_time_delta_s": net_s,
             "undercut_gain_s": undercut_gain_s,
             "traffic_loss_s": traffic_loss_s,

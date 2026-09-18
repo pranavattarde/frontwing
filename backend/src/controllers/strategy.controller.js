@@ -20,24 +20,27 @@ class StrategyController {
         const cached = await CacheService.getCachedResponse(queryText, activeSession);
         if (cached && (cached.strategy_report || cached.whatif_simulation || cached.executive_summary)) {
           let savedId = cached.id;
+          let savedCid = cached.conversation_id || cached.id;
           if (req.user?.id) {
             try {
               const saved = await HistoryService.saveInvestigation({
                 user_id: req.user.id,
                 question: queryText,
                 ai_response: cached,
-                session: activeSession,
+                session: activeSession || 'Strategy',
                 provider_used: 'strategy-planner-redis',
-                investigation_metadata: { cached: true, strategy: true },
+                investigation_metadata: { cached: true, strategy: true, type: 'strategy' },
+                conversation_id: null,
               });
               if (saved && saved.id) {
                 savedId = saved.id;
+                savedCid = saved.conversation_id || saved.id;
               }
             } catch (histErr) {
               console.warn('[StrategyController] Failed to save history for cached strategy query:', histErr.message);
             }
           }
-          return res.json({ ...cached, id: savedId, cached: true });
+          return res.json({ ...cached, id: savedId, conversation_id: savedCid, cached: true });
         }
       }
 
@@ -72,8 +75,8 @@ class StrategyController {
 
       const data = await response.json();
 
-      // 3. Cache response in Redis
-      if (data && data.status === 'success') {
+      // 3. Cache response in Redis (for standalone queries)
+      if (!conversationId && data && data.status === 'success') {
         await CacheService.setCachedResponse(queryText, data, activeSession);
       }
 
@@ -83,15 +86,19 @@ class StrategyController {
           user_id: req.user?.id || null,
           question: queryText,
           ai_response: data,
-          session: activeSession || data.session_id || null,
+          session: activeSession || data.session_id || 'Strategy',
           provider_used: 'strategy-planner',
           investigation_metadata: {
             session_id: activeSession || data.session_id,
             query_type: data.query_type,
+            type: 'strategy',
+            ...(req.body.context || {}),
           },
+          conversation_id: conversationId,
         });
         if (saved && saved.id) {
           data.id = saved.id;
+          data.conversation_id = saved.conversation_id || saved.id;
         }
       } catch (histErr) {
         console.warn('[StrategyController] Failed to save strategy investigation history:', histErr.message);

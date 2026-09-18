@@ -15,8 +15,14 @@ import zoneinfo
 import psycopg2
 from psycopg2.extras import Json
 
-PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[3]
-CACHE_DIR = PROJECT_ROOT / "ai_services" / "cache"
+# Safe cache directory resolution in both host and container environments
+_curr = pathlib.Path(__file__).resolve()
+if (_curr.parents[2] / "cache").exists() or _curr.parents[2].name == "app":
+    CACHE_DIR = _curr.parents[2] / "cache"
+elif len(_curr.parents) > 3 and (_curr.parents[3] / "ai_services" / "cache").exists():
+    CACHE_DIR = _curr.parents[3] / "ai_services" / "cache"
+else:
+    CACHE_DIR = _curr.parents[2] / "cache"
 CIRCUITS_CACHE_DIR = CACHE_DIR / "circuits"
 
 # Circuit registry with authentic metadata

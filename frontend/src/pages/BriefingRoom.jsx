@@ -235,7 +235,7 @@ export function BriefingRoom() {
           <div className="flex-1 flex flex-col gap-6 max-w-2xl w-full">
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="font-mono text-xs text-accent-primary font-bold tracking-widest uppercase flex items-center gap-1.5">
+                <span className="font-mono text-xs text-accent-primary font-bold tracking-wider flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent-primary animate-pulse" />
                   Race Briefing • {heroData?.event_name || "Active Event"}
                 </span>
@@ -252,7 +252,7 @@ export function BriefingRoom() {
                   </span>
                 )}
               </div>
-              <h1 className="font-heading font-black text-3xl sm:text-4xl lg:text-5xl uppercase tracking-tight text-text-primary leading-[1.05]">
+              <h1 className="font-heading font-black text-3xl sm:text-4xl lg:text-5xl tracking-tight text-text-primary leading-[1.05]">
                 {heroData?.hero_headline || "Can Ferrari conquer Neftchilar Avenue at the Azerbaijan Grand Prix?"}
               </h1>
               <p className="text-text-muted text-sm max-w-lg leading-relaxed font-sans">
@@ -354,7 +354,7 @@ export function BriefingRoom() {
                     Track Layout • Pending Telemetry Ingestion
                   </span>
                   <p className="font-mono text-[11px] text-text-muted mt-1 max-w-xs leading-relaxed">
-                    Authentic geometry will be extracted post-session from FastF1 decimeter telemetry. Synthetic or approximated layouts are disabled.
+                    Authentic geometry will be extracted post-session from official telemetry. Synthetic or approximated layouts are disabled.
                   </p>
                 </div>
               )}
@@ -383,11 +383,11 @@ export function BriefingRoom() {
           <section className="border border-border-subtle rounded-card bg-surface-base/90 p-6 shadow-sm flex flex-col gap-6 relative overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border-subtle pb-4">
               <div className="flex flex-col gap-1">
-                <span className="font-mono text-xs text-accent-primary font-bold tracking-widest uppercase flex items-center gap-2">
+                <span className="font-mono text-xs text-accent-primary font-bold tracking-wider flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-accent-primary" />
                   Last Race Results • Podium & Classification
                 </span>
-                <h2 className="font-heading font-black text-2xl text-text-primary tracking-tight uppercase">
+                <h2 className="font-heading font-black text-2xl text-text-primary tracking-tight">
                   Round {heroData.last_race_results.round_number} — {heroData.last_race_results.event_name} • {heroData.last_race_results.location}
                 </h2>
               </div>
@@ -395,7 +395,7 @@ export function BriefingRoom() {
                 <span className="px-2.5 py-1 rounded bg-surface-raised border border-border-subtle type-tabular">
                   {heroData.last_race_results.date}
                 </span>
-                <span className="px-2.5 py-1 rounded bg-timing-green/10 border border-timing-green/30 text-timing-green font-bold uppercase">
+                <span className="px-2.5 py-1 rounded bg-timing-green/10 border border-timing-green/30 text-timing-green font-bold">
                   Session Completed
                 </span>
               </div>
@@ -527,7 +527,7 @@ export function BriefingRoom() {
 
                 <div className="flex justify-between items-center pt-2 border-t border-border-subtle font-mono text-[10px] text-text-muted">
                   <span>Turns: <strong className="text-text-primary">{heroData.last_race_results.turns}</strong></span>
-                  <span className="text-timing-green font-semibold">FastF1 Telemetry Verified</span>
+                  <span className="text-timing-green font-semibold">Official Telemetry Verified</span>
                 </div>
               </div>
             </div>
@@ -700,7 +700,7 @@ export function BriefingRoom() {
       <footer className="border-t border-border-subtle py-4 bg-surface-base/90 mt-auto">
         <div className="max-w-[1440px] mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2 font-mono text-xs text-text-muted">
           <div>
-            System Status: <span className="text-accent-primary font-bold">Active</span> • FastF1 Integration:{" "}
+            System Status: <span className="text-accent-primary font-bold">Active</span> • Telemetry Pipeline:{" "}
             <span className="text-text-primary uppercase font-semibold">{heroData?.event_name || "Online"}</span>
           </div>
           <div>

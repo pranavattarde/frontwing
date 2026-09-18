@@ -26,10 +26,19 @@ from app.agents.strategy_planner import run_strategy_planner
 from app.agents.memory import conversation_memory
 from app.core.logger import logger
 
+is_production = os.getenv("ENVIRONMENT", "").lower() == "production" or os.getenv("NODE_ENV", "").lower() == "production"
+
+def safe_error_detail(e: Exception) -> str:
+    """Mask internal technical stack traces / SQL errors in production."""
+    return "An internal error occurred in AI service." if is_production else str(e)
+
 app = FastAPI(
     title="FrontWing AI Service",
     description="FastAPI service for Formula 1 telemetry scoring and strategy simulations",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url=None if is_production else "/docs",
+    redoc_url=None if is_production else "/redoc",
+    openapi_url=None if is_production else "/openapi.json"
 )
 
 class ScoreRequest(BaseModel):
@@ -83,7 +92,7 @@ def health_diagnostics():
         status_code = 200 if diagnostics.get("healthy", True) else 200 # degraded status is 200 OK with degraded flags
         return diagnostics
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 @app.post("/score")
 def score_driver(req: ScoreRequest):
@@ -102,7 +111,7 @@ def score_driver(req: ScoreRequest):
         }
     except Exception as e:
         logger.error(f"Error calculating race scores: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 @app.post("/simulate")
 def simulate_strategy(req: SimulationRequest):
@@ -124,7 +133,7 @@ def simulate_strategy(req: SimulationRequest):
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         logger.error(f"Error running strategy simulation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 @app.post("/sessions/load")
 def load_session(req: SessionLoadRequest):
@@ -228,7 +237,7 @@ def engineer_query(req: QueryRequest):
             f"[REQUEST_FAILED] UTC: {req_end_utc} | Latency: {total_duration_ms}ms | Error: {e}",
             exc_info=True
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 
 @app.get("/sessions/backfill-status/{session_id}")
@@ -318,7 +327,57 @@ def strategy_query(req: StrategyQueryRequest):
             f"[STRATEGY_REQUEST_FAILED] UTC: {req_end_utc} | Latency: {total_duration_ms}ms | Error: {e}",
             exc_info=True
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 
+class GhostBattleDataRequest(BaseModel):
+    session_id: str
+    driver_ids: List[str]
 
+
+@app.get("/ghost-battle/available-years")
+def ghost_battle_years():
+    """Returns available racing seasons for 3D Ghost Battle."""
+    try:
+        from app.services.ghost_battle_service import get_available_years
+        years = get_available_years()
+        return {"status": "success", "years": years}
+    except Exception as e:
+        logger.error(f"Error fetching ghost battle available years: {e}")
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
+
+
+@app.get("/ghost-battle/available-gps")
+def ghost_battle_gps(year: int = 2024):
+    """Returns completed Grand Prix rounds for a season."""
+    try:
+        from app.services.ghost_battle_service import get_available_gps
+        gps = get_available_gps(year)
+        return {"status": "success", "year": year, "gps": gps}
+    except Exception as e:
+        logger.error(f"Error fetching ghost battle available GPs: {e}")
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
+
+
+@app.get("/ghost-battle/drivers-teams")
+def ghost_battle_roster(session_id: str):
+    """Returns teams and driver rosters for a Grand Prix session."""
+    try:
+        from app.services.ghost_battle_service import get_drivers_teams
+        roster = get_drivers_teams(session_id)
+        return roster
+    except Exception as e:
+        logger.error(f"Error fetching ghost battle drivers and teams: {e}")
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
+
+
+@app.post("/ghost-battle/data")
+def ghost_battle_telemetry_data(req: GhostBattleDataRequest):
+    """Generates 3D coordinates, speed, throttle, brake, and deltas for multi-driver ghost battle."""
+    try:
+        from app.services.ghost_battle_service import get_ghost_battle_data
+        data = get_ghost_battle_data(req.session_id, req.driver_ids)
+        return data
+    except Exception as e:
+        logger.error(f"Error generating ghost battle telemetry data: {e}")
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))

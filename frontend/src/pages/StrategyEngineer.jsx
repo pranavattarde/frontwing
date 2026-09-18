@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { BriefingHeader } from "@/components/BriefingHeader";
 import { StrategyReportCard } from "@/components/StrategyReportCard";
 import { WhatIfSimulationCard } from "@/components/WhatIfSimulationCard";
-import { submitStrategyQuery } from "@/lib/api";
+import { submitStrategyQuery, fetchInvestigationById } from "@/lib/api";
 import { generateId, cn } from "@/lib/utils";
 
 const PRESET_QUERIES = [
@@ -28,6 +28,9 @@ const PRESET_QUERIES = [
 
 export function StrategyEngineer() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const paramId = searchParams.get("id");
+
   const [conversationId, setConversationId] = useState(() => `strat-conv-${generateId()}`);
   const [chatHistory, setChatHistory] = useState([]);
   const [activeContext, setActiveContext] = useState({});
@@ -39,6 +42,65 @@ export function StrategyEngineer() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
+  // Restore history from paramId (?id=...)
+  useEffect(() => {
+    if (!paramId) return;
+    let isMounted = true;
+    async function loadThread() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const remoteItem = await fetchInvestigationById(paramId);
+        if (remoteItem && isMounted) {
+          setConversationId(remoteItem.conversation_id || remoteItem.id);
+          if (remoteItem.turns && Array.isArray(remoteItem.turns) && remoteItem.turns.length > 0) {
+            const restored = remoteItem.turns.map((t, idx) => ({
+              id: `turn-${t.id || idx}`,
+              question: t.question,
+              response: t.response || remoteItem.ai_response,
+              timestamp: t.timestamp ? new Date(t.timestamp).getTime() : Date.now()
+            }));
+            setChatHistory(restored);
+            const latestTurn = remoteItem.turns[remoteItem.turns.length - 1];
+            const latestResp = latestTurn.response || remoteItem.ai_response;
+            if (latestResp) {
+              setActiveContext({
+                driver_id: latestResp.driver_id,
+                driver_name: latestResp.driver_name,
+                session_id: latestResp.session_id,
+                grand_prix: latestResp.grand_prix,
+                season: latestResp.season,
+                query_type: latestResp.query_type
+              });
+            }
+          } else if (remoteItem.ai_response) {
+            setChatHistory([{
+              id: `turn-${remoteItem.id}`,
+              question: remoteItem.question,
+              response: remoteItem.ai_response,
+              timestamp: new Date(remoteItem.timestamp).getTime()
+            }]);
+            const resp = remoteItem.ai_response;
+            setActiveContext({
+              driver_id: resp.driver_id,
+              driver_name: resp.driver_name,
+              session_id: resp.session_id,
+              grand_prix: resp.grand_prix,
+              season: resp.season,
+              query_type: resp.query_type
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("[StrategyEngineer] Failed to load history thread:", err);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+    loadThread();
+    return () => { isMounted = false; };
+  }, [paramId]);
+
   // Auto-scroll to bottom of conversation on new messages or loading
   useEffect(() => {
     if (chatHistory.length > 0 || isLoading) {
@@ -47,6 +109,7 @@ export function StrategyEngineer() {
   }, [chatHistory, isLoading]);
 
   const handleNewChat = () => {
+    setSearchParams({}, { replace: true });
     setConversationId(`strat-conv-${generateId()}`);
     setChatHistory([]);
     setActiveContext({});
@@ -65,39 +128,44 @@ export function StrategyEngineer() {
     setError(null);
     setQuestion("");
 
-    // Optimistic user turn placeholder or tracking
+    const isFirstTurn = chatHistory.length === 0 && !paramId;
     const currentConvId = conversationId;
     const currentContext = { ...activeContext };
     const tempChatId = currentConvId || generateId();
 
-    // Real-time sidebar update: optimistic insertion
-    window.dispatchEvent(
-      new CustomEvent("frontwing-chat-created", {
-        detail: {
-          id: tempChatId,
-          question: textToSubmit,
-          display_title: textToSubmit,
-          timestamp: new Date().toISOString(),
-          session: currentContext.grand_prix || "Strategy",
-          pinned: false,
-          group_id: null
-        }
-      })
-    );
+    // Only dispatch frontwing-chat-created on the FIRST turn of a brand-new conversation thread
+    if (isFirstTurn) {
+      window.dispatchEvent(
+        new CustomEvent("frontwing-chat-created", {
+          detail: {
+            id: tempChatId,
+            question: textToSubmit,
+            display_title: textToSubmit,
+            timestamp: new Date().toISOString(),
+            session: currentContext.grand_prix || "Strategy",
+            pinned: false,
+            group_id: null
+          }
+        })
+      );
+    }
 
     try {
       const data = await submitStrategyQuery(textToSubmit, currentConvId, currentContext);
 
       // Real-time sidebar update: sync with real backend ID
       if (data && data.id) {
+        if (isFirstTurn) {
+          setSearchParams({ id: data.id }, { replace: true });
+        }
         window.dispatchEvent(
           new CustomEvent("frontwing-chat-synced", {
             detail: {
               tempId: tempChatId,
               realItem: {
                 id: data.id,
-                question: textToSubmit,
-                display_title: textToSubmit,
+                question: chatHistory.length > 0 ? chatHistory[0].question : textToSubmit,
+                display_title: chatHistory.length > 0 ? chatHistory[0].question : textToSubmit,
                 timestamp: new Date().toISOString(),
                 session: data.grand_prix || currentContext.grand_prix || "Strategy",
                 pinned: false,
@@ -352,7 +420,7 @@ export function StrategyEngineer() {
               }
               return {
                 title: "Simulating strategy and evaluating race outcomes...",
-                detail: "Running PostgreSQL lap timing queries, calculating scoring models, and projecting pit stop outcomes."
+                detail: "Running session lap timing analyses, calculating scoring models, and projecting pit stop outcomes."
               };
             })();
 

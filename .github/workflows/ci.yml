@@ -1,0 +1,296 @@
+name: FrontWing CI
+
+on:
+  push:
+    branches:
+      - main
+      - "test/**"
+      - "feature/**"
+      - "fix/**"
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # =========================================================================
+  # 1. CODE QUALITY & LINTING GATES
+  # =========================================================================
+  lint-python:
+    name: Lint AI Services (Flake8)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install flake8
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+
+      - name: Run Flake8 linter
+        run: |
+          flake8 --config=ai_services/.flake8 ai_services/app
+
+  lint-backend:
+    name: Lint Backend (ESLint)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: backend
+        run: npm run lint
+
+  lint-frontend:
+    name: Lint Frontend (ESLint)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: frontend
+        run: npm run lint
+
+  # =========================================================================
+  # 2. FRONTEND PRODUCTION BUILD GATE
+  # =========================================================================
+  frontend-build:
+    name: Frontend Production Build (Vite)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Compile production distribution
+        working-directory: frontend
+        run: npm run build
+
+  # =========================================================================
+  # 3. BACKEND INTEGRATION & SECURITY TEST SUITE
+  # =========================================================================
+  backend-tests:
+    name: Backend Test Suite (Security & Multi-Turn)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: frontwing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install PostgreSQL Client Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Hydrate Database from Backup & Apply Migrations
+        run: |
+          echo "Hydrating database from baseline SQL dump..."
+          PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d frontwing -f database/backup_frontwing_pre_clean.sql
+          echo "Applying all incremental migrations..."
+          for file in database/migrations/*.sql; do
+            echo "Applying $file..."
+            PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d frontwing -f "$file"
+          done
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run Security Verification Suite
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/frontwing
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: ci_test_jwt_secret_key_32_characters_long_min
+        run: node tests/security.test.js
+
+      - name: Run Multi-Turn Thread Integrity Suite
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/frontwing
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: ci_test_jwt_secret_key_32_characters_long_min
+        run: node tests/multiturn_thread_integrity.test.js
+
+  # =========================================================================
+  # 4. AI SERVICES PYTEST SUITE
+  # =========================================================================
+  ai-services-tests:
+    name: AI Services Pytest Suite
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: frontwing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: ai_services/requirements.txt
+
+      - name: Install PostgreSQL Client Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Hydrate Database from Baseline SQL Dump
+        run: |
+          PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d frontwing -f database/backup_frontwing_pre_clean.sql
+          for file in database/migrations/*.sql; do
+            PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d frontwing -f "$file"
+          done
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ai_services/requirements.txt pytest
+
+      - name: Run Pytest Suite
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/frontwing
+          REDIS_URL: redis://localhost:6379/0
+          MODEL_PROVIDER: gemini
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          pytest ai_services/tests -v
+
+  # =========================================================================
+  # 5. CI QUALITY GATE (BLOCK MERGE IF ANY STEP FAILS)
+  # =========================================================================
+  ci-status-gate:
+    name: CI Quality Gate
+    needs:
+      - lint-python
+      - lint-backend
+      - lint-frontend
+      - frontend-build
+      - backend-tests
+      - ai-services-tests
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Enforce strict gate status
+        run: |
+          FAILED=0
+          check_result() {
+            local job_name="$1"
+            local result="$2"
+            if [ "$result" != "success" ]; then
+              echo "::error::Job '$job_name' failed with status: $result"
+              FAILED=1
+            else
+              echo "Job '$job_name' PASSED"
+            fi
+          }
+
+          check_result "Lint Python" "${{ needs.lint-python.result }}"
+          check_result "Lint Backend" "${{ needs.lint-backend.result }}"
+          check_result "Lint Frontend" "${{ needs.lint-frontend.result }}"
+          check_result "Frontend Build" "${{ needs.frontend-build.result }}"
+          check_result "Backend Tests" "${{ needs.backend-tests.result }}"
+          check_result "AI Services Tests" "${{ needs.ai-services-tests.result }}"
+
+          if [ $FAILED -ne 0 ]; then
+            echo "::error::One or more CI jobs failed. Blocking merge to main."
+            exit 1
+          fi
+
+          echo "All CI quality checks succeeded! Merge permitted."

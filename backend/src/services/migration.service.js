@@ -28,6 +28,7 @@ async function runDatabaseMigrations() {
     '05_hero_and_editorial_content.sql',
     '06_performance_indexes.sql',
     '07_investigation_groups_and_customizations.sql',
+    '08_conversation_thread_integrity.sql',
   ];
 
   if (migrationDir) {
@@ -149,10 +150,16 @@ async function runDatabaseMigrations() {
     ALTER TABLE investigations 
     ADD COLUMN IF NOT EXISTS pinned BOOLEAN DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS display_title TEXT,
-    ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES investigation_groups(id) ON DELETE SET NULL;
+    ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES investigation_groups(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS conversation_id VARCHAR(255);
+
+    UPDATE investigations SET conversation_id = id::text WHERE conversation_id IS NULL;
 
     CREATE INDEX IF NOT EXISTS idx_investigations_pinned ON investigations(user_id, pinned);
     CREATE INDEX IF NOT EXISTS idx_investigations_group_id ON investigations(group_id);
+    CREATE INDEX IF NOT EXISTS idx_investigations_cid ON investigations(conversation_id);
+
+    ALTER TABLE conversations ADD COLUMN IF NOT EXISTS response JSONB;
   `;
 
   try {

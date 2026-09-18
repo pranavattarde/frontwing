@@ -217,11 +217,13 @@ export default function TeamCar3D({
   teamName,
   primaryColor = "#E10600",
   secondaryColor = null,
+  isHovered: externalHovered = false,
   className = ""
 }) {
-  const [isHovered, setIsHovered] = useState(false);
+  const [internalHovered, setInternalHovered] = useState(false);
   const [hasWebGlError, setHasWebGlError] = useState(false);
 
+  const effectiveHovered = externalHovered || internalHovered;
   const meta = getTeamMetadata(teamName, primaryColor);
   const pColor = primaryColor || meta.primary;
   const sColor = secondaryColor || meta.secondary;
@@ -229,12 +231,12 @@ export default function TeamCar3D({
   return (
     <div
       className={`relative w-full h-16 flex items-center justify-center overflow-hidden select-none pointer-events-none ${className}`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => setInternalHovered(true)}
+      onMouseLeave={() => setInternalHovered(false)}
     >
       {!hasWebGlError ? (
         <Canvas
-          frameloop={isHovered ? "always" : "demand"}
+          frameloop={effectiveHovered ? "always" : "demand"}
           camera={{ position: [-3.8, 2.2, 3.6], fov: 42 }}
           gl={{
             antialias: true,
@@ -255,7 +257,7 @@ export default function TeamCar3D({
           <TeamCarMesh
             primaryColor={pColor}
             secondaryColor={sColor}
-            isHovered={isHovered}
+            isHovered={effectiveHovered}
           />
         </Canvas>
       ) : (

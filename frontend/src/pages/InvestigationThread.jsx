@@ -80,7 +80,14 @@ function mapResponseToMessages(id, response, timestamp, isLast) {
       });
     }
   }
-  const rawVerdict = response.investigation_report?.["Executive Summary"] || response.final_answer || response.error || "Race debrief analysis complete.";
+  const rawVerdict = 
+    response.investigation_report?.["Executive Summary"] || 
+    response.final_answer || 
+    response.executive_summary ||
+    response.whatif_simulation?.analysis_summary ||
+    response.strategy_report?.what_happened?.narrative ||
+    response.error || 
+    "Race analysis completed.";
   let verdictText = rawVerdict;
   if (typeof rawVerdict === "string" && rawVerdict.includes("|")) {
     const lines = rawVerdict.split("\n").map(l => l.trim()).filter(Boolean);
@@ -101,7 +108,15 @@ function mapResponseToMessages(id, response, timestamp, isLast) {
   }
 
   let narrativeContent = "";
-  if (response.investigation_report) {
+  if (response.strategy_report) {
+    const sr = response.strategy_report;
+    const parts = [];
+    if (sr.what_happened?.narrative) parts.push(`**What Happened:** ${sr.what_happened.narrative}`);
+    if (sr.why_it_happened?.narrative) parts.push(`**Why It Happened:** ${sr.why_it_happened.narrative}`);
+    if (parts.length > 0) narrativeContent = parts.join("\n\n");
+  } else if (response.whatif_simulation?.analysis_summary) {
+    narrativeContent = response.whatif_simulation.analysis_summary;
+  } else if (response.investigation_report) {
     const rep = response.investigation_report;
     const parts = [];
     if (rep["Telemetry Findings"] && rep["Telemetry Findings"] !== "Unavailable" && !rep["Telemetry Findings"].includes("insufficient") && !rep["Telemetry Findings"].includes("No data available") && rep["Telemetry Findings"] !== "None.") {
@@ -130,7 +145,7 @@ function mapResponseToMessages(id, response, timestamp, isLast) {
     narrativeContent = response.explanations?.engineer || response.explanations?.intermediate || response.final_answer || "Verified race analysis debrief completed.";
   }
   if (narrativeContent === verdictText) {
-    narrativeContent = response.explanations?.engineer || "Strategic debrief completed successfully based on verified race data.";
+    narrativeContent = response.explanations?.engineer || response.whatif_simulation?.analysis_summary || "Strategic debrief completed successfully based on verified race data.";
   }
   const messages = [
     {
@@ -148,7 +163,7 @@ function mapResponseToMessages(id, response, timestamp, isLast) {
     }
   ];
   const telemData = evidence && typeof evidence === "object" ? evidence.telemetry_tool : null;
-  const simData = evidence && typeof evidence === "object" ? (evidence.simulation_tool || evidence.strategy_tool) : null;
+  const simData = (evidence && typeof evidence === "object" ? (evidence.simulation_tool || evidence.strategy_tool) : null) || response.whatif_simulation || response.strategy_report || null;
   const scoreData = evidence && typeof evidence === "object" ? evidence.scoring_tool : null;
 
   // 1. Driver Performance Scorecard
@@ -385,20 +400,48 @@ export function InvestigationThread() {
       try {
         const data = JSON.parse(storedItem);
         setQuestionTitle(data.question || "Investigation Thread");
-        if (data.status === "completed" || data.exchanges && data.exchanges.length > 0 || data.response) {
+        if (data.status === "completed" || (data.exchanges && data.exchanges.length > 0) || data.response) {
           executedQueriesRef.current.add(targetId);
-          const lastEx = data.exchanges ? data.exchanges[data.exchanges.length - 1] : { question: data.question, response: data.response, timestamp: data.timestamp || Date.now() };
-          if (lastEx && lastEx.response) {
+          if (data.exchanges && Array.isArray(data.exchanges) && data.exchanges.length > 1) {
+            let allMsgs = [];
+            data.exchanges.forEach((ex, idx) => {
+              const isLastTurn = idx === data.exchanges.length - 1;
+              const turnTime = ex.timestamp || (Date.now() + idx * 1000);
+              if (idx > 0) {
+                allMsgs.push({
+                  id: `user-ex-${idx}-${turnTime}`,
+                  type: "narrative",
+                  content: `**Follow-up question:** *${ex.question}*`,
+                  timestamp: turnTime
+                });
+              }
+              const turnMsgs = mapResponseToMessages(targetId, ex.response, turnTime, isLastTurn);
+              allMsgs = allMsgs.concat(turnMsgs);
+            });
+            const lastEx = data.exchanges[data.exchanges.length - 1];
             lastResponseRef.current = lastEx.response;
             setCurrentResponse(lastEx.response);
-            const msgs = mapResponseToMessages(targetId, lastEx.response, lastEx.timestamp || Date.now(), true);
-            setMessages(msgs);
-            const trace = lastEx.response.intelligence_trace || {};
+            setMessages(allMsgs);
+            const trace = lastEx.response?.intelligence_trace || {};
             const elapsed = trace.llm_latency ? (trace.llm_latency / 1e3).toFixed(1) : "2.1";
             setLatency(parseFloat(elapsed));
             setIsLoading(false);
             setErrorMsg(null);
             return;
+          } else {
+            const lastEx = data.exchanges ? data.exchanges[data.exchanges.length - 1] : { question: data.question, response: data.response, timestamp: data.timestamp || Date.now() };
+            if (lastEx && lastEx.response) {
+              lastResponseRef.current = lastEx.response;
+              setCurrentResponse(lastEx.response);
+              const msgs = mapResponseToMessages(targetId, lastEx.response, lastEx.timestamp || Date.now(), true);
+              setMessages(msgs);
+              const trace = lastEx.response.intelligence_trace || {};
+              const elapsed = trace.llm_latency ? (trace.llm_latency / 1e3).toFixed(1) : "2.1";
+              setLatency(parseFloat(elapsed));
+              setIsLoading(false);
+              setErrorMsg(null);
+              return;
+            }
           }
         } else if (data.status === "loading" && data.question) {
           executedQueriesRef.current.add(targetId);
@@ -411,16 +454,64 @@ export function InvestigationThread() {
     }
     try {
       const remoteItem = await fetchInvestigationById(targetId);
-      if (remoteItem && remoteItem.ai_response) {
+      if (remoteItem) {
         executedQueriesRef.current.add(targetId);
-        lastResponseRef.current = remoteItem.ai_response;
-        setCurrentResponse(remoteItem.ai_response);
         setQuestionTitle(remoteItem.question);
-        const msgs = mapResponseToMessages(targetId, remoteItem.ai_response, new Date(remoteItem.timestamp).getTime(), true);
-        setMessages(msgs);
-        setIsLoading(false);
-        setErrorMsg(null);
-        return;
+
+        if (remoteItem.turns && Array.isArray(remoteItem.turns) && remoteItem.turns.length > 0) {
+          let allMsgs = [];
+          const exchanges = [];
+          remoteItem.turns.forEach((turn, idx) => {
+            const isLastTurn = idx === remoteItem.turns.length - 1;
+            const turnTime = turn.timestamp ? new Date(turn.timestamp).getTime() : (Date.now() + idx * 1000);
+            const turnResp = turn.response || remoteItem.ai_response;
+
+            exchanges.push({
+              question: turn.question,
+              response: turnResp,
+              timestamp: turnTime
+            });
+
+            if (idx > 0) {
+              allMsgs.push({
+                id: `user-turn-${turn.id || idx}-${turnTime}`,
+                type: "narrative",
+                content: `**Follow-up question:** *${turn.question}*`,
+                timestamp: turnTime
+              });
+            }
+
+            const turnMsgs = mapResponseToMessages(targetId, turnResp, turnTime, isLastTurn);
+            allMsgs = allMsgs.concat(turnMsgs);
+          });
+
+          const latestTurn = remoteItem.turns[remoteItem.turns.length - 1];
+          const latestResp = latestTurn.response || remoteItem.ai_response;
+          lastResponseRef.current = latestResp;
+          setCurrentResponse(latestResp);
+          setMessages(allMsgs);
+
+          const fullData = {
+            id: targetId,
+            question: remoteItem.question,
+            status: "completed",
+            exchanges,
+            timestamp: new Date(remoteItem.timestamp).getTime()
+          };
+          localStorage.setItem(`frontwing_investigation_${targetId}`, JSON.stringify(fullData));
+
+          setIsLoading(false);
+          setErrorMsg(null);
+          return;
+        } else if (remoteItem.ai_response) {
+          lastResponseRef.current = remoteItem.ai_response;
+          setCurrentResponse(remoteItem.ai_response);
+          const msgs = mapResponseToMessages(targetId, remoteItem.ai_response, new Date(remoteItem.timestamp).getTime(), true);
+          setMessages(msgs);
+          setIsLoading(false);
+          setErrorMsg(null);
+          return;
+        }
       }
     } catch (err) {
       console.log("[InvestigationThread] Remote fetch skipped, item unavailable:", err);
@@ -445,7 +536,7 @@ export function InvestigationThread() {
     return "Searching knowledge base & race records...";
   };
 
-  const executeQuery = async (queryText, currentId, contextData = {}) => {
+  const executeQuery = async (queryText, currentId, contextData = {}, isFollowUp = false) => {
     const startTime = Date.now();
     const activeId = currentId || id || generateId();
     executedQueriesRef.current.add(activeId);
@@ -454,7 +545,9 @@ export function InvestigationThread() {
     setErrorMsg(null);
     setLoadingStage("parsing");
     setLoadingDetail(getInitialLoadingDetail(queryText));
-    setQuestionTitle(queryText);
+    if (!isFollowUp) {
+      setQuestionTitle(queryText);
+    }
     const controller = new AbortController();
     setAbortController(controller);
     // STAGE B: Strategy Isolation Boundary Check
@@ -584,15 +677,33 @@ export function InvestigationThread() {
       if (backendUuid) {
         executedQueriesRef.current.add(backendUuid);
       }
+
+      // Read existing exchanges from localStorage if present
+      let existingExchanges = [];
+      try {
+        const existingStored = localStorage.getItem(`frontwing_investigation_${activeId}`) || (backendUuid ? localStorage.getItem(`frontwing_investigation_${backendUuid}`) : null);
+        if (existingStored) {
+          const parsed = JSON.parse(existingStored);
+          if (Array.isArray(parsed.exchanges)) {
+            existingExchanges = parsed.exchanges;
+          }
+        }
+      } catch (e) {}
+
+      const newExchange = {
+        question: queryText,
+        response: apiResponse,
+        timestamp: Date.now()
+      };
+
+      const updatedExchanges = isFollowUp ? [...existingExchanges, newExchange] : [newExchange];
+      const threadTitle = questionTitle || (existingExchanges.length > 0 ? existingExchanges[0].question : queryText);
+
       const completedData = {
         id: targetId,
-        question: queryText,
+        question: threadTitle,
         status: "completed",
-        exchanges: [{
-          question: queryText,
-          response: apiResponse,
-          timestamp: Date.now()
-        }],
+        exchanges: updatedExchanges,
         timestamp: Date.now()
       };
       localStorage.setItem(`frontwing_investigation_${activeId}`, JSON.stringify(completedData));
@@ -604,11 +715,21 @@ export function InvestigationThread() {
       setIsLoading(false);
       inFlightRef.current = false;
       setAbortController(null);
-      const newMsgs = mapResponseToMessages(targetId, apiResponse, Date.now(), true);
-      setMessages(newMsgs);
-      if (backendUuid && backendUuid !== id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(backendUuid)) {
+
+      const newTurnMsgs = mapResponseToMessages(targetId, apiResponse, Date.now(), true);
+      if (isFollowUp) {
+        setMessages((prev) => [
+          ...prev.filter((m) => m.type !== "follow-up"),
+          ...newTurnMsgs
+        ]);
+      } else {
+        setMessages(newTurnMsgs);
+      }
+
+      if (backendUuid && backendUuid !== id && !isFollowUp && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(backendUuid)) {
         window.history.replaceState(null, "", `/investigate/${backendUuid}`);
       }
+
       // Real-time sidebar update: notify sidebar of synchronized real investigation item
       window.dispatchEvent(
         new CustomEvent("frontwing-chat-synced", {
@@ -616,8 +737,8 @@ export function InvestigationThread() {
             tempId: activeId,
             realItem: {
               id: targetId,
-              question: queryText,
-              display_title: queryText,
+              question: threadTitle,
+              display_title: threadTitle,
               timestamp: new Date().toISOString(),
               session: apiResponse.session || contextData.session || null,
               pinned: false,
@@ -694,6 +815,7 @@ export function InvestigationThread() {
     if (isLoading || isStreaming || !query.trim()) return;
     setPrefillQuery("");
     const parentContext = getParentContext();
+    const activeThreadId = id || (currentResponse?.id) || (lastResponseRef.current?.id);
     setMessages((prev) => [
       ...prev.filter((m) => m.type !== "follow-up"),
       {
@@ -703,7 +825,7 @@ export function InvestigationThread() {
         timestamp: Date.now()
       }
     ]);
-    executeQuery(query, null, parentContext);
+    executeQuery(query, activeThreadId, parentContext, true);
   };
 
   const handleRetryConnection = () => {

@@ -27,15 +27,23 @@ except ImportError:
             return f
         return decorator
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-CACHE_DIR = str(PROJECT_ROOT / "ai_services" / "cache")
+# Safe cache directory resolution in both host and container environments
+current_file = Path(__file__).resolve()
+if (current_file.parents[2] / "cache").exists() or current_file.parents[2].name == "app":
+    CACHE_DIR_PATH = current_file.parents[2] / "cache"
+elif len(current_file.parents) > 3 and (current_file.parents[3] / "ai_services" / "cache").exists():
+    CACHE_DIR_PATH = current_file.parents[3] / "ai_services" / "cache"
+else:
+    CACHE_DIR_PATH = current_file.parents[2] / "cache"
+
+CACHE_DIR = str(CACHE_DIR_PATH)
 os.makedirs(CACHE_DIR, exist_ok=True)
 try:
     fastf1.Cache.enable_cache(CACHE_DIR)
 except Exception as e:
     pass
 
-CIRCUITS_CACHE_DIR = PROJECT_ROOT / "ai_services" / "cache" / "circuits"
+CIRCUITS_CACHE_DIR = CACHE_DIR_PATH / "circuits"
 CIRCUITS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # Official Team Color Fallbacks

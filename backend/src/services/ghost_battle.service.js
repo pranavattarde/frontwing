@@ -18,6 +18,50 @@ class GhostBattleService {
   }
 
   static async runPython(action, args = [], timeoutMs = 60000) {
+    // 1. In containerized production or when AI_SERVICE_URL is reachable, delegate via HTTP
+    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+    try {
+      if (action === 'available_years') {
+        const res = await fetch(`${aiServiceUrl}/ghost-battle/available-years`, { signal: AbortSignal.timeout(timeoutMs) });
+        if (res.ok) return await res.json();
+      } else if (action === 'available_gps') {
+        const year = args[0] || '2024';
+        const res = await fetch(`${aiServiceUrl}/ghost-battle/available-gps?year=${year}`, { signal: AbortSignal.timeout(timeoutMs) });
+        if (res.ok) return await res.json();
+      } else if (action === 'drivers_teams') {
+        const sessionId = args[0] || '2024_british_gp_race';
+        const res = await fetch(`${aiServiceUrl}/ghost-battle/drivers-teams?session_id=${sessionId}`, { signal: AbortSignal.timeout(timeoutMs) });
+        if (res.ok) return await res.json();
+      } else if (action === 'ghost_battle_data') {
+        let payload;
+        try {
+          payload = typeof args[0] === 'string' && args[0].startsWith('{')
+            ? JSON.parse(args[0])
+            : { session_id: args[0], driver_ids: Array.isArray(args[1]) ? args[1] : (args[1]?.split(',') || []) };
+        } catch {
+          payload = { session_id: args[0], driver_ids: Array.isArray(args[1]) ? args[1] : (args[1]?.split(',') || []) };
+        }
+        const res = await fetch(`${aiServiceUrl}/ghost-battle/data`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(timeoutMs)
+        });
+        if (res.ok) return await res.json();
+        const errText = await res.text();
+        console.error(`[GhostBattleService] AI service /ghost-battle/data HTTP ${res.status}:`, errText);
+        if (process.env.NODE_ENV === 'production' || !require('fs').existsSync(this.getPythonEnvironment().pythonExe)) {
+          throw new Error(`AI Service Error (${res.status}): ${errText}`);
+        }
+      }
+    } catch (httpErr) {
+      if (process.env.NODE_ENV === 'production' || !require('fs').existsSync(this.getPythonEnvironment().pythonExe)) {
+        throw httpErr;
+      }
+      // If HTTP fails and in local dev with python available, fall through to CLI execution below
+    }
+
+    // 2. Fallback to local python CLI execution if available
     const { projectRoot, pythonExe, scriptPath } = this.getPythonEnvironment();
     
     return new Promise((resolve, reject) => {

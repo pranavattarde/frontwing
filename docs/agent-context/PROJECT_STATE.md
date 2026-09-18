@@ -1,11 +1,79 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-09-18 by Antigravity (Session 045 - What-If Strategy Counterfactual Calibration & Ordinal Parsing Resolution - CRITICAL FIX HH)
-> Audit method: Verified live via automated test suite (`pytest ai_services/tests/test_strategy_simulation.py ai_services/tests/test_strategy_engineer.py -v`, 13/13 passed in 42.53s) and multi-session verification harness (`scratch/verify_fix_hh.py`, 6 scenarios + identity checks across 2026 Miami GP, 2024 Dutch GP, and 2024 Qatar GP). Verified 0 fake multi-hundred-second deltas, strict ordinal lap number parsing ("2nd lap only" -> Lap 2, "3rd lap" -> Lap 3), neutral identity delta (0.00s for actual strategy stop), word-boundary unmodeled variable detection, pre-divergence lap identity preservation, and track-wide Safety Car pace ceiling enforcement.
+> Last updated: 2026-09-18 by Antigravity (Session 049 - Production Docker Setup, Multi-Stage Builds, Reverse Proxy, Migration Safety & End-to-End Smoke Test Suite)
+> Audit method: Verified live via genuinely clean Docker run (`docker compose down -v && docker compose up -d`), all 5 containers reaching healthy status (`postgres`, `redis`, `ai_services`, `backend`, `frontend`), zero-downtime healthcheck dependency chain, production security gating (`/docs` returning 404, error detail masked), and 100% passing automated smoke test suite (`scratch/docker_smoke_test.py`) validating JWT auth, Race Engineer query, Strategy What-If query, and 3D Ghost Battle telemetry.
 
 ---
 
 ## 1. What Works Right Now
+
+### Production Containerization & Hardened Docker Architecture (SESSION 049 VERIFIED LIVE)
+- **Containerized 5-Service Stack (`docker-compose.yml`)**:
+  - `postgres` (17-alpine): Dedicated health check (`pg_isready -U postgres -d frontwing`), initial hydration mount (`/docker-entrypoint-initdb.d/00_init_database.sql`) containing 42 sessions, 31,878 real laps, 33 drivers, 30 circuits.
+  - `redis` (7-alpine): Dedicated health check (`redis-cli ping`).
+  - `ai_services` (Python 3.12 slim): Non-root `appuser` (UID 1000), multi-worker Uvicorn (`--workers 2`), health check (`curl -f http://localhost:8000/health`).
+  - `backend` (Node 20 alpine): Non-root `node` user (UID 1000), automatic migration validation on boot, health check (`wget --spider http://localhost:5000/api/hero/current`).
+  - `frontend` (Multi-stage build):
+    - Stage 1: `node:20-alpine` runs `npm run build` producing optimized static assets (2,519 modules).
+    - Stage 2: `nginx:1.27-alpine` serves static bundle with hardened security headers (`X-Frame-Options DENY`, `X-Content-Type-Options nosniff`, `Referrer-Policy strict-origin-when-cross-origin`).
+    - Nginx reverse proxy routes all backend and AI endpoints (`/api/`, `/engineer/`, `/strategy/`, `/ghost-battle/`, `/hero/`, `/editorial/`, `/sessions/`, `/auth/`, `/ws`).
+    - Health check probing `http://localhost/healthz`.
+  - Strict startup dependency health chain: `postgres` & `redis` (healthy) -> `ai_services` (healthy) -> `backend` (healthy) -> `frontend` (healthy).
+- **Environment Variables & Secrets Reference**:
+  - Comprehensive documentation in `docs/ENVIRONMENT_VARIABLES.md` and `.env.example` across all three tiers.
+  - Hardened production security: `ENVIRONMENT=production` and `NODE_ENV=production` disable FastAPI Swagger `/docs`, `/redoc`, and `/openapi.json` (verified returning HTTP 404), mask 500 error stack traces (`safe_error_detail(e)`), and enforce strict CORS origins.
+- **Database Migration Safety & Backup Runbook**:
+  - All 8 database migrations verified idempotent and additive.
+  - Authored `docs/BACKUP_AND_RESTORE.md` detailing automated cron `pg_dump` commands, 30-day retention policies, and single-command disaster recovery runbooks.
+- **Automated Smoke Test Verification (`scratch/docker_smoke_test.py`)**:
+  - All 5 automated tests passed 100% against the containerized production stack:
+    1. Health endpoints verified across AI Services (8000), Backend (5000), and Frontend Nginx (5173).
+    2. User registration and JWT authentication: generated 285-character token for new user.
+    3. Race Engineer query: "Who won the 2024 Dutch Grand Prix and what was the podium?" answered correctly with Norris in 0.07s.
+    4. Strategy Engineer what-if query: "What if Verstappen pitted on lap 22 at the 2024 Dutch GP?" simulated P7 finish, -25.19s net delta, 72 synchronized laps.
+    5. 3D Ghost Battle data: 2024 Dutch GP NOR vs VER generated 567 spatial telemetry points.
+
+### Scoped Telemetry Visualization in Strategy Engineer (SESSION 047 - FIX GG VERIFIED LIVE)
+- **Backend Telemetry Normalization (`ai_services/app/agents/strategy_planner.py`)**:
+  - `run_strategy_analysis()` and `run_strategy_whatif()` generate a standardized `telemetry_comparison` payload:
+    - `lap_times`: Array of synchronized lap objects: `lap_number`, `actual_lap_time`, `simulated_lap_time`, `actual_compound`, `simulated_compound`, `is_pit_lap`.
+    - `actual_pit_laps` & `simulated_pit_laps`: Explicit pit stop lap indices.
+    - `actual_compounds` & `simulated_compounds`: Tyre compound sequences.
+    - `summary_comparison`: High-level numbers (`finish_position`, `total_time_seconds`, `traffic_loss_s`, `undercut_gain_s`, `net_advantage_s`, `scenario_label`).
+  - Strict protocol enforcement: Zero vehicle dynamics traces (instantaneous speed, throttle, brake, RPM, gear, steering angle) in Strategy Engineer responses.
+  - Resolved candidate evaluation scope bug ensuring `sim_laps_formatted` and `act_pit_laps` execute without `UnboundLocalError` across both candidate simulation and fallback branches.
+- **Frontend Scoped Telemetry Component (`frontend/src/components/StrategyTelemetryComparison.jsx`)**:
+  - **Interactive 2-Series SVG Line Chart**:
+    - Actual Strategy: Solid white line with subtle opacity (`stroke="rgba(255,255,255,0.85)"`).
+    - Suggested/Counterfactual Strategy: Formula 1 Red dashed line (`stroke="#E10600"` with `strokeDasharray="4 3"`).
+    - Pit stop window lines: Vertical dashed lines with colored badge pills (`ACT L{lap}` in slate/zinc, `SIM L{lap}` in red).
+    - Dynamic interactive crosshair and hover tooltip displaying Lap number, Actual Lap Time, Simulated Lap Time, Lap Delta, and compound pills.
+  - **Context-Aware Scenarios**:
+    - Strategy Analysis: Displays `"Suggested Strategy Comparison"` badge with the simulated offset/compound scenario.
+    - What-If Simulation: Displays `"Counterfactual Telemetry"` badge with user scenario label (e.g. `"Pit Lap 22 (HARD) instead of Lap 27 (HARD)"`).
+  - **Side-by-Side Key Numbers Table**:
+    - Side-by-side metrics: Finish Position, Total Race Time, Pit Stop Timing, Tyre Compounds, Traffic Loss, Undercut Advantage, and Net Advantage.
+- **Full Integration into Strategy Engineer Views**:
+  - `StrategyReportCard.jsx`: Section 4 `"SCOPED TELEMETRY & LAP-TIME PROGRESSION"` renders the 2-series chart and comparative table.
+  - `WhatIfSimulationCard.jsx`: Counterfactual simulation results display the 2-series telemetry comparison and side-by-side table.
+- **Verified Simulation Results (100% Real PostgreSQL Data)**:
+  1. **Analysis 1 (Verstappen, Dutch GP 2024)**: Suggested Pit Lap 30 (HARD) instead of Lap 27 (HARD) -> P2 to P5, Net Delta: -12.60s, 72 actual vs 72 simulated laps.
+  2. **Analysis 2 (Russell, Miami GP 2026)**: Suggested Pit Lap 28 (MEDIUM) instead of Lap 20 (HARD) -> P4 to P9, Net Delta: -8.10s, 57 actual vs 57 simulated laps.
+  3. **What-If 1 (Verstappen, Dutch GP 2024)**: Pit Lap 22 (HARD) instead of Lap 27 (HARD) -> P2 to P7, Net Delta: -25.19s, Traffic Loss: 16.21s.
+  4. **What-If 2 (Piastri, Qatar GP 2024)**: Pit Lap 18 (HARD) instead of Lap 34 (HARD) -> P3 to P7, Net Delta: -34.57s, Traffic Loss: 62.12s.
+
+### Multi-Turn Conversation Thread Persistence & History Restoration (SESSION 046 - CRITICAL FIX II VERIFIED LIVE)
+- **Single Canonical Sidebar Entry Per Thread (`investigations` vs `conversations`)**:
+  - **Root Cause Identified**: Follow-up questions in Investigation Room (`InvestigationThread.jsx`) and Strategy Engineer (`StrategyEngineer.jsx`) were creating a new UUID and triggering `INSERT INTO investigations` on every submission, scattering single conversations across multiple sidebar items.
+  - **Thread-Level Aggregation**: In `HistoryService.saveInvestigation()`, if a thread exists for `conversation_id`, the system updates the existing `investigations` entry (`timestamp`, `ai_response`, `session`, `investigation_metadata`) and appends the turn to `conversations`.
+  - **Chronological Turn History**: `HistoryService.getInvestigationById()` queries `conversations WHERE conversation_id = $cid ORDER BY id ASC` and returns the complete `turns` array.
+- **Elimination of Generic "Race debrief analysis complete" Placeholders**:
+  - **Rich Response JSONB Persistence**: Added `response JSONB` column to PostgreSQL `conversations` table (via migration `08_conversation_thread_integrity.sql`). Each turn now preserves its full payload (telemetry metrics, charts, scorecards, what-if simulations).
+  - **Multi-Turn Message Reconstruction (`InvestigationThread.jsx`)**: When loading an investigation from history, all turns are reconstructed chronologically. Initial question and mapped cards appear first, followed by each user follow-up prompt and its corresponding rich cards.
+- **Strategy Engineer Multi-Turn Restoration (`StrategyEngineer.jsx` & `Sidebar.jsx`)**:
+  - **Dedicated Routing**: Sidebar clicks on strategy sessions route directly to `/strategy?id=${item.id}`.
+  - **State Restoration**: `StrategyEngineer.jsx` reads `?id=...`, fetches the thread via `fetchInvestigationById()`, and populates `chatHistory` with all prior what-if turns and simulation reports.
+  - **Single Event Dispatch**: Only the first submission dispatches `frontwing-chat-created`; follow-ups dispatch `frontwing-chat-synced`.
 
 ### What-If Strategy Counterfactual Calibration & Ordinal Parsing Resolution (SESSION 045 - CRITICAL FIX HH VERIFIED LIVE)
 - **Elimination of Fake Multi-Hundred-Second Deltas (`simulation_engine.py`)**:

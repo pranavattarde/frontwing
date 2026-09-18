@@ -504,7 +504,12 @@ export function Sidebar({ className }) {
 
   // Render an individual history item
   const renderHistoryItem = (item) => {
-    const isSelected = location.pathname === `/investigate/${item.id}`;
+    const isStrategy = 
+      item.investigation_metadata?.type === 'strategy' || 
+      item.session === 'Strategy' || 
+      item.provider_used === 'strategy-planner';
+    const isSelected = location.pathname === `/investigate/${item.id}` || 
+      (location.pathname === `/strategy` && location.search.includes(`id=${item.id}`));
     const isEditing = editingId === item.id;
     const isMenuOpen = activeMenuId === item.id;
     const isMoving = movingItemId === item.id;
@@ -516,7 +521,11 @@ export function Sidebar({ className }) {
         className="relative group"
         onClick={() => {
           if (!isEditing) {
-            navigate(`/investigate/${item.id}`);
+            if (isStrategy) {
+              navigate(`/strategy?id=${item.id}`);
+            } else {
+              navigate(`/investigate/${item.id}`);
+            }
             setIsMobileOpen(false);
           }
         }}
@@ -877,7 +886,17 @@ export function Sidebar({ className }) {
                   {pinnedItems.slice(0, 3).map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => navigate(`/investigate/${item.id}`)}
+                      onClick={() => {
+                        const isStrategy = 
+                          item.investigation_metadata?.type === 'strategy' || 
+                          item.session === 'Strategy' || 
+                          item.provider_used === 'strategy-planner';
+                        if (isStrategy) {
+                          navigate(`/strategy?id=${item.id}`);
+                        } else {
+                          navigate(`/investigate/${item.id}`);
+                        }
+                      }}
                       title={`📌 ${item.display_title || item.question}`}
                       className="w-10 h-8 rounded flex items-center justify-center text-accent-primary hover:bg-surface-raised transition-colors text-xs"
                       aria-label={`Pinned Investigation: ${item.display_title || item.question}`}

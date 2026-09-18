@@ -482,3 +482,41 @@ All tests under `ai_services/tests/` are organized into 8 domain-focused modules
 - **5. Word-Boundary Protected Substrings:**
 - **RULE:** When detecting unmodeled variables (e.g. `"ers"`, `"aero"`, `"wings"`), ALWAYS use word-boundary regex (`\b` + var + `\b`). Substring matching (`if var in text:`) causes severe false positives (e.g. `"ers"` matching inside `"Verstappen"`).
 
+---
+
+## Entry 028 — 2026-09-18 — Multi-Turn Conversation Thread Integrity & History Restoration (Fix II)
+
+**1. Canonical Thread Identity (`investigations` vs `conversations`):**
+- **RULE:** Never insert a new row into `investigations` when processing follow-up questions in an existing thread. The `investigations` table represents the **thread** displayed in the sidebar history; the `conversations` table represents the individual **turns** within that thread.
+- **Gotcha:** Calling `INSERT INTO investigations` unconditionally on every follow-up question generates a new UUID for every message, causing sidebar history fragmentation where a 4-turn debrief produces 4 separate sidebar items instead of 1 thread.
+- **Protocol:**
+  - Client sends `conversation_id` on follow-up requests.
+  - Backend `HistoryService.saveInvestigation()` checks whether a thread with `conversation_id` (or `id::text = conversation_id`) exists.
+  - If it exists: UPDATE the existing `investigations` row (update `timestamp`, `ai_response`, `session`, `investigation_metadata`) and INSERT a new row into `conversations (conversation_id, question, answer, context, response, user_id, timestamp)`.
+  - If it does not exist: INSERT the new thread into `investigations` and INSERT Turn 1 into `conversations`.
+
+**2. Complete Rich Response Persistence (`response JSONB`):**
+- **RULE:** Always persist the full AI response object in `conversations.response JSONB` alongside question and text answer.
+- **Gotcha:** Persisting only text `answer` drops structured telemetry traces, sector comparison matrices, simulation cards, and driver scorecards. When reloading a saved thread from history, components failed to render rich cards and fell back to `"Race debrief analysis complete."` generic placeholders.
+- **Protocol:** `conversations` table stores `response JSONB`. On `getInvestigationById()`, join and return `turns` containing full `response` objects for every turn. Frontend restores complete rich cards across all turns in chronological order.
+
+**3. Strategy Engineer History Routing:**
+- **RULE:** Sidebar clicks on Strategy Engineer sessions MUST route directly to `/strategy?id=${item.id}` so that Strategy Engineer restores the full multi-turn what-if simulation history, rather than routing to `/investigate/${item.id}`.
+
+---
+
+## Entry 029 — 2026-09-18 — Scoped Telemetry Visualization Protocol in Strategy Engineer (Fix GG)
+
+**1. Zero High-Frequency Telemetry in Strategy Engineer Rule:**
+- **RULE:** Strategy Engineer responses (`strategy_analysis` and `strategy_whatif`) must NEVER include high-frequency vehicle dynamics traces (instantaneous speed, throttle, brake, RPM, gear, steering angle). High-frequency vehicle dynamics belong strictly to the Investigation Room / Telemetry Tool.
+- **Protocol:** Telemetry in Strategy Engineer is strictly scoped to macroscopic strategy parameters: stint lengths, lap-time progression series, position progression, pit stop markers, tyre compound history, and traffic/undercut time deltas.
+
+**2. Mandatory 2-Series Lap-Time Progression Line Chart:**
+- **RULE:** Both `strategy_analysis` and `strategy_whatif` queries must output a `telemetry_comparison` payload with synchronized lap arrays: `lap_number`, `actual_lap_time`, `simulated_lap_time`, `actual_compound`, `simulated_compound`, and `is_pit_lap`.
+- **Protocol:** The frontend renders an interactive SVG 2-series line chart (Actual: solid white, Simulated: dashed red `#E10600`) with vertical dashed pit stop markers (`ACT L{lap}`, `SIM L{lap}`), interactive crosshairs, and hover tooltips showing lap, delta, and compound pills.
+
+**3. Explicit Scenario Labelling & Side-by-Side Table:**
+- **RULE:** Counterfactual scenarios must explicitly state the user's requested pit stop timing vs the original pit stop (e.g. `"Pit Lap 22 (HARD) instead of Lap 27 (HARD)"`), accompanied by a side-by-side key numbers table (Finish Position, Total Race Time, Pit Timing, Tyre Compounds, Traffic Loss, Undercut Advantage, Net Advantage).
+
+**4. Variable Scope & Candidate Evaluation Fallback:**
+- **RULE:** In multi-candidate simulation evaluation loops in `run_strategy_analysis()`, always ensure summary variables (e.g. `act_pit_laps`, `sim_laps_formatted`) are initialized at function scope prior to conditional branching (`if candidate_results: ... else: ...`) to prevent `UnboundLocalError`.

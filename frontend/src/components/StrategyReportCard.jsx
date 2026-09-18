@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { StrategyTelemetryComparison } from "./StrategyTelemetryComparison";
 
 export function StrategyReportCard({ report, driverName, grandPrix, season, latencyMs }) {
   if (!report) return null;
@@ -113,7 +114,7 @@ export function StrategyReportCard({ report, driverName, grandPrix, season, late
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-accent-primary" />
-            <h3 className="text-sm font-bold uppercase tracking-wider font-mono text-text-primary">
+            <h3 className="text-sm font-bold tracking-wider font-mono text-text-primary">
               1. What Happened (Classification & Stint Timeline)
             </h3>
           </div>
@@ -351,6 +352,16 @@ export function StrategyReportCard({ report, driverName, grandPrix, season, late
             Pit Loss Cost: {suggested_alternative.pit_loss_s || 22.0}s
           </span>
         </div>
+
+        {/* Telemetry Comparison Visualization & Key Numbers Table */}
+        {(report.telemetry_comparison || suggested_alternative.telemetry_comparison) && (
+          <div className="mt-5 pt-4 border-t border-border-subtle">
+            <StrategyTelemetryComparison
+              comparison={report.telemetry_comparison || suggested_alternative.telemetry_comparison}
+              mode="analysis"
+            />
+          </div>
+        )}
       </motion.div>
     </div>
   );

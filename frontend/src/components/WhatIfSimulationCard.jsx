@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { StrategyTelemetryComparison } from "./StrategyTelemetryComparison";
 
 export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season, latencyMs }) {
   if (!simulation) return null;
@@ -203,6 +204,16 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
         <p className="text-sm text-text-secondary leading-relaxed border-t border-border-subtle pt-4">
           {analysis_summary}
         </p>
+
+        {/* Telemetry Comparison & Side-by-Side Key Numbers Table */}
+        {simulation.telemetry_comparison && (
+          <div className="mt-5 pt-4 border-t border-border-subtle">
+            <StrategyTelemetryComparison
+              comparison={simulation.telemetry_comparison}
+              mode="whatif"
+            />
+          </div>
+        )}
       </div>
     </motion.div>
   );

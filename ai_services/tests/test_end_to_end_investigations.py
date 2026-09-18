@@ -4,8 +4,14 @@ End-to-end integration tests executing the multi-agent AI race engineer pipeline
 against real ingested PostgreSQL sessions. Validates report structures, short-bullet summaries,
 absence of raw JSON/status leaks, and honest unsupported metric responses.
 """
+import os
 import pytest
 from app.agents.planner import run_ai_race_engineer
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY").startswith("dummy"),
+    reason="Live Gemini API key required for full end-to-end multi-agent investigation integration test"
+)
 
 
 def _assert_valid_investigation(result: dict, query_name: str):

@@ -11,40 +11,52 @@ class EngineerController {
         return res.status(400).json({ error: 'Question or prompt is required' });
       }
 
-      // 1. Check Redis Cache for identical request
-      const cached = await CacheService.getCachedResponse(queryText, session);
-      if (cached && (cached.final_answer || cached.investigation_report)) {
-        let savedId = cached.id;
-        if (req.user?.id) {
-          try {
-            const saved = await HistoryService.saveInvestigation({
-              user_id: req.user.id,
-              question: queryText,
-              ai_response: cached,
-              session: session || null,
-              provider_used: cached.provider || 'cached-redis',
-              investigation_metadata: { cached: true },
-            });
-            if (saved && saved.id) {
-              savedId = saved.id;
+      const conversationId = req.body.conversation_id || req.body.id || null;
+
+      // 1. Check Redis Cache for identical request (only for fresh standalone queries without conversation_id)
+      if (!conversationId) {
+        const cached = await CacheService.getCachedResponse(queryText, session);
+        if (cached && (cached.final_answer || cached.investigation_report)) {
+          let savedId = cached.id;
+          let savedCid = cached.conversation_id || cached.id;
+          if (req.user?.id) {
+            try {
+              const saved = await HistoryService.saveInvestigation({
+                user_id: req.user.id,
+                question: queryText,
+                ai_response: cached,
+                session: session || null,
+                provider_used: cached.provider || 'cached-redis',
+                investigation_metadata: { cached: true },
+                conversation_id: null,
+              });
+              if (saved && saved.id) {
+                savedId = saved.id;
+                savedCid = saved.conversation_id || saved.id;
+              }
+            } catch (histErr) {
+              console.warn('[EngineerController] Failed to save history for cached query:', histErr.message);
             }
-          } catch (histErr) {
-            console.warn('[EngineerController] Failed to save history for cached query:', histErr.message);
           }
+          return res.json({ ...cached, id: savedId, conversation_id: savedCid, cached: true });
         }
-        return res.json({ ...cached, id: savedId, cached: true });
       }
 
       // 2. Proxy request to Python AI Microservice
       const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
-      console.log(`[EngineerController] Proxying query to: ${aiServiceUrl}/engineer/query`);
+      console.log(`[EngineerController] Proxying query to: ${aiServiceUrl}/engineer/query (conv: ${conversationId})`);
+
+      const proxyBody = {
+        ...req.body,
+        conversation_id: conversationId,
+      };
 
       const response = await fetch(`${aiServiceUrl}/engineer/query`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(req.body),
+        body: JSON.stringify(proxyBody),
       });
 
       if (!response.ok) {
@@ -55,8 +67,10 @@ class EngineerController {
 
       const data = await response.json();
 
-      // 3. Cache response in Redis
-      await CacheService.setCachedResponse(queryText, data, session);
+      // 3. Cache response in Redis (for standalone queries)
+      if (!conversationId) {
+        await CacheService.setCachedResponse(queryText, data, session);
+      }
 
       // 4. Save to PostgreSQL Investigation History
       try {
@@ -70,9 +84,11 @@ class EngineerController {
             session_id: session,
             trace_id: data.trace?.trace_id,
           },
+          conversation_id: conversationId,
         });
         if (saved && saved.id) {
           data.id = saved.id;
+          data.conversation_id = saved.conversation_id || saved.id;
         }
       } catch (histErr) {
         console.warn('[EngineerController] Failed to save investigation history:', histErr.message);

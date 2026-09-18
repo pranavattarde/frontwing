@@ -14,7 +14,7 @@ export function VerdictBlock({ verdict, className }) {
       transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
     >
       <div className="w-full">
-        <span className="text-xs font-mono text-accent-primary font-bold uppercase tracking-widest block mb-2 flex items-center gap-2">
+        <span className="text-xs font-mono text-accent-primary font-bold tracking-wider block mb-2 flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-accent-primary animate-pulse" />
           Summary
         </span>

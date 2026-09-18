@@ -37,6 +37,7 @@ export function GhostBattle3D() {
   const [roster, setRoster] = useState(null);
   const [selectedDriverCodes, setSelectedDriverCodes] = useState([]);
   const [isLoadingRoster, setIsLoadingRoster] = useState(false);
+  const [hoveredTeamId, setHoveredTeamId] = useState(null);
 
   // Step 4: 3D Ghost Battle Simulation Data
   const [battleData, setBattleData] = useState(null);
@@ -215,6 +216,10 @@ export function GhostBattle3D() {
       if (data && data.drivers) {
         setBattleData(data);
         setIsPlaying(true);
+        setSearchParams({
+          session: selectedSessionId,
+          drivers: selectedDriverCodes.join(",")
+        });
         setTimeout(() => {
           battleSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
         }, 150);
@@ -327,7 +332,7 @@ export function GhostBattle3D() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Step 1: Season Dropdown */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 relative z-30">
               <label htmlFor="year-select" className="text-badge font-mono uppercase text-text-muted flex items-center justify-between">
                 <span>Step 1: Select Season</span>
                 {selectedYear === 2026 && (
@@ -346,13 +351,13 @@ export function GhostBattle3D() {
                 options={years.map((y) => ({
                   value: y,
                   label: `${y} Season`,
-                  sublabel: y === 2026 ? "Authentic 2026 Regulations Grid & Lineups" : "FastF1 Official Session Telemetry"
+                  sublabel: y === 2026 ? "Authentic 2026 Regulations Grid & Lineups" : "Official Session Telemetry"
                 }))}
               />
             </div>
 
             {/* Step 2: Completed GP Dropdown */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 relative z-20">
               <label htmlFor="gp-select" className="text-badge font-mono uppercase text-text-muted flex items-center justify-between">
                 <span>Step 2: Select Grand Prix ({gps.length} Completed)</span>
                 {selectedGpName && (
@@ -381,7 +386,7 @@ export function GhostBattle3D() {
             </div>
 
             {/* Step 4: Action Generate Button */}
-            <div className="flex flex-col justify-end">
+            <div className="flex flex-col justify-end relative z-10">
               <button
                 id="btn-generate-battle"
                 onClick={handleGenerateBattle}
@@ -456,6 +461,8 @@ export function GhostBattle3D() {
                       key={team.id}
                       id={`team-card-${teamSlug}`}
                       onClick={() => handleToggleTeam(team)}
+                      onMouseEnter={() => setHoveredTeamId(team.id)}
+                      onMouseLeave={() => setHoveredTeamId(null)}
                       className={`cursor-pointer p-3.5 rounded-card border transition-all duration-200 flex flex-col justify-between relative overflow-hidden select-none group ${
                         isTeamSelected
                           ? "border-accent-primary bg-surface-raised shadow-[0_0_16px_rgba(225,6,0,0.2)] ring-1 ring-accent-primary/40"
@@ -501,7 +508,11 @@ export function GhostBattle3D() {
 
                       {/* Middle: 3D Low-Poly Car Silhouette */}
                       <div className="py-1 my-0.5 border-y border-border-subtle/50 bg-black/20 rounded relative z-10">
-                        <TeamCar3D teamName={teamName} primaryColor={teamColor} />
+                        <TeamCar3D
+                          teamName={teamName}
+                          primaryColor={teamColor}
+                          isHovered={hoveredTeamId === team.id}
+                        />
                       </div>
 
                       {/* Bottom: Driver Pills */}

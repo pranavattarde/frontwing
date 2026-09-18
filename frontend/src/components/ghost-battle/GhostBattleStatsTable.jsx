@@ -13,7 +13,7 @@ export function GhostBattleStatsTable({ drivers, currentTime }) {
           </span>
         </div>
         <span className="font-mono text-[10px] text-text-muted uppercase">
-          FastF1 Verified Flying Laps
+          Verified Flying Laps
         </span>
       </div>
 

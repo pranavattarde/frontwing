@@ -85,6 +85,17 @@ def test_strategy_analysis_execution_verstappen_dutch_gp():
     assert "undercut_gain_s" in alt
     assert "traffic_loss_s" in alt
 
+    # 4. Telemetry Comparison (FIX GG)
+    assert "telemetry_comparison" in report
+    telem = report["telemetry_comparison"]
+    assert "actual" in telem and "simulated" in telem
+    assert len(telem["actual"]["lap_times"]) > 0
+    assert len(telem["simulated"]["lap_times"]) > 0
+    assert "finish_position" in telem["actual"]
+    assert "finish_position" in telem["simulated"]
+    assert "total_time_seconds" in telem["actual"]
+    assert "total_time_seconds" in telem["simulated"]
+
 
 def test_strategy_whatif_execution_piastri_qatar_gp():
     """Verifies real counterfactual what-if simulation for Oscar Piastri at 2024 Qatar GP."""
@@ -105,6 +116,16 @@ def test_strategy_whatif_execution_piastri_qatar_gp():
     assert isinstance(scen["finish_position"], int)
     assert isinstance(scen["net_time_delta_s"], float)
     assert scen["net_time_delta_s"] < 0  # Piastri loses time pitting too early on lap 18
+
+    # Telemetry Comparison (FIX GG)
+    assert "telemetry_comparison" in sim
+    telem = sim["telemetry_comparison"]
+    assert "actual" in telem and "simulated" in telem
+    assert len(telem["actual"]["lap_times"]) > 0
+    assert len(telem["simulated"]["lap_times"]) > 0
+    assert "scenario_label" in telem
+    assert "Pit Lap 18" in telem["scenario_label"]
+    assert "finish_position" in telem["simulated"]
 
 
 def test_strategy_whatif_unmodeled_variable_honesty():

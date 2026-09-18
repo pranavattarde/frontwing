@@ -9,23 +9,112 @@ class HistoryService {
       session,
       provider_used = 'gemini-2.5-flash',
       investigation_metadata = {},
+      conversation_id,
     } = dto;
 
-    const result = await pool.query(
-      `INSERT INTO investigations (user_id, question, ai_response, session, provider_used, investigation_metadata)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
-      [
-        user_id || null,
-        question,
-        JSON.stringify(ai_response),
-        session || null,
-        provider_used,
-        JSON.stringify(investigation_metadata),
-      ]
-    );
+    const answerText = ai_response?.final_answer || 
+                       ai_response?.executive_summary || 
+                       ai_response?.whatif_simulation?.analysis_summary || 
+                       ai_response?.strategy_report?.what_happened?.narrative || 
+                       ai_response?.investigation_report?.["Executive Summary"] || 
+                       '';
 
-    return result.rows[0];
+    let existingThread = null;
+    if (conversation_id) {
+      // Check if thread exists by conversation_id OR id
+      const checkResult = await pool.query(
+        `SELECT * FROM investigations 
+         WHERE (conversation_id = $1 OR id::text = $1)
+         AND ($2::uuid IS NULL OR user_id = $2::uuid OR user_id IS NULL)
+         LIMIT 1`,
+        [String(conversation_id), user_id || null]
+      );
+      if (checkResult.rows.length > 0) {
+        existingThread = checkResult.rows[0];
+      }
+    }
+
+    if (existingThread) {
+      const canonicalCid = existingThread.conversation_id || existingThread.id.toString();
+
+      // Update the thread record
+      const updateResult = await pool.query(
+        `UPDATE investigations
+         SET timestamp = CURRENT_TIMESTAMP,
+             ai_response = $1,
+             session = COALESCE($2, session),
+             investigation_metadata = $3
+         WHERE id = $4
+         RETURNING *`,
+        [
+          JSON.stringify(ai_response),
+          session || null,
+          JSON.stringify(investigation_metadata),
+          existingThread.id
+        ]
+      );
+
+      // Append turn to conversations
+      await pool.query(
+        `INSERT INTO conversations (conversation_id, question, answer, context, response, user_id, timestamp)
+         VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
+        [
+          canonicalCid,
+          question,
+          answerText,
+          JSON.stringify(investigation_metadata || {}),
+          JSON.stringify(ai_response || {}),
+          user_id || null
+        ]
+      );
+
+      const resRow = updateResult.rows[0];
+      resRow.conversation_id = canonicalCid;
+      return resRow;
+    } else {
+      // Create new investigation thread
+      const cid = conversation_id ? String(conversation_id) : null;
+      const result = await pool.query(
+        `INSERT INTO investigations (user_id, question, ai_response, session, provider_used, investigation_metadata, conversation_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [
+          user_id || null,
+          question,
+          JSON.stringify(ai_response),
+          session || null,
+          provider_used,
+          JSON.stringify(investigation_metadata),
+          cid
+        ]
+      );
+
+      const threadRow = result.rows[0];
+      const canonicalCid = threadRow.conversation_id || threadRow.id.toString();
+      if (!threadRow.conversation_id) {
+        await pool.query(
+          `UPDATE investigations SET conversation_id = $1 WHERE id = $2`,
+          [canonicalCid, threadRow.id]
+        );
+        threadRow.conversation_id = canonicalCid;
+      }
+
+      // Append Turn 1 to conversations
+      await pool.query(
+        `INSERT INTO conversations (conversation_id, question, answer, context, response, user_id, timestamp)
+         VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
+        [
+          canonicalCid,
+          question,
+          answerText,
+          JSON.stringify(investigation_metadata || {}),
+          JSON.stringify(ai_response || {}),
+          user_id || null
+        ]
+      );
+
+      return threadRow;
+    }
   }
 
   static async getHistory(
@@ -103,20 +192,59 @@ class HistoryService {
       LEFT JOIN investigation_groups g ON i.group_id = g.id
     `;
 
-    const values = [id];
+    const values = [String(id)];
 
     if (userId) {
-      query += ` LEFT JOIN saved_investigations si ON i.id = si.investigation_id AND si.user_id = $2 WHERE i.id = $1 AND (i.user_id = $2 OR i.user_id IS NULL)`;
+      query += ` LEFT JOIN saved_investigations si ON i.id = si.investigation_id AND si.user_id = $2 
+                 WHERE (i.id::text = $1 OR i.conversation_id = $1) 
+                 AND (i.user_id = $2 OR i.user_id IS NULL)`;
       values.push(userId);
     } else {
-      query += ` WHERE i.id = $1 AND i.user_id IS NULL`;
+      query += ` WHERE (i.id::text = $1 OR i.conversation_id = $1)`;
     }
 
     const result = await pool.query(query, values);
     if (result.rows.length === 0) {
       return null;
     }
-    return result.rows[0];
+
+    const investigation = result.rows[0];
+    const canonicalCid = investigation.conversation_id || investigation.id.toString();
+
+    // Query all turns from conversations ordered chronologically
+    const turnsRes = await pool.query(
+      `SELECT id, conversation_id, question, answer, context, response, timestamp
+       FROM conversations
+       WHERE conversation_id = $1 OR conversation_id = $2
+       ORDER BY id ASC`,
+      [canonicalCid, investigation.id.toString()]
+    );
+
+    if (turnsRes.rows.length > 0) {
+      investigation.turns = turnsRes.rows.map(r => ({
+        id: r.id,
+        conversation_id: r.conversation_id,
+        question: r.question,
+        answer: r.answer,
+        context: r.context,
+        response: r.response || investigation.ai_response,
+        timestamp: r.timestamp
+      }));
+    } else {
+      investigation.turns = [
+        {
+          id: 1,
+          conversation_id: canonicalCid,
+          question: investigation.question,
+          answer: investigation.ai_response?.final_answer || investigation.ai_response?.executive_summary || '',
+          context: investigation.investigation_metadata,
+          response: investigation.ai_response,
+          timestamp: investigation.timestamp
+        }
+      ];
+    }
+
+    return investigation;
   }
 
   static async updateInvestigation(id, userId, updates = {}) {
@@ -161,9 +289,28 @@ class HistoryService {
   }
 
   static async deleteInvestigation(id, userId) {
+    const inv = await pool.query(
+      `SELECT id, conversation_id FROM investigations 
+       WHERE (id::text = $1 OR conversation_id = $1) 
+       AND ($2::uuid IS NULL OR user_id = $2::uuid OR user_id IS NULL)`,
+      [String(id), userId || null]
+    );
+
+    if (inv.rows.length > 0) {
+      const row = inv.rows[0];
+      const cid = row.conversation_id || row.id.toString();
+      await pool.query(
+        `DELETE FROM conversations WHERE conversation_id = $1 OR conversation_id = $2`,
+        [cid, row.id.toString()]
+      );
+    }
+
     const result = await pool.query(
-      `DELETE FROM investigations WHERE id = $1 AND user_id = $2 RETURNING id`,
-      [id, userId]
+      `DELETE FROM investigations 
+       WHERE (id::text = $1 OR conversation_id = $1) 
+       AND ($2::uuid IS NULL OR user_id = $2::uuid OR user_id IS NULL) 
+       RETURNING id`,
+      [String(id), userId || null]
     );
 
     return (result.rowCount ?? 0) > 0;
