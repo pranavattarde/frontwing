@@ -85,13 +85,6 @@ async function runTests() {
     }
   }
 
-  // INTENTIONAL FAILURE FOR GITHUB ACTIONS CI PIPELINE VERIFICATION
-  assert(
-    'INTENTIONAL_CI_FAILURE: Verifying GitHub Actions CI blocks broken builds',
-    false,
-    'This test failure was intentionally added to verify that the pipeline fails loudly and blocks merge.'
-  );
-
   try {
     // -------------------------------------------------------------
     // PART 1: RATE LIMITING

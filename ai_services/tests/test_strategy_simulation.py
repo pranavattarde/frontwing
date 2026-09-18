@@ -3,6 +3,7 @@ test_strategy_simulation.py
 Tests the strategy simulation engine: pit loss, undercut/overcut physics,
 traffic degradation, natural language parameter binding, and honest error handling.
 """
+import os
 import pytest
 from app.simulation.simulation_engine import run_strategy_simulation
 from app.agents.planner import run_ai_race_engineer
@@ -105,6 +106,10 @@ def test_simulation_later_pitstop(simulation_constants):
     assert "projected_total_time_seconds" in res
 
 
+@pytest.mark.skipif(
+    not os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY").startswith("dummy"),
+    reason="Live Gemini API key required for full end-to-end race engineer query binding"
+)
 def test_simulation_parameter_binding_from_query():
     """Verifies natural language query binds simulation tool arguments correctly."""
     res = run_ai_race_engineer("What if Russell boxed on lap 25 at Austria in 2024?")
@@ -118,6 +123,10 @@ def test_simulation_parameter_binding_from_query():
     assert "no verified race data is available for p25" not in ans
 
 
+@pytest.mark.skipif(
+    not os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY").startswith("dummy"),
+    reason="Live Gemini API key required for full end-to-end race engineer query binding"
+)
 def test_simulation_honest_failure_for_non_racing_driver():
     """Simulating a driver who did not race must return an honest error, not a fictitious position."""
     res = run_ai_race_engineer("What if Colapinto pitted on lap 27 at Monaco in 2024?")

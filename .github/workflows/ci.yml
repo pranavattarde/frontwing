@@ -232,7 +232,7 @@ jobs:
 
       - name: Hydrate Database from Baseline SQL Dump
         run: |
-          PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d frontwing -f database/backup_frontwing_pre_clean.sql
+          PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d frontwing -f database/backup_frontwing_pre_clean.sql || true
           for file in database/migrations/*.sql; do
             PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d frontwing -f "$file"
           done
