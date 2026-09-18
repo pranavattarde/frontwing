@@ -460,3 +460,25 @@ All tests under `ai_services/tests/` are organized into 8 domain-focused modules
 - **RULE:** Suggestion chips (e.g. in `QuestionBar.jsx`, `InvestigationThread.jsx`, and `StrategyEngineer.jsx` preset scenarios) MUST prefill the text input field without auto-submitting. The user must consciously press send or Enter to dispatch an agent call.
 - **3. Read-Only Editorial Feeds:**
 - **RULE:** Featured Debriefs and Trending Insights cards are strictly read-only content that link out to verified external sources (`VERIFY ON {OUTLET} ↗`). They must never execute an agent query on card or moment click.
+
+---
+
+## Entry 027 — 2026-09-18 — What-If Counterfactual Simulation Calibration & Safety Car Pace Ceilings (Fix HH)
+
+**1. Track-Wide Safety Car Pace Ceiling Rule:**
+- **RULE:** When projecting counterfactual race timelines in `project_race_timeline()` / `run_strategy_simulation()`, NEVER allow a simulated car in clean air to lap at synthetic green-flag pace (e.g. $85\text{s}-93\text{s}$) during track-wide neutralizations (Safety Cars or VSCs).
+- **Gotcha:** If a real race experienced a 6-lap Safety Car (e.g. 2026 Miami GP Laps 6–11 at $130\text{s}-150\text{s}$ vs $93\text{s}$ green pace), real race time was inflated by $+246\text{s}$. If simulated laps are projected without the Safety Car slowdown, calculating $\text{net\_gain} = \text{actual\_total\_time} - \text{simulated\_total\_time}$ produces a fake $+232\text{s}$ advantage regardless of what pit stop was requested!
+- **Protocol:** Identify neutralized laps dynamically via SQL ($\text{avg\_ms} > 1.20 \times \text{median\_grid\_ms}$ across $\ge 3$ cars) and enforce a minimum lap time ceiling (`max(sim_lap, sc_pace[k])`). Under Safety Cars, all cars are constrained by the safety car delta.
+
+**2. Pre-Divergence Identity Blending Principle:**
+- **RULE:** For all laps prior to strategy divergence ($k \le \min(\text{actual\_pit\_lap}, \text{simulated\_pit\_lap})$), the driver has NOT pitted in either strategy. The driver is physically on the exact same tyre compound, at the exact same tyre age, under identical track conditions.
+- **Protocol:** Pre-divergence laps MUST use the driver's actual recorded lap times (`simulated_lap[k] = actual_lap[k]`). This guarantees that early race anomalies (standing starts, opening lap chaos, early Safety Cars) are identically represented in both strategies, isolating the true counterfactual delta created exclusively by the strategy change.
+
+**3. Strategy Identity Neutrality:**
+- **RULE:** When a user simulates the driver's actual pit lap on the actual fitted compound (`simulated_pit_lap == actual_pit_lap`), the simulation MUST return `strategy_delta_s = 0.00s`, `simulated_pos = actual_pos`, and `position_change = 0`. Running the actual strategy produces zero net delta.
+
+**4. Ordinal vs Relative Lap Parsing Rule:**
+- **RULE:** In `parse_scenario_pit_lap()`, ordinal numbers (`"2nd lap"`, `"second lap"`, `"3rd lap"`, `"third lap"`) are ABSOLUTE target lap numbers (Lap 2, Lap 3), NOT relative offsets (`actual - 4`). Relative offsets MUST require explicit relative syntax (`"5 laps earlier"`, `"3 laps later"`, `"extend by 4 laps"`).
+- **5. Word-Boundary Protected Substrings:**
+- **RULE:** When detecting unmodeled variables (e.g. `"ers"`, `"aero"`, `"wings"`), ALWAYS use word-boundary regex (`\b` + var + `\b`). Substring matching (`if var in text:`) causes severe false positives (e.g. `"ers"` matching inside `"Verstappen"`).
+

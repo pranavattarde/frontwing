@@ -1,3 +1,46 @@
+## Session 045 -- 2026-09-18 -- What-If Strategy Simulation Calibration, Safety Car Pace Capping & Ordinal Lap Parsing (CRITICAL FIX HH)
+
+### What Was Changed
+- **`ai_services/app/simulation/simulation_engine.py` (CRITICAL FIX HH - What-If Counterfactual Delta Calibration & Safety Car Pace Capping)**:
+  - Identified root cause of the $+232\text{s}$ distortion: Raw green-flag simulations ($93.7\text{s}$ clean air pace) were compared directly against real historical race totals that included multi-lap Safety Car periods (e.g. 2026 Miami GP Laps 6–11 at $130\text{s}-150\text{s}$, $+246\text{s}$ inflation). Because simulated laps lacked the Safety Car slowdown, any pit stop scenario produced an identical $+232\text{s}$ to $+233\text{s}$ fake advantage.
+  - In `load_session_data_from_db()`: Added dynamic SQL analysis to detect neutralized/Safety Car laps ($\text{avg\_ms} > 1.20 \times \text{median\_grid\_ms}$ across $\ge 3$ cars) and return `sc_pace` (seconds per lap).
+  - In `run_strategy_simulation()`: Enforced Safety Car pace ceiling (`max(sim_lap, sc_pace[k])`) so cars in clean air cannot lap at green-flag pace during track-wide neutralizations.
+  - Implemented **Pre-Divergence Identity Blending**: For all laps prior to pit divergence ($k \le \min(\text{actual\_pit\_lap}, \text{simulated\_pit\_lap})$), the driver is physically on the exact same tyre at the exact same age; preserved actual recorded lap times up to the divergence point.
+  - Implemented **Identical Strategy Identity Principle**: When simulating the exact actual pit lap with the same compound, returns `strategy_delta_s = 0.00s`, `simulated_pos = actual_pos`, and `position_change = 0`.
+- **`ai_services/app/agents/strategy_planner.py` (CRITICAL FIX HH - Ordinal Lap Parsing & Word-Boundary Unmodeled Variables)**:
+  - Replaced crude digits-only regex with comprehensive `parse_scenario_pit_lap()` supporting numeric ordinals (`1st`, `2nd`, `3rd`, etc.) and word ordinals (`first`, `second`, `third`, etc.).
+  - Fixed "2nd lap only" query resolving incorrectly to Lap 16; now parses strictly as Lap 2.
+  - Replaced substring matching `if var in q_lower:` in `detect_unmodeled_variable()` with strict word-boundary matching `re.search(r"\b" + re.escape(var) + r"\b", q_lower)`. Fixed critical regression where `"ers"` matched inside `"Verstappen"` (`v-ers-tappen`).
+  - Added `"pit_lap": target_lap` to `simulated_scenario` dictionary for explicit visibility in reports.
+
+### How It Was Verified -- Real Test Output
+- **Full Pytest Suite (`pytest ai_services/tests/test_strategy_simulation.py ai_services/tests/test_strategy_engineer.py -v`)**:
+  - `test_simulation_earlier_pitstop`: PASSED
+  - `test_simulation_later_pitstop`: PASSED
+  - `test_simulation_parameter_binding_from_query`: PASSED
+  - `test_simulation_honest_failure_for_non_racing_driver`: PASSED
+  - `test_strategy_query_classification`: PASSED
+  - `test_strategy_unmodeled_variable_detection`: PASSED
+  - `test_strategy_query_api_endpoint`: PASSED
+  - `test_strategy_analysis_execution_verstappen_dutch_gp`: PASSED
+  - `test_strategy_whatif_execution_piastri_qatar_gp`: PASSED (`net_time_delta_s < 0`, $-34.57\text{s}$)
+  - `test_strategy_whatif_unmodeled_variable_honesty`: PASSED (<100ms limitation response)
+  - `test_openf1_cross_check_agreement_2024_dutch_gp`: PASSED
+  - `test_openf1_cross_check_discrepancy_2024_british_gp`: PASSED
+  - `test_openf1_cross_check_pre2023_fallback`: PASSED
+  - **Result: 13/13 passed (100% pass rate in 42.53s)**.
+- **Verification Harness (`scratch/verify_fix_hh.py`)**:
+  - **Part 1 (Exact Log Sequence - 2026 Miami GP, Russell, Actual Pit Lap 20, Finished P4)**:
+    1. *"what if he pitted 5 laps earlier?"*: Pit Lap 15 $\to$ Finish P10 ($-6$), Net Delta $-16.71\text{s}$, Traffic Loss $36.46\text{s}$.
+    2. *"what if he pitted on 2nd lap only?"*: Pit Lap 2 $\to$ Finish P13 ($-9$), Net Delta $-51.40\text{s}$, Traffic Loss $4.67\text{s}$.
+    3. *"what if he pitted on lap 30?"*: Pit Lap 30 $\to$ Finish P10 ($-6$), Net Delta $-14.52\text{s}$, Traffic Loss $36.46\text{s}$.
+  - **Part 2 (3 Self-Invented Scenarios - 2024 Dutch GP, Verstappen, Actual Pit Lap 27, Finished P2)**:
+    1. *"What if Verstappen pitted on lap 22 at the 2024 Dutch GP?"*: Pit Lap 22 $\to$ Finish P7 ($-5$), Net Delta $-25.19\text{s}$.
+    2. *"What if Verstappen pitted on lap 35 at the 2024 Dutch GP?"*: Pit Lap 35 $\to$ Finish P8 ($-6$), Net Delta $-32.75\text{s}$.
+    3. *"What if Verstappen pitted on the 3rd lap at the 2024 Dutch GP?"*: Pit Lap 3 $\to$ Finish P13 ($-11$), Net Delta $-81.57\text{s}$.
+
+---
+
 ## Session 044 -- 2026-09-17 -- Collapsible/Expandable Sidebar with Responsive Main Content Reflow & Persistence (FIX FF)
 
 ### What Was Changed

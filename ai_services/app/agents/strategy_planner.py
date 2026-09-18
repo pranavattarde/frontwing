@@ -37,6 +37,63 @@ UNMODELED_VARIABLES = [
     "fuel mix", "clutch release", "start reaction", "throttle map"
 ]
 
+ORDINAL_WORD_MAP = {
+    'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5,
+    'sixth': 6, 'seventh': 7, 'eighth': 8, 'ninth': 9, 'tenth': 10,
+    'eleventh': 11, 'twelfth': 12, 'thirteenth': 13, 'fourteenth': 14, 'fifteenth': 15,
+    'sixteenth': 16, 'seventeenth': 17, 'eighteenth': 18, 'nineteenth': 19, 'twentieth': 20,
+    'twenty-first': 21, 'twenty-second': 22, 'twenty-third': 23, 'twenty-fourth': 24, 'twenty-fifth': 25,
+    'twenty-sixth': 26, 'twenty-seventh': 27, 'twenty-eighth': 28, 'twenty-ninth': 29, 'thirtieth': 30
+}
+
+
+def parse_scenario_pit_lap(question: str, actual_pit_lap: int = 20) -> int:
+    """
+    Parses target pit lap from user query.
+    Strictly distinguishes between relative offsets (adjusting from actual_pit_lap or prior turn)
+    and absolute lap numbers (including ordinals like '2nd lap' -> 2, 'on the second lap' -> 2).
+    """
+    q_lower = question.lower().strip()
+
+    # 1. Strict relative check: 'N laps earlier/before/sooner' or 'N laps later/after'
+    rel_earlier = re.search(r'(\d+)\s+laps?\s+(?:earlier|before|sooner)', q_lower) or re.search(r'(?:earlier|sooner)\s+by\s+(\d+)\s+laps?', q_lower)
+    rel_later = re.search(r'(\d+)\s+laps?\s+(?:later|after)', q_lower) or re.search(r'(?:later)\s+by\s+(\d+)\s+laps?', q_lower)
+
+    if rel_earlier:
+        offset = int(rel_earlier.group(1))
+        return max(1, actual_pit_lap - offset)
+    if rel_later:
+        offset = int(rel_later.group(1))
+        return actual_pit_lap + offset
+
+    # 2. Ordinal digits with suffix: e.g. '2nd', '2nd lap', 'on 2nd lap only', 'the 15th lap'
+    ord_digit = re.search(r'\b(\d+)(?:st|nd|rd|th)\b', q_lower)
+    if ord_digit:
+        return int(ord_digit.group(1))
+
+    # 3. Ordinal words: e.g. 'second lap', 'on the third lap'
+    ord_word_pattern = r'\b(' + '|'.join(ORDINAL_WORD_MAP.keys()) + r')\b'
+    ord_word = re.search(ord_word_pattern, q_lower)
+    if ord_word:
+        return ORDINAL_WORD_MAP[ord_word.group(1)]
+
+    # 4. Standard explicit lap: e.g. 'lap 18', 'on lap 24', 'box on lap 30', 'pitted 25'
+    abs_match = re.search(r'\b(?:lap|box\s+(?:on|at)?|pitted\s+(?:on|at)?|on\s+lap)\s*(\d+)\b', q_lower)
+    if abs_match:
+        return int(abs_match.group(1))
+
+    # 5. 'on 18', 'at 25'
+    prep_match = re.search(r'\b(?:on|at)\s+(\d+)\b', q_lower)
+    if prep_match:
+        return int(prep_match.group(1))
+
+    # 6. Isolated 1-2 digit number
+    num_match = re.search(r'\b(\d{1,2})\b', q_lower)
+    if num_match:
+        return int(num_match.group(1))
+
+    return max(1, actual_pit_lap - 4)
+
 
 def classify_strategy_query(question: str) -> str:
     """Classifies incoming strategy query into exactly 'strategy_whatif' or 'strategy_analysis'."""
@@ -69,7 +126,7 @@ def detect_unmodeled_variable(question: str) -> Optional[str]:
     """Checks if user's scenario references variables not modeled by SimulationTool."""
     q_lower = question.lower()
     for var in sorted(UNMODELED_VARIABLES, key=lambda x: len(x), reverse=True):
-        if var in q_lower:
+        if re.search(r"\b" + re.escape(var) + r"\b", q_lower):
             return var
     return None
 
@@ -375,6 +432,7 @@ def run_strategy_analysis(
     if candidate_results:
         candidate_results.sort(key=lambda c: (c["simulated_finish_position"], -c["net_time_delta_s"]))
         best = candidate_results[0]
+        raw_sim = best.get("raw_simulation") or {}
         suggested_alternative = {
             "simulated_pit_lap": best["simulated_pit_lap"],
             "actual_pit_lap": primary_pit_lap,
@@ -387,9 +445,24 @@ def run_strategy_analysis(
             "undercut_gain_s": best["undercut_gain_s"],
             "traffic_loss_s": best["traffic_loss_s"],
             "pit_loss_s": best["pit_loss_s"],
-            "candidates_evaluated": len(candidate_results)
+            "candidates_evaluated": len(candidate_results),
+            "actual_total_time_seconds": raw_sim.get("actual_total_time_seconds"),
+            "projected_total_time_seconds": raw_sim.get("projected_total_time_seconds"),
+            "actual_lap_times": raw_sim.get("actual_lap_times") or [],
+            "simulated_lap_times": raw_sim.get("simulated_lap_times") or [],
+            "actual_stints": raw_sim.get("run_parameters", {}).get("actual_stints") or actual_stints,
+            "simulated_stints": raw_sim.get("run_parameters", {}).get("stints") or []
         }
     else:
+        try:
+            fallback_sim = simulation_tool.execute({
+                "session_id": session_id,
+                "driver_id": driver_id,
+                "simulated_pit_lap": primary_pit_lap,
+                "target_compound": actual_compound_out
+            }) or {}
+        except Exception:
+            fallback_sim = {}
         suggested_alternative = {
             "simulated_pit_lap": primary_pit_lap,
             "actual_pit_lap": primary_pit_lap,
@@ -402,8 +475,41 @@ def run_strategy_analysis(
             "undercut_gain_s": 0.0,
             "traffic_loss_s": 0.0,
             "pit_loss_s": 22.0,
-            "candidates_evaluated": 0
+            "candidates_evaluated": 0,
+            "actual_total_time_seconds": fallback_sim.get("actual_total_time_seconds"),
+            "projected_total_time_seconds": fallback_sim.get("projected_total_time_seconds"),
+            "actual_lap_times": fallback_sim.get("actual_lap_times") or [],
+            "simulated_lap_times": fallback_sim.get("simulated_lap_times") or [],
+            "actual_stints": actual_stints,
+            "simulated_stints": fallback_sim.get("run_parameters", {}).get("stints") or []
         }
+
+    telemetry_comparison = {
+        "driver_name": driver_name,
+        "driver_id": driver_id,
+        "scenario_label": f"Suggested: Pit Lap {suggested_alternative['simulated_pit_lap']} ({suggested_alternative['target_compound']}) instead of Lap {suggested_alternative['actual_pit_lap']} ({suggested_alternative['actual_compound']})",
+        "actual": {
+            "finish_position": finish_pos or suggested_alternative["actual_finish_position"],
+            "total_time_seconds": suggested_alternative.get("actual_total_time_seconds"),
+            "pit_laps": [p["lap"] for p in actual_pit_stops] if actual_pit_stops else [suggested_alternative["actual_pit_lap"]],
+            "compounds": [s.get("compound") for s in actual_stints] if actual_stints else [suggested_alternative["actual_compound"]],
+            "stints": actual_stints,
+            "lap_times": suggested_alternative.get("actual_lap_times", [])
+        },
+        "simulated": {
+            "finish_position": suggested_alternative["simulated_finish_position"],
+            "position_change": suggested_alternative["projected_position_change"],
+            "total_time_seconds": suggested_alternative.get("projected_total_time_seconds"),
+            "pit_laps": [suggested_alternative["simulated_pit_lap"]],
+            "compounds": [s.get("compound") for s in suggested_alternative.get("simulated_stints", [])] or [suggested_alternative["target_compound"]],
+            "stints": suggested_alternative.get("simulated_stints", []),
+            "lap_times": suggested_alternative.get("simulated_lap_times", []),
+            "net_time_delta_s": suggested_alternative["net_time_delta_s"],
+            "undercut_gain_s": suggested_alternative["undercut_gain_s"],
+            "traffic_loss_s": suggested_alternative["traffic_loss_s"],
+            "pit_loss_s": suggested_alternative["pit_loss_s"]
+        }
+    }
 
     # 5. Synthesize the 4 Required Sections with exact numbers
     # Section 1: Executive Summary
@@ -504,7 +610,8 @@ def run_strategy_analysis(
                 "narrative": strategy_cost_analysis_text
             },
             "suggested_alternative": suggested_alternative,
-            "suggested_alternative_narrative": suggested_alternative_text
+            "suggested_alternative_narrative": suggested_alternative_text,
+            "telemetry_comparison": telemetry_comparison
         },
         "evidence": {
             "race_results": driver_result,
@@ -512,7 +619,8 @@ def run_strategy_analysis(
             "stints": actual_stints,
             "pit_stops": actual_pit_stops,
             "openf1_cross_check": openf1_cross_check,
-            "best_simulation": suggested_alternative
+            "best_simulation": suggested_alternative,
+            "telemetry_comparison": telemetry_comparison
         }
     }
 
@@ -578,32 +686,10 @@ def run_strategy_whatif(
         actual_pit_lap = int(actual_stints[0].get("end_lap", 25))
         actual_compound_out = str(actual_stints[1].get("compound", "HARD")).upper()
 
-    # Parse target pit lap
+    # Parse target pit lap using dedicated absolute/ordinal vs relative parser
+    target_lap = parse_scenario_pit_lap(question, actual_pit_lap)
+
     q_lower = question.lower()
-    target_lap = None
-
-    # Check relative offset: e.g. "5 laps earlier", "3 laps later"
-    rel_earlier = re.search(r"(\d+)\s+laps?\s+(?:earlier|before)", q_lower)
-    rel_later = re.search(r"(\d+)\s+laps?\s+(?:later|after)", q_lower)
-    if rel_earlier:
-        offset = int(rel_earlier.group(1))
-        target_lap = max(1, actual_pit_lap - offset)
-    elif rel_later:
-        offset = int(rel_later.group(1))
-        target_lap = actual_pit_lap + offset
-    else:
-        # Check absolute lap: e.g. "lap 18", "on lap 24", "pitted 20"
-        abs_match = re.search(r"\b(?:lap|on|at|box\s+(?:on|at)?|pitted\s+(?:on|at)?)\s*(\d+)\b", q_lower)
-        if abs_match:
-            target_lap = int(abs_match.group(1))
-        else:
-            # Look for isolated digit if simulation keywords present
-            num_match = re.search(r"\b(\d{1,2})\b", q_lower)
-            if num_match:
-                target_lap = int(num_match.group(1))
-
-    if not target_lap:
-        target_lap = max(1, actual_pit_lap - 4)  # sensible fallback undercut
 
     # Parse target compound
     target_compound = actual_compound_out
@@ -668,6 +754,35 @@ def run_strategy_whatif(
         f"The net race time delta is {time_str}, with an estimated undercut delta of {undercut_gain_s}s and {traffic_loss_s}s lost in traffic."
     )
 
+    scenario_label = f"Pit Lap {target_lap} ({target_compound}) instead of Lap {actual_pit_lap} ({actual_compound_out})"
+
+    telemetry_comparison = {
+        "driver_name": driver_name,
+        "driver_id": driver_id,
+        "scenario_label": scenario_label,
+        "actual": {
+            "finish_position": act_pos,
+            "total_time_seconds": sim_res.get("actual_total_time_seconds"),
+            "pit_laps": [p["lap"] for p in actual_pit_stops] if actual_pit_stops else [actual_pit_lap],
+            "compounds": [s.get("compound") for s in actual_stints] if actual_stints else [actual_compound_out],
+            "stints": actual_stints,
+            "lap_times": sim_res.get("actual_lap_times", [])
+        },
+        "simulated": {
+            "finish_position": sim_pos,
+            "position_change": pos_change,
+            "total_time_seconds": sim_res.get("projected_total_time_seconds"),
+            "pit_laps": [target_lap],
+            "compounds": [s.get("compound") for s in sim_res.get("run_parameters", {}).get("stints", [])] or [target_compound],
+            "stints": sim_res.get("run_parameters", {}).get("stints", []),
+            "lap_times": sim_res.get("simulated_lap_times", []),
+            "net_time_delta_s": net_s,
+            "undercut_gain_s": undercut_gain_s,
+            "traffic_loss_s": traffic_loss_s,
+            "pit_loss_s": pit_loss_s
+        }
+    }
+
     return {
         "query_type": "strategy_whatif",
         "is_modeled": True,
@@ -682,26 +797,34 @@ def run_strategy_whatif(
             "is_modeled": True,
             "driver_name": driver_name,
             "driver_id": driver_id,
+            "scenario_label": scenario_label,
             "original_scenario": {
                 "finish_position": act_pos,
                 "pit_lap": actual_pit_lap,
-                "compound": actual_compound_out
+                "compound": actual_compound_out,
+                "total_time_seconds": sim_res.get("actual_total_time_seconds"),
+                "stints": actual_stints
             },
             "simulated_scenario": {
                 "finish_position": sim_pos,
                 "position_change": pos_change,
+                "pit_lap": target_lap,
                 "simulated_pit_lap": target_lap,
                 "target_compound": target_compound,
                 "net_time_delta_s": net_s,
                 "undercut_gain_s": undercut_gain_s,
                 "traffic_loss_s": traffic_loss_s,
-                "pit_loss_s": pit_loss_s
+                "pit_loss_s": pit_loss_s,
+                "total_time_seconds": sim_res.get("projected_total_time_seconds"),
+                "stints": sim_res.get("run_parameters", {}).get("stints", [])
             },
+            "telemetry_comparison": telemetry_comparison,
             "analysis_summary": analysis_summary
         },
         "evidence": {
             "simulation": sim_res,
-            "actual_pit_stops": actual_pit_stops
+            "actual_pit_stops": actual_pit_stops,
+            "telemetry_comparison": telemetry_comparison
         }
     }
 

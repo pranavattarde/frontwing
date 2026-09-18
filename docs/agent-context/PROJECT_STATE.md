@@ -1,11 +1,40 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-09-17 by Antigravity (Session 044 - Collapsible/Expandable Sidebar with Responsive Main Content Reflow & Persistence - FIX FF)
-> Audit method: Verified live via browser subagent (`sidebar_collapse_verification_1789649994509.webp`), capturing screenshots across desktop (1280x800) expanded/collapsed states and tablet (820x1000) responsive view (`sidebar_expanded_desktop_1789650135805.png`, `sidebar_collapsed_desktop_1789650363060.png`, `investigation_sidebar_expanded_1789650603713.png`, `investigation_sidebar_collapsed_1789650616001.png`, `tablet_responsive_view_1789650668447.png`). Verified 0 text label leaks in collapsed slim rail, persistent state across reloads via localStorage (`frontwing_sidebar_collapsed`), smooth 240ms cubic-bezier transition, automatic window resize dispatch triggering chart reflow, backend security tests 14/14 passed (`npm test`), history management tests passed (`node tests/history_management.test.js`), and frontend production build succeeded (`npm run build` completed in 21.93s with 0 errors).
+> Last updated: 2026-09-18 by Antigravity (Session 045 - What-If Strategy Counterfactual Calibration & Ordinal Parsing Resolution - CRITICAL FIX HH)
+> Audit method: Verified live via automated test suite (`pytest ai_services/tests/test_strategy_simulation.py ai_services/tests/test_strategy_engineer.py -v`, 13/13 passed in 42.53s) and multi-session verification harness (`scratch/verify_fix_hh.py`, 6 scenarios + identity checks across 2026 Miami GP, 2024 Dutch GP, and 2024 Qatar GP). Verified 0 fake multi-hundred-second deltas, strict ordinal lap number parsing ("2nd lap only" -> Lap 2, "3rd lap" -> Lap 3), neutral identity delta (0.00s for actual strategy stop), word-boundary unmodeled variable detection, pre-divergence lap identity preservation, and track-wide Safety Car pace ceiling enforcement.
 
 ---
 
 ## 1. What Works Right Now
+
+### What-If Strategy Counterfactual Calibration & Ordinal Parsing Resolution (SESSION 045 - CRITICAL FIX HH VERIFIED LIVE)
+- **Elimination of Fake Multi-Hundred-Second Deltas (`simulation_engine.py`)**:
+  - **Root Cause Identified**: When simulating counterfactual pit stops (e.g. Russell at 2026 Miami GP), comparing raw synthetic green-flag projections ($93.7\text{s}$ clean air pace) against real historical race totals that included multi-lap Safety Car neutralizations (Laps 6–11 at $130\text{s}-150\text{s}$, $+246\text{s}$ SC inflation) produced fake $+232\text{s}$ to $+233\text{s}$ gains across all scenarios regardless of pit lap requested.
+  - **Safety Car Pace Ceiling**: In `load_session_data_from_db()` and `run_strategy_simulation()`, dynamic SQL pace analysis identifies neutralized laps ($\text{mean} > 1.20 \times \text{median\_grid\_pace}$). On neutralized laps, simulated pace is capped by the real neutralized grid pace (`max(sim_lap, sc_pace[k])`), preventing cars in clean air from driving at green-flag pace during track-wide Safety Cars.
+  - **Pre-Divergence Identity Blending**: For all laps prior to strategy divergence ($k \le \min(\text{actual\_pit\_lap}, \text{simulated\_pit\_lap})$), the driver is physically on the exact same tyre compound and age under identical race conditions. Preserved actual recorded lap times up to the divergence point, maintaining historical real-world pace while simulating counterfactual physics post-divergence.
+  - **Identical Strategy Identity Principle**: When `simulated_pit_lap == actual_pit_lap` on the same compound, `strategy_delta_s = 0.00s`, `simulated_pos = actual_pos`, and `position_change = 0`.
+- **Ordinal and Relative Pit Lap Parsing Resolution (`strategy_planner.py`)**:
+  - Replaced crude digits-only regex with comprehensive ordinal parsing in `parse_scenario_pit_lap()`:
+    - Supports numeric ordinals: `1st`, `2nd`, `3rd`, `4th`, etc.
+    - Supports word ordinals: `first`, `second`, `third`, `fourth`, `fifth`, etc.
+    - Word boundary regex ensures "2nd lap only" parses strictly as absolute Lap 2 instead of defaulting to `actual_pit_lap - 4 = 16`.
+    - Preserves relative offset phrases: `"5 laps earlier"` $\to \text{actual} - 5 = 15$, `"3 laps later"` $\to \text{actual} + 3$.
+- **Word-Boundary Protected Unmodeled Variable Detection (`strategy_planner.py`)**:
+  - Replaced substring matching `if var in q_lower:` with strict word-boundary matching `re.search(r"\b" + re.escape(var) + r"\b", q_lower)`.
+  - Fixes critical regression where the unmodeled variable `"ers"` matched inside the substring of `"Verstappen"` (`v-ers-tappen`), falsely rejecting valid Verstappen what-if queries.
+- **Verified Simulation Results (Zero Mock, 100% Real PostgreSQL Data)**:
+  - **Miami GP 2026 (George Russell, Actual Pit Stop Lap 20 on Hard, Finished P4)**:
+    1. *"what if he pitted 5 laps earlier?"*: Target Lap 15 $\to$ Finish P10 ($-6$), Net Delta $-16.71\text{s}$ (Traffic Loss: $36.46\text{s}$).
+    2. *"what if he pitted on 2nd lap only?"*: Target Lap 2 $\to$ Finish P13 ($-9$), Net Delta $-51.40\text{s}$ (Traffic Loss: $4.67\text{s}$).
+    3. *"what if he pitted on lap 30?"*: Target Lap 30 $\to$ Finish P10 ($-6$), Net Delta $-14.52\text{s}$ (Traffic Loss: $36.46\text{s}$).
+    4. *Identity Check (Lap 20)*: Target Lap 20 $\to$ Finish P4 ($+0$), Net Delta $0.00\text{s}$.
+  - **Dutch GP 2024 (Max Verstappen, Actual Pit Stop Lap 27 on Hard, Finished P2)**:
+    1. *"What if Verstappen pitted on lap 22 at the 2024 Dutch GP?"* (5 laps earlier): Target Lap 22 $\to$ Finish P7 ($-5$), Net Delta $-25.19\text{s}$.
+    2. *"What if Verstappen pitted on lap 35 at the 2024 Dutch GP?"* (8 laps later): Target Lap 35 $\to$ Finish P8 ($-6$), Net Delta $-32.75\text{s}$.
+    3. *"What if Verstappen pitted on the 3rd lap at the 2024 Dutch GP?"* (ordinal stop): Target Lap 3 $\to$ Finish P13 ($-11$), Net Delta $-81.57\text{s}$.
+    4. *Identity Check (Lap 27)*: Target Lap 27 $\to$ Finish P2 ($+0$), Net Delta $0.00\text{s}$.
+  - **Qatar GP 2024 (Oscar Piastri, Actual Pit Stop Lap 34 on Hard, Finished P3)**:
+    1. *"What if Piastri pitted on lap 18 on hard tires at the 2024 Qatar GP?"*: Target Lap 18 $\to$ Finish P7 ($-4$), Net Delta $-34.57\text{s}$ ($< 0$, passing test).
 
 ### Collapsible & Expandable Sidebar with Responsive Layout Reflow (SESSION 044 - FIX FF VERIFIED LIVE)
 - **Collapsible Sidebar Architecture (`Sidebar.jsx`, `App.jsx`, `BriefingHeader.jsx`)**:

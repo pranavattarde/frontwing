@@ -140,13 +140,34 @@ def load_session_data_from_db(session_id: str, target_driver_id: str) -> Optiona
                 else:
                     r_timeline.append(round(float(r_med + 0.05 * (k % 15) - 0.06 * k), 3))
             rivals_laps[r_id] = r_timeline
+
+        # Query Safety Car / Neutralized laps pace
+        sc_query = """
+            WITH grid_laps AS (
+                SELECT lap_number, AVG(lap_time_ms) as avg_ms, COUNT(*) as cnt
+                FROM laps
+                WHERE session_id = %s AND is_valid = true AND lap_time_ms IS NOT NULL AND is_pit_out_lap = false
+                GROUP BY lap_number
+            ),
+            med AS (
+                SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY avg_ms) as med_ms
+                FROM grid_laps
+            )
+            SELECT g.lap_number, g.avg_ms / 1000.0 as avg_s
+            FROM grid_laps g, med m
+            WHERE (g.avg_ms / NULLIF(m.med_ms, 0)) > 1.20 AND g.cnt >= 3
+            ORDER BY g.lap_number;
+        """
+        sc_rows = execute_query(sc_query, (session_id,), fetch=True)
+        sc_pace = {r["lap_number"]: float(r["avg_s"]) for r in sc_rows} if sc_rows else {}
             
         return {
             "total_laps": total_laps,
             "actual_stints": actual_stints,
             "driver_actual_laps": driver_actual_laps,
             "rivals_laps": rivals_laps,
-            "actual_position": actual_pos
+            "actual_position": actual_pos,
+            "sc_pace": sc_pace
         }
     except Exception as e:
         logger.error(f"[Simulation] Database query failed in simulator load for session {session_id}, driver {target_driver_id}: {e}", exc_info=True)
@@ -216,6 +237,7 @@ def run_strategy_simulation(
         total_laps = total_laps_cache
         pit_loss = 22.0
         grid_median_deg = {"MEDIUM": 0.080, "HARD": 0.050, "SOFT": 0.120}
+        sc_pace = {}
     else:
         # Load from PostgreSQL
         db_data = load_session_data_from_db(session_id, driver_id)
@@ -227,6 +249,7 @@ def run_strategy_simulation(
         actual_stints = db_data["actual_stints"]
         total_laps = db_data["total_laps"]
         actual_pos = db_data["actual_position"]
+        sc_pace = db_data.get("sc_pace", {})
         
         # Calculate pit lane loss for this track/session
         pit_loss = float(get_pit_lane_loss({"t_pit_lane_opt": 20.80}, driver_id))
@@ -260,22 +283,79 @@ def run_strategy_simulation(
         return_details=True
     )
     
+    # 3b. Apply Safety Car / Neutralized pace ceiling to simulated laps
+    if sc_pace:
+        capped_sim_laps = []
+        for k, l_time in enumerate(simulated_laps, 1):
+            if k in sc_pace:
+                capped_sim_laps.append(max(float(l_time), sc_pace[k]))
+            else:
+                capped_sim_laps.append(float(l_time))
+        simulated_laps = capped_sim_laps
+
+    actual_pit_lap = None
+    if actual_stints:
+        actual_pit_lap = actual_stints[0].get("end_lap") or actual_stints[0].get("length")
+
+    # 3c. Pre-Divergence Identity Blending:
+    # Prior to the divergence point min(actual_pit_lap, simulated_pit_lap),
+    # the driver is on the exact same tyre compound and age under identical race conditions.
+    # Preserve actual recorded lap times up to the divergence point.
+    div_point = min(actual_pit_lap or simulated_pit_lap, simulated_pit_lap)
+    blended_simulated_laps = []
+    for idx, sim_t in enumerate(simulated_laps, 1):
+        if idx <= div_point and idx <= len(driver_actual_laps) and driver_actual_laps[idx - 1].get("lap_time") is not None:
+            blended_simulated_laps.append(float(driver_actual_laps[idx - 1]["lap_time"]))
+        else:
+            blended_simulated_laps.append(float(sim_t))
+    simulated_laps = blended_simulated_laps
+
     simulated_total_time = float(sum(simulated_laps))
     actual_total_time = float(sum(lap["lap_time"] for lap in driver_actual_laps))
     
-    # 4. Rank simulated driver against rivals' actual total times
-    rival_totals = {r_id: sum(laps) for r_id, laps in rivals_laps.items()}
-    sorted_times = sorted(list(rival_totals.values()) + [simulated_total_time])
-    simulated_pos = int(sorted_times.index(simulated_total_time) + 1)
-    
-    # Calculate gain/loss metrics
-    net_time_gain_ms = int((actual_total_time - simulated_total_time) * 1000)
-    position_change = int(actual_pos - simulated_pos)
+    # Check if this what-if scenario is identical to the driver's actual strategy
+    actual_compound_out = None
+    if actual_stints and len(actual_stints) > 1:
+        actual_compound_out = str(actual_stints[1].get("compound", "HARD")).upper()
+
+    is_identical_strategy = (
+        actual_pit_lap is not None
+        and int(simulated_pit_lap) == int(actual_pit_lap)
+        and (target_compound is None or str(target_compound).upper() == actual_compound_out)
+    )
+
+    if is_identical_strategy:
+        strategy_delta_s = 0.0
+        net_time_gain_ms = 0
+        counterfactual_real_total = actual_total_time
+        simulated_pos = int(actual_pos)
+        position_change = 0
+    else:
+        net_time_gain_ms = int((actual_total_time - simulated_total_time) * 1000)
+        strategy_delta_s = actual_total_time - simulated_total_time
+        counterfactual_real_total = simulated_total_time
+
+        # 4. Rank simulated driver against rivals' actual total times using counterfactual race time
+        rival_totals = {r_id: sum(laps) for r_id, laps in rivals_laps.items()}
+        sorted_times = sorted(list(rival_totals.values()) + [counterfactual_real_total])
+        simulated_pos = int(sorted_times.index(counterfactual_real_total) + 1)
+        position_change = int(actual_pos - simulated_pos)
     
     actual_pit_lap = None
     if actual_stints:
         actual_pit_lap = actual_stints[0].get("end_lap") or actual_stints[0].get("length")
     
+    actual_lap_times = [
+        {
+            "lap_number": int(lap.get("lap_number", idx + 1)),
+            "lap_time": round(float(lap["lap_time"]), 3),
+            "compound": str(lap.get("compound", "MEDIUM")).upper(),
+            "is_pit_out_lap": bool(lap.get("is_pit_out_lap", False))
+        }
+        for idx, lap in enumerate(driver_actual_laps)
+        if lap.get("lap_time") is not None
+    ]
+
     response = {
         "session_id": session_id,
         "driver_id": driver_id,
@@ -286,8 +366,12 @@ def run_strategy_simulation(
         "projected_finishing_position": int(simulated_pos),
         "position_change": int(position_change),
         "actual_total_time_seconds": round(actual_total_time, 3),
-        "projected_total_time_seconds": round(simulated_total_time, 3),
+        "projected_total_time_seconds": round(counterfactual_real_total, 3),
+        "simulated_baseline_total_seconds": round(actual_total_time, 3),
+        "simulated_scenario_total_seconds": round(simulated_total_time, 3),
         "simulated_net_time_gain_ms": int(net_time_gain_ms),
+        "undercut_gain": round(float(net_time_gain_ms / 1000.0), 3),
+        "actual_lap_times": actual_lap_times,
         "simulated_lap_times": [round(float(l), 3) for l in simulated_laps],
         "traffic_loss": round(float(total_traffic_loss), 3),
         "run_parameters": {
