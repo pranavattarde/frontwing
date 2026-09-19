@@ -1,0 +1,28 @@
+[
+  {
+    "session_key": 9087,
+    "meeting_key": 1210,
+    "session_name": "Race",
+    "session_type": "Race",
+    "circuit_key": 6,
+    "circuit_short_name": "Monaco",
+    "country_name": "Monaco",
+    "country_code": "MON",
+    "location": "Monaco",
+    "year": 2023,
+    "date_start": "2023-05-28T13:00:00+00:00"
+  },
+  {
+    "session_key": 9165,
+    "meeting_key": 1219,
+    "session_name": "Race",
+    "session_type": "Race",
+    "circuit_key": 2,
+    "circuit_short_name": "Silverstone",
+    "country_name": "Great Britain",
+    "country_code": "GBR",
+    "location": "Silverstone",
+    "year": 2023,
+    "date_start": "2023-07-09T14:00:00+00:00"
+  }
+]

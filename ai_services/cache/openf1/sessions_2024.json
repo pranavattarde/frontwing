@@ -1,0 +1,67 @@
+[
+  {
+    "session_key": 9599,
+    "meeting_key": 1246,
+    "session_name": "Race",
+    "session_type": "Race",
+    "circuit_key": 55,
+    "circuit_short_name": "Zandvoort",
+    "country_name": "Netherlands",
+    "country_code": "NED",
+    "location": "Zandvoort",
+    "year": 2024,
+    "date_start": "2024-08-25T13:00:00+00:00"
+  },
+  {
+    "session_key": 9558,
+    "meeting_key": 1239,
+    "session_name": "Race",
+    "session_type": "Race",
+    "circuit_key": 2,
+    "circuit_short_name": "Silverstone",
+    "country_name": "Great Britain",
+    "country_code": "GBR",
+    "location": "Silverstone",
+    "year": 2024,
+    "date_start": "2024-07-07T14:00:00+00:00"
+  },
+  {
+    "session_key": 9516,
+    "meeting_key": 1236,
+    "session_name": "Race",
+    "session_type": "Race",
+    "circuit_key": 6,
+    "circuit_short_name": "Monaco",
+    "country_name": "Monaco",
+    "country_code": "MON",
+    "location": "Monaco",
+    "year": 2024,
+    "date_start": "2024-05-26T13:00:00+00:00"
+  },
+  {
+    "session_key": 9605,
+    "meeting_key": 1247,
+    "session_name": "Race",
+    "session_type": "Race",
+    "circuit_key": 39,
+    "circuit_short_name": "Monza",
+    "country_name": "Italy",
+    "country_code": "ITA",
+    "location": "Monza",
+    "year": 2024,
+    "date_start": "2024-09-01T13:00:00+00:00"
+  },
+  {
+    "session_key": 9642,
+    "meeting_key": 1251,
+    "session_name": "Race",
+    "session_type": "Race",
+    "circuit_key": 64,
+    "circuit_short_name": "Lusail",
+    "country_name": "Qatar",
+    "country_code": "QAT",
+    "location": "Lusail",
+    "year": 2024,
+    "date_start": "2024-12-01T17:00:00+00:00"
+  }
+]

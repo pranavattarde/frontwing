@@ -265,10 +265,10 @@ class SessionResolver:
                     continue
                 if token in ("austria", "austrian", "spielberg"):
                     sub_tokens = ["austria", "spielberg"]
-                    exclude_clause = "AND (r.name NOT ILIKE '%australia%' AND r.id NOT ILIKE '%australia%')"
+                    exclude_clause = "AND (r.name NOT ILIKE '%%australia%%' AND r.id NOT ILIKE '%%australia%%')"
                 elif token in ("australia", "australian", "melbourne"):
                     sub_tokens = ["australia", "melbourne"]
-                    exclude_clause = "AND (r.name NOT ILIKE '%austria%' AND r.id NOT ILIKE '%austria%')"
+                    exclude_clause = "AND (r.name NOT ILIKE '%%austria%%' AND r.id NOT ILIKE '%%austria%%')"
                 elif token in ("silverstone", "british", "britain", "uk"):
                     exclude_clause = ""
                     sub_tokens = ["silverstone", "british", "britain"]

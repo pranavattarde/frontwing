@@ -42,7 +42,13 @@ Thumbs.db
 # Caching & Logs
 fastf1_cache/
 telemetry_cache/
-cache/
+/cache/
+ai_services/cache/20*
+ai_services/cache/*.sqlite
+!ai_services/cache/
+!ai_services/cache/circuits/**
+!ai_services/cache/openf1/**
+!ai_services/cache/telemetry/**
 logs/
 *.log
 *.sqlite
