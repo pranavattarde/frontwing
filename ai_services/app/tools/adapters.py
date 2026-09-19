@@ -671,18 +671,24 @@ class TelemetryTool(BaseF1Tool):
         return str(driver_id).replace("_", " ").title()
 
     def _resolve_storage_file(self, path_str: str) -> Optional[str]:
-        """Resolves actual file path for telemetry cache JSON files across working directories."""
+        """Resolves actual file path for telemetry cache JSON files across working directories and platforms."""
         if not path_str:
             return None
+        # Normalize all path separators to platform standard and extract clean basename
+        norm_path = path_str.replace("\\", "/")
+        fname = norm_path.split("/")[-1]
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         candidates = [
             path_str,
-            os.path.abspath(path_str),
-            os.path.join(os.getcwd(), path_str),
-            path_str.replace("ai_services/", "").replace("ai_services\\", ""),
-            os.path.join(os.getcwd(), path_str.replace("ai_services/", "").replace("ai_services\\", "")),
-            os.path.join(os.getcwd(), "cache", "telemetry", os.path.basename(path_str)),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "cache", "telemetry", os.path.basename(path_str)),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "ai_services", "cache", "telemetry", os.path.basename(path_str))
+            norm_path,
+            os.path.abspath(norm_path),
+            os.path.join(os.getcwd(), norm_path),
+            norm_path.replace("ai_services/", ""),
+            os.path.join(os.getcwd(), norm_path.replace("ai_services/", "")),
+            os.path.join(os.getcwd(), "cache", "telemetry", fname),
+            os.path.join(os.getcwd(), "ai_services", "cache", "telemetry", fname),
+            os.path.join(base_dir, "cache", "telemetry", fname),
+            os.path.join(base_dir, "ai_services", "cache", "telemetry", fname)
         ]
         for c in candidates:
             if os.path.exists(c) and os.path.isfile(c):
@@ -1559,14 +1565,21 @@ class TelemetryTool(BaseF1Tool):
                        ORDER BY ABS(lap_number - %s) ASC LIMIT 1""",
                     (session_id, candidates, lap_number), fetch=True
                 )
-                if meta and meta[0].get("storage_path"):
-                    found_path = self._resolve_storage_file(meta[0]["storage_path"])
+            if not found_path:
+                # Direct lookup in telemetry cache directory by filename pattern
+                for c_drv in candidates:
+                    direct_fname = f"{session_id}_{c_drv}_{lap_number}.json"
+                    found_path = self._resolve_storage_file(direct_fname)
+                    if found_path:
+                        matched_lap = lap_number
+                        matched_drv = c_drv
+                        break
 
-            if found_path and meta:
+            if found_path:
                 with open(found_path, "r") as f:
                     telemetry_points = json.load(f)
-                matched_lap = int(meta[0]["lap_number"])
-                matched_drv = str(meta[0]["driver_id"])
+                matched_lap = int(meta[0]["lap_number"]) if (meta and meta[0].get("lap_number")) else lap_number
+                matched_drv = str(meta[0]["driver_id"]) if (meta and meta[0].get("driver_id")) else candidates[0]
             else:
                 matched_lap = lap_number
                 matched_drv = candidates[0]
