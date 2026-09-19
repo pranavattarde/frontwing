@@ -1,3 +1,54 @@
+## Session 050 -- 2026-09-19 -- Production GitHub Actions CI/CD Pipeline & Two-Stage Live Verification
+> Branch: `test/ci-verification` -> Merged to `main`
+> Workflows: `.github/workflows/ci.yml`, `.github/workflows/cd.yml`
+
+### What Was Changed
+- **Part 1: GitHub Actions CI Pipeline (`.github/workflows/ci.yml`)**:
+  - Configured 7 strict gating jobs triggered on `push` and `pull_request` to `main`:
+    1. `lint-python`: Flake8 syntax and undefined symbol validation (`E9,F63,F7,F82`).
+    2. `lint-backend`: ESLint syntax correctness and scope enforcement in `backend/`.
+    3. `lint-frontend`: ESLint JSX / React Hooks validation in `frontend/`.
+    4. `frontend-build`: Production static asset compilation (`npm run build`).
+    5. `backend-tests`: Service containers (`postgres:17-alpine`, `redis:7-alpine`), cold-start hydration (`backup_frontwing_pre_clean.sql`), incremental migrations (`01` through `08`), and integration suites (`security.test.js`, `multiturn_thread_integrity.test.js`).
+    6. `ai-services-tests`: Service containers (`postgres:17-alpine`, `redis:7-alpine`), database hydration, and pytest suite.
+    7. `ci-status-gate`: Strict merge blocker requiring `success` across all jobs (`needs: [lint-python, lint-backend, lint-frontend, frontend-build, backend-tests, ai-services-tests]`).
+- **Part 2: GitHub Actions CD Pipeline (`.github/workflows/cd.yml`)**:
+  - Automatically triggered on push to `main` upon successful CI gate.
+  - Builds and publishes production container images to GitHub Container Registry (`ghcr.io`):
+    - `ghcr.io/${{ github.repository_owner }}/frontwing-backend:latest`
+    - `ghcr.io/${{ github.repository_owner }}/frontwing-ai-services:latest`
+    - `ghcr.io/${{ github.repository_owner }}/frontwing-frontend:latest`
+  - Includes deployment hook placeholder with health-check probe step (`GET /health`).
+- **Part 3: Critical CI Portability & Linux Compatibility Bug Fixes**:
+  - **Psycopg2 SQL Percent Placeholder Escaping (`ai_services/app/core/session_resolver.py`)**:
+    - Fixed unescaped `%australia%` and `%austria%` in dynamic `exclude_clause` SQL queries that triggered psycopg2 format placeholder parsing errors (`IndexError: tuple index out of range`).
+  - **Linux File Path Normalization (`ai_services/app/tools/adapters.py`)**:
+    - Normalized backslashes in database `storage_path` values (`norm_path = path_str.replace("\\", "/")`) so `os.path.basename` resolves cleanly on Linux runners where `\` is a literal character rather than a directory delimiter.
+    - Added direct filename fallback probing `{session_id}_{driver_id}_{lap_number}.json` in `cache/telemetry/`.
+  - **Cache Fixture Tracking (`.gitignore`)**:
+    - Unignored `ai_services/cache/openf1/`, `ai_services/cache/circuits/`, and `ai_services/cache/telemetry/` while maintaining ignore on dynamic `fastf1_http_cache.sqlite` and raw annual caches, enabling zero-network deterministic unit test execution.
+
+### How It Was Verified -- Two-Stage Live CI Verification
+- **Stage 1 (Intentional Failure Test)**:
+  - Commit: `4069c2d`
+  - Injected intentional test failure in `backend/tests/security.test.js`.
+  - Live GitHub Actions Run: [#35370270860](https://github.com/pranavattarde/frontwing/actions/runs/35370270860)
+  - Result: **FAILED** loudly on `backend-tests` step, triggering `ci-status-gate` failure and blocking merge as intended.
+- **Stage 2 (Fix and Pass Test)**:
+  - Commit: `9f13778`
+  - Reverted intentional failure, applied psycopg2 SQL escaping, Linux path resolution, and cache fixtures.
+  - Live GitHub Actions Run: [#35423348988](https://github.com/pranavattarde/frontwing/actions/runs/35423348988)
+  - Result: **100% SUCCESS** across all 7 jobs:
+    - `Frontend Production Build (Vite)`: **SUCCESS**
+    - `AI Services Pytest Suite`: **SUCCESS**
+    - `Lint AI Services (Flake8)`: **SUCCESS**
+    - `Backend Test Suite (Security & Multi-Turn)`: **SUCCESS**
+    - `Lint Backend (ESLint)`: **SUCCESS**
+    - `Lint Frontend (ESLint)`: **SUCCESS**
+    - `CI Quality Gate`: **SUCCESS**
+
+---
+
 ## Session 049 -- 2026-09-18 -- Production Docker Stack, Hardened Multi-Stage Builds, Reverse Proxy & Zero-Downtime Healthcheck Verification
 
 ### What Was Changed
