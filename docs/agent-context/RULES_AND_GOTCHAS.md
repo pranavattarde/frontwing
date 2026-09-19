@@ -520,3 +520,12 @@ All tests under `ai_services/tests/` are organized into 8 domain-focused modules
 
 **4. Variable Scope & Candidate Evaluation Fallback:**
 - **RULE:** In multi-candidate simulation evaluation loops in `run_strategy_analysis()`, always ensure summary variables (e.g. `act_pit_laps`, `sim_laps_formatted`) are initialized at function scope prior to conditional branching (`if candidate_results: ... else: ...`) to prevent `UnboundLocalError`.
+
+---
+
+## Entry 030 — 2026-09-19 — External Network Timeouts in FastF1 Session Loading During CI
+
+**1. No Unprotected 3rd-Party Network Calls in CI Tests:**
+- **RULE:** Never rely solely on external network requests (such as FastF1 fetching Ergast/Jolpica endpoints at `api.jolpi.ca`) inside service methods or integration tests without a robust database-first or database-fallback mechanism.
+- **Gotcha:** FastF1's `session.load(telemetry=False, laps=False, weather=False)` calls `api.jolpi.ca` under the hood. During automated CI pipeline execution, external API latency spikes cause `urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='api.jolpi.ca', port=443): Read timed out. (read timeout=5.0)`, crashing `test_ghost_battle_service.py` with `ValueError: No results found for session ...`.
+- **Protocol:** In `get_drivers_teams(session_id)`, wrap `session.load()` in a `try...except` block. If FastF1 fails to load the session due to a network timeout or API outage, fall back to querying the local PostgreSQL database (`race_results` joined with `drivers` and `constructors`), which contains the authentic grid and telemetry data. This guarantees deterministic CI test passes even when upstream F1 data mirrors are experiencing downtime or rate limits.

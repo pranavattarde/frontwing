@@ -1,11 +1,23 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
-> Last updated: 2026-09-19 by Antigravity (Session 051 - Final Pre-Production Audit & Deployment Readiness Verification)
-> Audit method: Comprehensive 7-stage pre-production audit. Removed 148 scratch/debug/orphan files. Audited dependencies (backend: 0 vulns; frontend: 4 dev/hydration-only vulns retained to avoid breaking Vite 8 / React Router 7 migrations; Python: 0 broken requirements). 100% test pass rate across all suites: backend security (14/14 PASS), multiturn thread integrity (100% PASS), ai_services pytest (63/63 PASS), and frontend production build (2,519 modules transformed cleanly). Executed 9-query API smoke tests against live stack with verified 200/201 responses. Verified Docker compose production stack with all 5 containers healthy. Rewrote README.md with accurate JavaScript/Python 3.12 stack and complete features. Tagged all features [SHIPPED], [KNOWN-ISSUE], or [DEFERRED].
+> Last updated: 2026-09-19 by Antigravity (Session 052 - Post-Audit CI/CD Pipeline Failure Root Cause Analysis & Resolution)
+> Audit method: Direct GitHub API log extraction and root cause resolution for CD run #35423594311 (invalid image reference format) and CI run #35426216430 (Jolpica read timeout in ghost battle service), plus historical CI run verification on test/ci-verification branch. Added database fallback for FastF1 session driver rosters in ai_services. Flake8 0 errors, Pytest 100% pass rate.
 
 ---
 
 ## 1. What Works Right Now
+
+### [SHIPPED] CI/CD Pipeline Resilience & FastF1 Database Fallback (SESSION 052 VERIFIED LIVE)
+- **CD Failure Root Cause (Run #35423594311 on `a8dea22`)**:
+  - Exact failure: Step 6 `Build and push Backend Image` failed in 15 seconds with `ERROR: failed to build: invalid tag "/frontwing-backend:latest": invalid reference format`.
+  - Root cause: Dynamic lowercase repository owner set in Step 4 via `$GITHUB_ENV` evaluated to empty string in context expression `${{ env.IMAGE_REPO }}`, leaving `--tag /frontwing-backend:latest`.
+  - Fix verified: Replaced with step output `steps.repo-name.outputs.image_repo` (commit `fd7d44c`), verified passing across subsequent CD runs (`35423733213`, `35423901597`, `35426216452`).
+- **CI Test Suite Resilience & Database Fallback (Run #35426216430 on `a4d6775`)**:
+  - Exact failure: `ai-services-tests` failed in 1m 55s on `test_ghost_battle_service.py::test_drivers_teams_for_2026_grid` with `urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='api.jolpi.ca', port=443): Read timed out. (read timeout=5.0)`.
+  - Fix implemented: In `ai_services/app/services/ghost_battle_service.py` (`get_drivers_teams()`), wrapped `session.load()` in a `try...except` block. Upon timeout or external failure, falls back immediately to local PostgreSQL database (`race_results` + `drivers` + `constructors`), which contains the authentic 22-driver grid for `2026_australian_gp_race`.
+  - Code hygiene: Added missing `import logging` and `logger = logging.getLogger(__name__)`. Verified zero Flake8 errors via `flake8 --config=ai_services/.flake8 ai_services/app`.
+- **Historical CI Runs on `test/ci-verification` Branch**:
+  - Re-verified all historical runs on `test/ci-verification`: Run 35370270860 (deliberate Stage 1 gate failure), Run 35370977792 (psycopg2 escaping), Run 35423169526 (path normalization) were normal iterative fixing steps superseded by 100% green runs 35423348988 and 35423561944.
 
 ### [SHIPPED] Pre-Production Audit & Deployment Readiness Verification (SESSION 051 VERIFIED LIVE)
 - **Repo Cleanliness & Orphan Elimination**:

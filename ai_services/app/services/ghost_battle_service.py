@@ -10,9 +10,12 @@ import os
 import json
 import time
 import datetime
+import logging
 from pathlib import Path
 import numpy as np
 import fastf1
+
+logger = logging.getLogger(__name__)
 
 # Force UTF-8 stdout encoding on Windows
 if sys.platform == 'win32':
@@ -181,59 +184,124 @@ def get_drivers_teams(session_id: str):
     """
     year, gp_name = parse_session_identifier(session_id)
     
-    session = fastf1.get_session(year, gp_name, 'R')
-    session.load(telemetry=False, laps=False, weather=False)
+    results = None
+    event_name = f"{gp_name} Grand Prix"
+    official_event_name = f"Formula 1 {gp_name} Grand Prix {year}"
     
-    results = session.results
-    if results is None or results.empty:
-        raise ValueError(f"No results found for session {session_id}")
-        
+    try:
+        session = fastf1.get_session(year, gp_name, 'R')
+        session.load(telemetry=False, laps=False, weather=False)
+        results = session.results
+        if session.event is not None and 'EventName' in session.event:
+            event_name = session.event['EventName']
+            official_event_name = getattr(session.event, 'OfficialEventName', event_name)
+    except Exception as e:
+        logger.warning(f"FastF1 session load failed for {session_id} ({e}), falling back to database")
+
     teams_dict = {}
     drivers_list = []
     
-    for _, row in results.iterrows():
-        driver_code = str(row.get('Abbreviation', '')).strip().upper()
-        if not driver_code:
-            continue
+    if results is not None and not results.empty:
+        for _, row in results.iterrows():
+            driver_code = str(row.get('Abbreviation', '')).strip().upper()
+            if not driver_code:
+                continue
+                
+            driver_num = int(row['DriverNumber']) if 'DriverNumber' in row and str(row['DriverNumber']).isdigit() else 0
+            first_name = str(row.get('FirstName', '')).strip()
+            last_name = str(row.get('LastName', '')).strip()
+            full_name = f"{first_name} {last_name}".strip() or str(row.get('FullName', driver_code))
             
-        driver_num = int(row['DriverNumber']) if 'DriverNumber' in row and str(row['DriverNumber']).isdigit() else 0
-        first_name = str(row.get('FirstName', '')).strip()
-        last_name = str(row.get('LastName', '')).strip()
-        full_name = f"{first_name} {last_name}".strip() or str(row.get('FullName', driver_code))
-        
-        team_name = str(row.get('TeamName', 'Unknown Team')).strip()
-        raw_color = str(row.get('TeamColor', '')).strip()
-        team_color = get_team_color(team_name, raw_color)
-        
-        team_id = team_name.lower().replace(' ', '_').replace('-', '_')
-        driver_id = driver_code.lower()
-        
-        driver_obj = {
-            'id': driver_id,
-            'code': driver_code,
-            'number': driver_num,
-            'first_name': first_name,
-            'last_name': last_name,
-            'name': full_name,
-            'team_id': team_id,
-            'team_name': team_name,
-            'team_color': team_color,
-            'grid_position': int(row.get('GridPosition', 0)) if str(row.get('GridPosition', '')).isdigit() else 0,
-            'position': int(row.get('Position', 0)) if str(row.get('Position', '')).isdigit() else 0
-        }
-        
-        drivers_list.append(driver_obj)
-        
-        if team_id not in teams_dict:
-            teams_dict[team_id] = {
-                'id': team_id,
-                'name': team_name,
+            team_name = str(row.get('TeamName', 'Unknown Team')).strip()
+            raw_color = str(row.get('TeamColor', '')).strip()
+            team_color = get_team_color(team_name, raw_color)
+            
+            team_id = team_name.lower().replace(' ', '_').replace('-', '_')
+            driver_id = driver_code.lower()
+            
+            driver_obj = {
+                'id': driver_id,
+                'code': driver_code,
+                'number': driver_num,
+                'first_name': first_name,
+                'last_name': last_name,
+                'name': full_name,
+                'team_id': team_id,
                 'team_name': team_name,
-                'color': team_color,
                 'team_color': team_color,
-                'drivers': []
+                'grid_position': int(row.get('GridPosition', 0)) if str(row.get('GridPosition', '')).isdigit() else 0,
+                'position': int(row.get('Position', 0)) if str(row.get('Position', '')).isdigit() else 0
             }
-        teams_dict[team_id]['drivers'].append(driver_obj)
+            
+            drivers_list.append(driver_obj)
+            
+            if team_id not in teams_dict:
+                teams_dict[team_id] = {
+                    'id': team_id,
+                    'name': team_name,
+                    'team_name': team_name,
+                    'color': team_color,
+                    'team_color': team_color,
+                    'drivers': []
+                }
+            teams_dict[team_id]['drivers'].append(driver_obj)
+    else:
+        # Fallback to database race_results + drivers + constructors
+        from app.core.db import execute_query
+        db_rows = execute_query('''
+            SELECT rr.driver_id, d.code as driver_code, d.driver_number as driver_num, 
+                   d.first_name, d.last_name, 
+                   COALESCE(c.name, rr.constructor_id) as team_name,
+                   rr.constructor_id, rr.grid_position, rr.position
+            FROM race_results rr
+            LEFT JOIN drivers d ON (d.id = rr.driver_id OR d.code = UPPER(rr.driver_id))
+            LEFT JOIN constructors c ON (c.id = rr.constructor_id)
+            WHERE rr.session_id = %s
+            ORDER BY rr.position ASC NULLS LAST
+        ''', (session_id,), fetch=True)
+        
+        if not db_rows:
+            raise ValueError(f"No results found for session {session_id}")
+            
+        for row in db_rows:
+            driver_code = str(row.get('driver_code') or '').strip().upper()
+            if not driver_code:
+                driver_code = str(row.get('driver_id', ''))[:3].upper()
+            
+            first_name = str(row.get('first_name') or '').strip()
+            last_name = str(row.get('last_name') or '').strip()
+            full_name = f"{first_name} {last_name}".strip() or driver_code
+            team_name = str(row.get('team_name') or 'Unknown Team').strip()
+            team_color = get_team_color(team_name)
+            team_id = str(row.get('constructor_id') or team_name).lower().replace(' ', '_').replace('-', '_')
+            driver_id = str(row.get('driver_id') or driver_code).lower()
+            driver_num = int(row.get('driver_num') or 0)
+            
+            driver_obj = {
+                'id': driver_id,
+                'code': driver_code,
+                'number': driver_num,
+                'first_name': first_name,
+                'last_name': last_name,
+                'name': full_name,
+                'team_id': team_id,
+                'team_name': team_name,
+                'team_color': team_color,
+                'grid_position': int(row.get('grid_position') or 0),
+                'position': int(row.get('position') or 0)
+            }
+            drivers_list.append(driver_obj)
+            
+            if team_id not in teams_dict:
+                teams_dict[team_id] = {
+                    'id': team_id,
+                    'name': team_name,
+                    'team_name': team_name,
+                    'color': team_color,
+                    'team_color': team_color,
+                    'drivers': []
+                }
+            teams_dict[team_id]['drivers'].append(driver_obj)
         
     teams_list = list(teams_dict.values())
     
@@ -241,8 +309,8 @@ def get_drivers_teams(session_id: str):
         'status': 'success',
         'session_id': session_id,
         'year': year,
-        'grand_prix': session.event['EventName'],
-        'official_name': getattr(session.event, 'OfficialEventName', session.event['EventName']),
+        'grand_prix': event_name,
+        'official_name': official_event_name,
         'total_drivers': len(drivers_list),
         'teams': teams_list,
         'drivers': sorted(drivers_list, key=lambda d: (d['position'] if d['position'] > 0 else 99))
