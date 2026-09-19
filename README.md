@@ -1,131 +1,196 @@
 # FrontWing 🏎️
 
-FrontWing is a production-grade, AI-powered Formula 1 intelligence platform. It processes real-time timing data, historical statistics, and high-density vehicle telemetry to deliver corner-by-corner analysis, predictive "What-If" pit stop simulations, and conversational telemetry diagnostics.
+> **Production-Grade Formula 1 Strategy & Telemetry Intelligence Platform**  
+> Democratizing F1 race engineering through quantitative telemetry analysis, deterministic performance scoring, counterfactual "What-If" pit stop simulations, and interactive 3D ghost car battles.
 
 ---
 
-## 1. Project Vision
+## 1. Platform Overview
 
-FrontWing democratizes advanced Formula 1 race engineering. By translating raw telemetry streams (speed traces, throttle overlays, brake points) into clear, human-like dialogue, and offering deterministic scoring matrices based on vehicle potential, FrontWing allows F1 enthusiasts to back up their debates with hard quantitative evidence.
+FrontWing bridges the gap between raw, complex Formula 1 telemetry streams and accessible, engineering-grade race analysis. By coupling high-frequency vehicle telemetry (speed traces, throttle maps, gear selections, braking points, and tire degradation curves) with an intelligent LangGraph orchestration pipeline, FrontWing allows users to interrogate race strategies and explore counterfactual outcomes backed by hard empirical data.
+
+### Key Capabilities
+- **Race Engineer Copilot**: Conversational multi-turn investigations powered by an adaptive LangGraph agent with deterministic tool execution, multi-domain correlation, and self-correcting reflection/judge nodes.
+- **Strategy & "What-If" Simulator**: Counterfactual race strategy simulation computing undercut/overcut deltas, traffic loss, tire degradation regressions, and simulated finishing positions.
+- **3D Ghost Battle Arena**: Interactive Three.js/WebGL spatial telemetry visualizer rendering two drivers' telemetry traces side-by-side in real-time 3D space.
+- **Deterministic 5-Factor Driver Scoring**: Objective mathematical rubric grading Strategy, Tire Management, Pace Efficiency, Pit Stop Execution, and Race Craft.
+- **Full Multi-Turn Thread History**: Persistent PostgreSQL conversation threads supporting branched investigations, session grouping, and thread bookmarking.
 
 ---
 
-## 2. Platform Architecture
+## 2. System Architecture
 
-FrontWing utilizes a decoupled dual-runtime architecture to balance high-concurrency client connections (Node.js) with intensive scientific and machine learning analysis (Python):
+FrontWing uses a decoupled multi-tier architecture balancing high-throughput API gateway routing (Node.js/Express), high-performance scientific/ML analysis (Python/FastAPI), and a hardware-accelerated 3D user experience (React/Three.js):
 
 ```text
-┌─────────────────┐       HTTP / WS       ┌─────────────────────┐
-│  React Frontend │ <───────────────────> │ Node.js API Gateway │
-│  (Tailwind CSS) │                       │  (Express/WS Pool)  │
-└─────────────────┘                       └──────────┬──────────┘
-                                                     │
-                                            Redis    │ HTTP / RPC
-                                           Pub/Sub   │
-                                                     ▼
-┌─────────────────┐                       ┌─────────────────────┐
-│                 │ <───────────────────> │ AI Python Service   │
-│   PostgreSQL    │                       │  (FastAPI / Pandas) │
-│                 │                       │  Gemini 2.5 Flash   │
-└─────────────────┘                       └─────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│             Client Layer (React 18 + Vite)             │
+│   Jotai State • Three.js / R3F Canvas • Tailwind CSS   │
+└───────────────────────────┬────────────────────────────┘
+                            │ HTTP / WebSocket (via Nginx Reverse Proxy)
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│          API Gateway Layer (Node.js / Express)         │
+│  JWT Authentication • Rate Limiting • Thread Tracking  │
+└─────────────┬────────────────────────────┬─────────────┘
+              │                            │
+      Internal HTTP                        │ SQL Queries
+              ▼                            ▼
+┌───────────────────────────┐   ┌────────────────────────┐
+│ AI Services (FastAPI)     │   │ Primary Storage        │
+│ • LangGraph State Graph   │   │ • PostgreSQL 17        │
+│ • FastF1 Telemetry Engine │   │   (Timings & Threads)  │
+│ • Gemini 2.5 / Groq Llama │   │ • Redis 7              │
+│ • LangSmith Observability │   │   (Telemetry Caching)  │
+└───────────────────────────┘   └────────────────────────┘
 ```
 
-- **Frontend**: React (TypeScript) dashboard styled with vanilla CSS/Tailwind and premium dark mode overlays.
-- **API Gateway (Node.js)**: Manages client sessions, WebSockets connections, and proxies telemetry payloads.
-- **AI Microservice (Python)**: Executes telemetry downsampling, linear tire wear regressions, and LangGraph-orchestrated Gemini agents.
-- **Cache & Broker (Redis)**: Buffers real-time telemetry inputs and handles broker communications.
-- **Primary Database**: PostgreSQL storing structured Grand Prix timings, stints, weather, and score records.
+- **Frontend (`/frontend`)**: React 18 SPA built with Vite, Tailwind CSS, Framer Motion, and Three.js (`@react-three/fiber` & `@react-three/drei`) for 3D track and telemetry rendering.
+- **API Gateway (`/backend`)**: Node.js/Express service managing JWT authentication, input validation, rate limiting, and PostgreSQL session/history persistence.
+- **AI Microservice (`/ai_services`)**: Python 3.12 FastAPI service executing telemetry downsampling, linear tire wear regressions, FastF1 telemetry retrieval, and LangGraph agent pipelines.
+- **Caching & Brokers**: Redis 7 buffering raw telemetry, LLM responses, and real-time session state.
+- **Database**: PostgreSQL 17 storing users, investigation threads, conversations, race results, and driver scorecards.
 
 ---
 
 ## 3. Core Features
 
-### 📊 Deterministic F1 Scoring Engine
-Computes 5 core metrics for every driver post-race:
-1. **Strategy Score ($S_{\text{strat}}$)**: Evaluates clean air ratios, stint length efficiency, and undercut/overcut success (subtracting on-track overtakes).
-2. **Tire Management Score ($S_{\text{tire}}$)**: Computes fuel-corrected degradation linear regression slopes against grid medians.
-3. **Pace Efficiency Score ($S_{\text{pace}}$)**: Measures consistency and speed margin relative to teammate/machine limits.
-4. **Pit Stop Efficiency Score ($S_{\text{pit}}$)**: Isolates crew stationary tire changes from driver pit lane transits.
-5. **Race Execution Score ($S_{\text{exec}}$)**: Penalizes penalties, warnings, and lockups while rewarding progression and pole/top-10 retention.
+### 🧠 Adaptive LangGraph Race Engineer
+The Race Engineer agent dynamically analyzes user queries to extract race session context, driver identifiers, and analytical intent:
+- **Zero Hallucination Grounding**: All telemetry comparisons, race classifications, and lap times are strictly resolved against verified FastF1/OpenF1 datasets. If data is unavailable, the model explicitly declares the omission.
+- **Reflection & Judge Nodes**: Independent verification nodes evaluate model claims against underlying tool outputs, revising or rejecting ungrounded assumptions.
+- **Multi-Turn Context Resolution**: Remembers prior context across turns (e.g., asking *"Why did he finish P2?"* followed by *"What if he pitted 5 laps earlier?"* preserves driver and GP context).
 
-### 👻 Telemetry-Driven Ghost Battle Dialogue
-Select any two drivers and a lap to get a turn-by-turn narrative comparison of where time was gained or lost:
-> *"At Turn 3, Verstappen braked 12 meters later carrying 8 km/h more apex speed. However, Piastri achieved 100% throttle exit 0.4 seconds earlier, resolving the gap on the straight."*
+### 🔮 Counterfactual Strategy Simulator
+Simulate race deviations and pit stop decisions in real-time:
+- **Tire Wear Modeling**: Stint-bounded fuel-corrected degradation regressions calculated across compound lifespans.
+- **Pit Lane Loss Matrix**: Circuit-specific pit lane delta calculation factoring in in-lap and out-lap time losses.
+- **Traffic & Position Estimation**: Models gap deltas, track-position re-entry, and traffic bottlenecks upon rejoining.
 
-### 🔮 "What-If" Pit Stop Strategy Simulator
-Simulate strategy deviations in real-time (e.g., *"What if Ferrari pitted Leclerc on lap 22?"*). Models tire wear resets, pit lane loss, and track-position traffic constraints.
+### 🏎️ 3D Ghost Battle Telemetry
+- Spatial telemetry interpolation generating 3D trajectories with speed, gear, throttle, and braking overlays.
+- Dynamic driver selection with official team hex palettes, interactive camera controls, and delta-scrubbing timelines.
+
+### 📊 Objective 5-Factor Driver Scoring
+Computes normalized performance metrics post-race:
+1. **Strategy ($S_{\text{strat}}$)**: Clean-air ratios, stint length efficiency, and undercut/overcut net yield.
+2. **Tire Management ($S_{\text{tire}}$)**: Fuel-corrected degradation slope compared against grid medians.
+3. **Pace Efficiency ($S_{\text{pace}}$)**: Lap consistency and delta relative to machine limits and teammate benchmarks.
+4. **Pit Stop Execution ($S_{\text{pit}}$)**: Crew stationary box time isolated from pit lane transit.
+5. **Race Craft ($S_{\text{exec}}$)**: Net position progression, overtakes, lockups, and incident penalties.
 
 ---
 
 ## 4. Tech Stack
 
-- **Frontend**: React, TypeScript, TailwindCSS, Lucide Icons, Recharts
-- **Backend API Gateway**: Node.js, Express, `pg-pool`, Redis client
-- **AI Service**: Python 3.11, FastAPI, FastF1, NumPy, Pandas, `google-genai`
-- **Infrastructure**: PostgreSQL, Redis, Docker
+| Layer | Technologies |
+|---|---|
+| **Frontend** | React 18, Vite 5, JavaScript, Three.js, `@react-three/fiber`, Tailwind CSS, Lucide Icons, Framer Motion, Jotai |
+| **API Gateway** | Node.js (v20+), Express 4, `pg-pool`, `jsonwebtoken`, `express-rate-limit`, `cors`, WebSockets (`ws`) |
+| **AI Microservice** | Python 3.12, FastAPI, LangGraph, LangChain Core, LangSmith, FastF1, NumPy, Pandas, Google GenAI SDK, Groq |
+| **Data & Cache** | PostgreSQL 17, Redis 7 Alpine |
+| **Infrastructure** | Docker, Docker Compose, Nginx (Alpine reverse proxy with gzip & security headers) |
 
 ---
 
-## 5. Setup Instructions
+## 5. Quick Start with Docker
 
-### Backend (Node.js)
-1. Navigate to `/backend` and install dependencies:
-   ```bash
-   npm install
-   ```
-2. Configure `.env`:
-   ```env
-   PORT=5000
-   DATABASE_URL=postgresql://user:pass@localhost:5432/frontwing
-   REDIS_URL=redis://localhost:6379
-   ```
-3. Start development server:
-   ```bash
-   npm run dev
-   ```
+The fastest way to spin up the complete, production-ready FrontWing stack:
 
-### AI Service (Python)
-1. Navigate to `/ai_services` and configure virtual environment:
-   ```bash
-   python -m venv venv
-   .\venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
-2. Configure `.env` in `/ai_services`:
-   ```env
-   GEMINI_API_KEY=your_gemini_api_key
-   REDIS_URL=redis://localhost:6379
-   DATABASE_URL=postgresql://user:pass@localhost:5432/frontwing
-   ```
-3. Start FastAPI server:
-   ```bash
-   uvicorn app.main:app --reload --port 8000
-   ```
+### Prerequisites
+- [Docker](https://docs.docker.com/get-docker/) & Docker Compose
+- API Keys for Google Gemini and/or Groq
 
-### Frontend (React)
-1. Navigate to `/frontend` and install packages:
-   ```bash
-   npm install
-   ```
-2. Start React app:
-   ```bash
-   npm run dev
-   ```
+### 1. Clone & Configure Environment
+```bash
+git clone https://github.com/Pranav722/frontwing.git
+cd frontwing
+```
+
+Create `.env` in the project root (or export in shell):
+```env
+GEMINI_API_KEY=your_gemini_api_key
+GROQ_API_KEY=your_groq_api_key
+JWT_SECRET=your_secure_jwt_secret_key
+```
+
+### 2. Boot the Full Stack
+```bash
+docker compose up --build -d
+```
+
+### 3. Verify Health & Access
+- **Frontend Dashboard**: `http://localhost:3000` (or `http://localhost:5173`)
+- **Backend API Gateway**: `http://localhost:5000`
+- **AI Microservice Docs**: `http://localhost:8000/docs`
+
+To verify container health:
+```bash
+docker ps
+python scratch/docker_smoke_test.py
+```
 
 ---
 
-## 6. Screenshots Placeholder
+## 6. Local Development Setup
 
-*Visual dashboard layout designs and speed-trace ghost comparison cards will be displayed here.*
+If running services natively outside Docker:
 
-![Dashboard Screenshot Placeholder](https://via.placeholder.com/800x450.png?text=FrontWing+Dashboard+Preview)
+### 1. PostgreSQL & Redis
+Ensure PostgreSQL is running on port `5433` (or update `.env`) and Redis on `6379`.
+
+### 2. AI Services (Python)
+```bash
+cd ai_services
+python -m venv venv
+# Windows:
+.\venv\Scripts\activate
+# Linux/macOS:
+source venv/bin/activate
+
+pip install -r requirements.txt
+uvicorn app.main:app --port 8000 --reload
+```
+
+### 3. Backend Gateway (Node.js)
+```bash
+cd backend
+npm install
+npm run dev
+```
+
+### 4. Frontend (React)
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 ---
 
-## 7. Product Roadmap
+## 7. Verification & Test Suites
 
-- **Milestone 1**: Deterministic scoring modules & WorkedGP calculations validation (Completed).
-- **Milestone 2**: Express Server & WebSockets gateway implementation.
-- **Milestone 3**: Gemini 2.5 Flash Ghost Battle telemetry narration logic.
-- **Milestone 4**: Interactive strategy "What-If" simulator interface.
-- **Milestone 5**: Production deployment & Live session streaming.
+FrontWing maintains comprehensive test suites across all tiers:
+
+```bash
+# Backend Security Suite (14 tests — Auth, RBAC, input sanitization)
+cd backend && npm run test:security
+
+# Multi-Turn Thread Integrity Suite (State persistence & session isolation)
+cd backend && node tests/multiturn_thread_integrity.test.js
+
+# AI Services Pytest Suite (63 tests — Tools, RAG, scoring, telemetry, LangGraph)
+cd ai_services && pytest tests/ -v
+
+# Frontend Production Build (Vite bundling & asset optimization)
+cd frontend && npm run build
+```
+
+---
+
+## 8. Agent & Developer Context
+
+For maintainers and automated agents operating on this codebase:
+- [`docs/agent-context/PROJECT_STATE.md`](docs/agent-context/PROJECT_STATE.md) — Comprehensive technical inventory, verified features, known issues, and deferred roadmap.
+- [`docs/agent-context/RULES_AND_GOTCHAS.md`](docs/agent-context/RULES_AND_GOTCHAS.md) — Mandatory development rules, gotchas, and architectural constraints.
+- [`docs/agent-context/CHANGELOG.md`](docs/agent-context/CHANGELOG.md) — Chronological ledger of all sessions and codebase modifications.

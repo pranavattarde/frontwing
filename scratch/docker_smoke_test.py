@@ -22,7 +22,7 @@ if hasattr(sys.stdout, "reconfigure"):
     except Exception:
         pass
 
-FRONTEND_URL = "http://localhost:5173"
+FRONTEND_URL = "http://localhost:3000"
 BACKEND_URL = "http://localhost:5000"
 AI_SERVICES_URL = "http://localhost:8000"
 
