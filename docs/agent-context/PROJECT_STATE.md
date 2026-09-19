@@ -1,11 +1,43 @@
 # PROJECT STATE -- FrontWing
 > This file is OVERWRITTEN at the start of every agent session. It is NOT a history log.
 > Last updated: 2026-09-19 by Antigravity (Session 050 - Production GitHub Actions CI/CD Pipeline & Live Multi-Stage Verification)
-> Audit method: Verified live via two-stage GitHub Actions CI run on branch `test/ci-verification`. Verified that an intentional test failure blocked merge loudly (Run #35370270860, conclusion: failure). Then verified that the fixed branch passed 100% green across all 7 CI jobs: Lint AI Services, Lint Frontend, Lint Backend, Frontend Production Build, Backend Integration & Security Test Suite, AI Services Pytest Suite, and CI Quality Gate (Run #35423348988, conclusion: success). CD pipeline configured to build & publish multi-stage Docker images to GitHub Container Registry (ghcr.io) upon merge to main.
+> Audit method: Verified live via two-stage GitHub Actions CI/CD pipeline on branch `test/ci-verification` and `main`. Verified that an intentional test failure blocked merge loudly (Run #35370270860, conclusion: failure). Verified that the fixed branch passed 100% green across all 7 CI jobs (Run #35423348988, conclusion: success). Merged to `main` and verified both CI (Run #35423733245, conclusion: success) and CD (Run #35423733213, conclusion: success) published multi-stage production Docker images to GitHub Container Registry (`ghcr.io/pranavattarde/frontwing-*`).
 
 ---
 
 ## 1. What Works Right Now
+
+### Production GitHub Actions CI/CD Pipeline & GHCR Publishing (SESSION 050 VERIFIED LIVE)
+- **Comprehensive CI Quality Pipeline (`.github/workflows/ci.yml`)**:
+  - Triggers on Pull Requests and direct pushes targeting `main`.
+  - Concurrency group (`ci-${{ github.ref }}`) with `cancel-in-progress: true` prevents redundant runner consumption.
+  - **7 Rigorous Pipeline Jobs**:
+    1. `lint-python` (Ubuntu, Python 3.12): Flake8 static analysis enforcing PEP 8 compliance across all `ai_services/app/` modules.
+    2. `lint-backend` (Ubuntu, Node 20): ESLint static code verification on Express backend services, controllers, and middleware.
+    3. `lint-frontend` (Ubuntu, Node 20): ESLint checking React 18 frontend components, hooks, and pages.
+    4. `frontend-build` (Ubuntu, Node 20): Production Vite build (`npm run build`) ensuring zero bundle errors, type issues, or unresolvable assets.
+    5. `backend-tests` (Ubuntu, Node 20): Security integration test suite against live PostgreSQL 17 and Redis 7 service containers with health checks.
+    6. `ai-services-tests` (Ubuntu, Python 3.12): Pytest integration suite with live PostgreSQL 17 hydrated from `database/init/00_init_database.sql` and unignored telemetry/OpenF1 cache fixtures.
+    7. `ci-status-gate` (Final Aggregate Quality Gate): Depends on all 6 upstream jobs (`needs: [lint-python, lint-backend, lint-frontend, frontend-build, backend-tests, ai-services-tests]`). Evaluates upstream job conclusions via `contains(needs.*.result, 'failure')` and explicitly blocks merge if any job fails.
+- **Two-Stage Live Verification on GitHub Actions**:
+  - **Stage 1 (Intentional Failure Verification)**:
+    - Injected deliberate test failure assertion in `backend/tests/security.test.js`.
+    - GitHub Actions Run [#35370270860](https://github.com/pranavattarde/frontwing/actions/runs/35370270860) executed and failed loudly on `backend-tests`, successfully causing `ci-status-gate` to block merging.
+  - **Stage 2 (Bug Resolution & 100% Green Pass)**:
+    - Reverted intentional failure assertion.
+    - Fixed psycopg2 SQL `%` escaping bug in `ai_services/app/core/session_resolver.py`.
+    - Fixed Windows `\` vs Linux `/` path normalization in `ai_services/app/tools/adapters.py`.
+    - Added unignore rules in `.gitignore` for `cache/openf1/`, `cache/circuits/`, and `cache/telemetry/` test fixtures.
+    - GitHub Actions Run [#35423348988](https://github.com/pranavattarde/frontwing/actions/runs/35423348988) achieved 100% SUCCESS across all 7 jobs.
+- **Continuous Delivery & GHCR Image Publishing (`.github/workflows/cd.yml`)**:
+  - Triggers automatically upon direct push or merge to `main`.
+  - Uses `docker/setup-buildx-action@v3` and GitHub Actions cache (`type=gha,mode=max`).
+  - Successfully authenticated against GitHub Container Registry (`ghcr.io`) using `GITHUB_TOKEN`.
+  - Built and published multi-stage production Docker images tagged `:latest` and `:${{ github.sha }}`:
+    - `ghcr.io/pranavattarde/frontwing-backend` (Node 20 Alpine, non-root user `node`)
+    - `ghcr.io/pranavattarde/frontwing-ai-services` (Python 3.12 Slim, non-root user `appuser`)
+    - `ghcr.io/pranavattarde/frontwing-frontend` (Stage 1 Vite build, Stage 2 Nginx Alpine reverse proxy)
+  - Verified live CD Run [#35423733213](https://github.com/pranavattarde/frontwing/actions/runs/35423733213) (Status: `completed`, Conclusion: `success`) and CI Run [#35423733245](https://github.com/pranavattarde/frontwing/actions/runs/35423733245) (Status: `completed`, Conclusion: `success`).
 
 ### Production Containerization & Hardened Docker Architecture (SESSION 049 VERIFIED LIVE)
 - **Containerized 5-Service Stack (`docker-compose.yml`)**:

@@ -28,7 +28,7 @@
   - **Cache Fixture Tracking (`.gitignore`)**:
     - Unignored `ai_services/cache/openf1/`, `ai_services/cache/circuits/`, and `ai_services/cache/telemetry/` while maintaining ignore on dynamic `fastf1_http_cache.sqlite` and raw annual caches, enabling zero-network deterministic unit test execution.
 
-### How It Was Verified -- Two-Stage Live CI Verification
+### How It Was Verified -- Two-Stage Live CI Verification & GHCR Image Publishing
 - **Stage 1 (Intentional Failure Test)**:
   - Commit: `4069c2d`
   - Injected intentional test failure in `backend/tests/security.test.js`.
@@ -46,6 +46,14 @@
     - `Lint Backend (ESLint)`: **SUCCESS**
     - `Lint Frontend (ESLint)`: **SUCCESS**
     - `CI Quality Gate`: **SUCCESS**
+- **Stage 3 (Main Branch CI & Automated CD to GHCR)**:
+  - Commit: `fd7d44c` (Merged to `main` with repository owner case-normalization fix)
+  - Live CI Run on `main`: [#35423733245](https://github.com/pranavattarde/frontwing/actions/runs/35423733245) -> **100% SUCCESS** across all 7 jobs.
+  - Live CD Run on `main`: [#35423733213](https://github.com/pranavattarde/frontwing/actions/runs/35423733213) -> **100% SUCCESS**:
+    - `ghcr.io/pranavattarde/frontwing-backend:latest` & `:fd7d44c`: **Built and Pushed**
+    - `ghcr.io/pranavattarde/frontwing-ai-services:latest` & `:fd7d44c`: **Built and Pushed**
+    - `ghcr.io/pranavattarde/frontwing-frontend:latest` & `:fd7d44c`: **Built and Pushed**
+    - Deploy to Production & Health Check Placeholder: **SUCCESS**
 
 ---
 
