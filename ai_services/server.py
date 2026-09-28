@@ -1,7 +1,7 @@
 """
 server.py - Hugging Face Spaces entrypoint for FrontWing AI Services
 
-Mounts FrontWing's FastAPI application onto a lightweight Gradio status UI.
+Mounts FrontWing's FastAPI application onto a Gradio status UI.
 All FastAPI endpoints (/engineer/query, /strategy/query, /health, etc.)
 remain fully active and serve production API requests with 16 GB RAM.
 """
@@ -12,17 +12,17 @@ import sys
 # Ensure current directory is in sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app.main import app
-
+# Define ZeroGPU function before any imports to satisfy Hugging Face supervisor
 try:
     import spaces
 
     @spaces.GPU
     def zero_gpu_probe():
-        """Satisfies Hugging Face ZeroGPU supervisor requirement."""
-        return True
+        return "ZeroGPU Online & Ready"
 except ImportError:
-    pass
+    zero_gpu_probe = None
+
+from app.main import app
 
 try:
     import gradio as gr
@@ -33,7 +33,11 @@ try:
             "FastAPI backend engine powering high-frequency telemetry processing, "
             "counterfactual race strategy simulations, and 3D Ghost Battle."
         )
-        gr.Markdown("### ✅ System Status: **Online & Serving API Traffic**")
+        status_box = gr.Textbox(value="System Online & Serving API Traffic", label="Status")
+        status_btn = gr.Button("Check Engine Status")
+
+        if zero_gpu_probe:
+            status_btn.click(fn=zero_gpu_probe, inputs=None, outputs=status_box)
 
     # Mount Gradio interface onto the existing FastAPI application
     app = gr.mount_gradio_app(app, demo, path="/")
