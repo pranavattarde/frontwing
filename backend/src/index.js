@@ -36,7 +36,10 @@ const corsOptions = {
     if (!origin) return callback(null, true);
 
     if (process.env.NODE_ENV === 'production') {
-      if (allowedOrigins.includes(origin)) {
+      if (
+        allowedOrigins.includes(origin) ||
+        /^https:\/\/frontwing[a-zA-Z0-9\-]*\.vercel\.app$/.test(origin)
+      ) {
         return callback(null, true);
       }
       return callback(new Error(`Origin ${origin} not allowed by CORS policy`));
