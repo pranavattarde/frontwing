@@ -12,9 +12,27 @@ except ImportError:
 
 import os
 import sys
+import subprocess
 
 # Ensure current directory is in sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+print("=== DIAGNOSTIC INSPECTION ===")
+print("PID:", os.getpid())
+print("PORT env:", os.environ.get("PORT"))
+print("GRADIO_SERVER_PORT:", os.environ.get("GRADIO_SERVER_PORT"))
+try:
+    print("=== PS OUTPUT ===")
+    print(subprocess.check_output(["ps", "-ef"], text=True))
+except Exception as e:
+    print("ps error:", e)
+
+try:
+    print("=== SS / NETSTAT OUTPUT ===")
+    print(subprocess.check_output(["ss", "-tlpn"], text=True))
+except Exception as e:
+    print("ss error:", e)
+
 
 from app.main import app
 
