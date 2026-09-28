@@ -1,12 +1,12 @@
 ---
 title: FrontWing AI Services
 emoji: 🏎️
-colorFrom: red
-colorTo: gray
+colorFrom: indigo
+colorTo: blue
 sdk: gradio
-sdk_version: 4.44.0
 app_file: server.py
 pinned: false
+license: mit
 ---
 
 # FrontWing AI Services
