@@ -1,3 +1,14 @@
+---
+title: FrontWing AI Services
+emoji: 🏎️
+colorFrom: red
+colorTo: gray
+sdk: gradio
+sdk_version: 4.44.0
+app_file: server.py
+pinned: false
+---
+
 # FrontWing AI Services
 
 Python microservice powered by FastAPI, LangGraph, and FastF1 for advanced Formula 1 data analytics and natural language reasoning.
