@@ -15,6 +15,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from app.main import app
 
 try:
+    import spaces
+
+    @spaces.GPU
+    def zero_gpu_probe():
+        """Satisfies Hugging Face ZeroGPU supervisor requirement."""
+        return True
+except ImportError:
+    pass
+
+try:
     import gradio as gr
 
     with gr.Blocks(title="FrontWing AI Services") as demo:
