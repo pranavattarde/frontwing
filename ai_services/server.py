@@ -1,10 +1,14 @@
-"""
-server.py - Hugging Face Spaces entrypoint for FrontWing AI Services
-
-Mounts FrontWing's FastAPI application onto a Gradio status UI.
-All FastAPI endpoints (/engineer/query, /strategy/query, /health, etc.)
-remain fully active and serve production API requests with 16 GB RAM.
-"""
+try:
+    import spaces
+except ImportError:
+    class spaces:
+        @staticmethod
+        def GPU(fn=None, *args, **kwargs):
+            if fn:
+                return fn
+            def decorator(f):
+                return f
+            return decorator
 
 import os
 import sys
@@ -12,34 +16,25 @@ import sys
 # Ensure current directory is in sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Define ZeroGPU function before any imports to satisfy Hugging Face supervisor
-try:
-    import spaces
-
-    @spaces.GPU
-    def zero_gpu_probe():
-        return "ZeroGPU Online & Ready"
-except ImportError:
-    zero_gpu_probe = None
-
 from app.main import app
 
 try:
     import gradio as gr
 
-    with gr.Blocks(title="FrontWing AI Services") as demo:
-        gr.Markdown("# 🏎️ FrontWing AI Services")
-        gr.Markdown(
-            "FastAPI backend engine powering high-frequency telemetry processing, "
-            "counterfactual race strategy simulations, and 3D Ghost Battle."
-        )
-        status_box = gr.Textbox(value="System Online & Serving API Traffic", label="Status")
-        status_btn = gr.Button("Check Engine Status")
+    @spaces.GPU
+    def check_status(query: str = "") -> str:
+        """Primary handler satisfying Hugging Face ZeroGPU runtime requirement."""
+        return "FrontWing AI Services Engine is Online and Serving API Traffic."
 
-        if zero_gpu_probe:
-            status_btn.click(fn=zero_gpu_probe, inputs=None, outputs=status_box)
+    demo = gr.Interface(
+        fn=check_status,
+        inputs="text",
+        outputs="text",
+        title="FrontWing AI Services",
+        description="FastAPI backend engine powering telemetry analysis, strategy simulations, and 3D Ghost Battle."
+    )
 
-    # Mount Gradio interface onto the existing FastAPI application
+    # Mount Gradio interface onto existing FastAPI application
     app = gr.mount_gradio_app(app, demo, path="/")
 except ImportError:
     pass
