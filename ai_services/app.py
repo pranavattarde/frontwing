@@ -12,29 +12,11 @@ except ImportError:
 
 import os
 import sys
-import subprocess
-
 # Ensure current directory is in sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-print("=== DIAGNOSTIC INSPECTION ===")
-print("PID:", os.getpid())
-print("PORT env:", os.environ.get("PORT"))
-print("GRADIO_SERVER_PORT:", os.environ.get("GRADIO_SERVER_PORT"))
-try:
-    print("=== PS OUTPUT ===")
-    print(subprocess.check_output(["ps", "-ef"], text=True))
-except Exception as e:
-    print("ps error:", e)
 
-try:
-    print("=== SS / NETSTAT OUTPUT ===")
-    print(subprocess.check_output(["ss", "-tlpn"], text=True))
-except Exception as e:
-    print("ss error:", e)
-
-
-from app.main import app
+from app.main import app as fastapi_app, startup_event
 
 try:
     import gradio as gr
@@ -51,13 +33,36 @@ try:
         title="FrontWing AI Services",
         description="FastAPI backend engine powering telemetry analysis, strategy simulations, and 3D Ghost Battle."
     )
-
-    # Mount Gradio interface onto existing FastAPI application
-    app = gr.mount_gradio_app(app, demo, path="/")
 except ImportError:
-    pass
+    demo = None
 
 if __name__ == "__main__":
-    import uvicorn
     port = int(os.environ.get("PORT", 7860))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    print(f"[FrontWing-AI] Initializing service on port {port}...")
+
+    # Run startup health diagnostics and database migrations
+    try:
+        startup_event()
+    except Exception as e:
+        print(f"[FrontWing-AI] Startup check warning: {e}")
+
+    if demo is not None:
+        print("[FrontWing-AI] Launching Gradio interface with ZeroGPU integration...")
+        gradio_app, local_url, _ = demo.launch(
+            prevent_thread_lock=True,
+            server_name="0.0.0.0",
+            server_port=port,
+            ssr_mode=False
+        )
+        print(f"[FrontWing-AI] Gradio server listening at {local_url}")
+
+        # Attach all FastAPI REST endpoints directly to the Gradio application
+        gradio_app.include_router(fastapi_app.router)
+        print("[FrontWing-AI] FastAPI REST routers attached to Gradio server successfully.")
+
+        # Keep process active serving traffic
+        demo.block_thread()
+    else:
+        import uvicorn
+        uvicorn.run(fastapi_app, host="0.0.0.0", port=port)
+
