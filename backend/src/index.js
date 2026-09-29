@@ -24,31 +24,58 @@ const port = process.env.PORT || 5000;
 const { generalLimiter } = require('./middleware/rate_limit.middleware');
 
 // Production & Development CORS Configuration
-const defaultOrigins = ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'];
-const configuredOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+const defaultOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+  'https://frontwing.pancred.space',
+  'http://frontwing.pancred.space'
+];
+
+// Support ALLOWED_ORIGINS, FRONTEND_URL, and CLIENT_URL environment variables
+const rawConfigured = [
+  process.env.ALLOWED_ORIGINS,
+  process.env.FRONTEND_URL,
+  process.env.CLIENT_URL
+]
+  .filter(Boolean)
+  .join(',');
+
+const configuredOrigins = rawConfigured
+  ? rawConfigured.split(',').map(o => o.trim()).filter(Boolean)
   : [];
-const allowedOrigins = [...new Set([...defaultOrigins, ...configuredOrigins])];
+
+// Automatically normalize protocols and strip trailing slashes (e.g. "frontwing.pancred.space")
+const normalizedOrigins = [];
+for (const origin of [...defaultOrigins, ...configuredOrigins]) {
+  if (!origin) continue;
+  const clean = origin.replace(/\/$/, '');
+  if (clean.startsWith('http://') || clean.startsWith('https://')) {
+    normalizedOrigins.push(clean);
+  } else {
+    normalizedOrigins.push(`https://${clean}`);
+    normalizedOrigins.push(`http://${clean}`);
+  }
+}
+
+const allowedOrigins = [...new Set(normalizedOrigins)];
 
 const corsOptions = {
   origin: (origin, callback) => {
     // Allow non-browser requests with no origin (e.g. curl, server-to-server, health probes)
     if (!origin) return callback(null, true);
 
-    if (process.env.NODE_ENV === 'production') {
-      if (
-        allowedOrigins.includes(origin) ||
-        /^https:\/\/frontwing[a-zA-Z0-9\-]*\.vercel\.app$/.test(origin)
-      ) {
-        return callback(null, true);
-      }
-      return callback(new Error(`Origin ${origin} not allowed by CORS policy`));
-    }
+    const cleanOrigin = origin.replace(/\/$/, '');
 
-    // In development mode, allow localhost / 127.0.0.1 on any port or any whitelisted origin
-    if (allowedOrigins.includes(origin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+    const isPancred = /^https?:\/\/([a-zA-Z0-9\-]+\.)?pancred\.space$/.test(cleanOrigin);
+    const isVercel = /^https:\/\/frontwing[a-zA-Z0-9\-]*\.vercel\.app$/.test(cleanOrigin);
+    const isLocal = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(cleanOrigin);
+
+    if (allowedOrigins.includes(cleanOrigin) || isPancred || isVercel || isLocal) {
       return callback(null, true);
     }
+
     return callback(new Error(`Origin ${origin} not allowed by CORS policy`));
   },
   credentials: true,
@@ -57,8 +84,9 @@ const corsOptions = {
   optionsSuccessStatus: 204
 };
 
-// Enable CORS with restricted origin verification
+// Enable CORS with restricted origin verification and preflight handling
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // JSON parsing with strict 1MB body limit to prevent memory exhaustion attacks
 app.use(express.json({ limit: '1mb' }));
