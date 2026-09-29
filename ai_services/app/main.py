@@ -94,6 +94,18 @@ def health_diagnostics():
     except Exception as e:
         raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
+@app.post("/hero/refresh")
+@app.get("/hero/refresh")
+def refresh_hero_endpoint():
+    """Refreshes live FastF1 championship schedule and authentic race debrief into PostgreSQL."""
+    try:
+        from app.services.hero_service import fetch_and_save_hero_schedule
+        payload = fetch_and_save_hero_schedule()
+        return {"status": "success", "hero": payload}
+    except Exception as e:
+        logger.error(f"Error refreshing hero schedule: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
+
 @app.post("/score")
 def score_driver(req: ScoreRequest):
     """Calculates and aggregates race performance scores for a driver."""

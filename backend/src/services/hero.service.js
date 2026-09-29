@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const { execFile } = require('child_process');
 const { pool } = require('../config/db');
 const { redisClient } = require('../config/redis');
@@ -11,12 +12,18 @@ class HeroService {
    * Retrieve current live hero data
    */
   static async getCurrentHero() {
-    // 1. Try Redis Cache
+    // 1. Try Redis Cache (only if fresh within 12 hours)
     try {
       if (redisClient.isOpen) {
         const cached = await redisClient.get(HERO_CACHE_KEY);
         if (cached) {
-          return JSON.parse(cached);
+          const parsed = JSON.parse(cached);
+          const cacheTime = parsed.last_updated ? new Date(parsed.last_updated).getTime() : 0;
+          const ageHours = (Date.now() - cacheTime) / (1000 * 60 * 60);
+          if (ageHours < 12) {
+            return parsed;
+          }
+          console.log(`[HeroService] Redis cache is stale (${ageHours.toFixed(1)}h old), fetching fresh content...`);
         }
       }
     } catch (err) {
@@ -54,7 +61,7 @@ class HeroService {
           last_updated: hero.last_updated
         };
 
-        // Cache in Redis
+        // Cache fresh data in Redis
         if (redisClient.isOpen) {
           try {
             await redisClient.setEx(HERO_CACHE_KEY, HERO_CACHE_TTL, JSON.stringify(formatted));
@@ -71,12 +78,40 @@ class HeroService {
   }
 
   /**
-   * Refresh Hero content via FastF1 python service
+   * Refresh Hero content via remote AI service (HF Spaces) or FastF1 python service
    */
   static async refreshHero() {
     console.log('[HeroService] Refreshing live FastF1 hero schedule...');
-    
-    // Path to python executable & script
+    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+
+    // 1. Try remote AI Service endpoint (FastAPI on Hugging Face Spaces)
+    try {
+      console.log(`[HeroService] Triggering remote refresh via ${aiServiceUrl}/hero/refresh...`);
+      const response = await fetch(`${aiServiceUrl}/hero/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(60000)
+      });
+      if (response.ok) {
+        const json = await response.json();
+        const heroData = json.hero || json.data || json;
+        if (heroData && heroData.event_name) {
+          console.log(`[HeroService] Remote AI service refresh succeeded for: ${heroData.event_name} (Round ${heroData.round_number})`);
+          if (redisClient.isOpen) {
+            try {
+              await redisClient.setEx(HERO_CACHE_KEY, HERO_CACHE_TTL, JSON.stringify(heroData));
+            } catch {}
+          }
+          return heroData;
+        }
+      } else {
+        console.warn(`[HeroService] Remote AI service returned HTTP ${response.status}`);
+      }
+    } catch (remoteErr) {
+      console.warn('[HeroService] Remote AI service refresh attempt note:', remoteErr.message);
+    }
+
+    // 2. Local Python execution fallback (for local development environments with venv)
     const projectRoot = path.resolve(__dirname, '../../../');
     const pythonExe = process.platform === 'win32'
       ? path.join(projectRoot, 'ai_services/venv/Scripts/python.exe')
@@ -84,42 +119,57 @@ class HeroService {
 
     const scriptPath = path.join(projectRoot, 'ai_services/app/services/hero_service.py');
 
-    return new Promise((resolve, reject) => {
-      execFile(pythonExe, [scriptPath], { cwd: projectRoot, timeout: 45000 }, async (error, stdout, stderr) => {
-        if (error) {
-          console.error('[HeroService] Python hero service execution failed:', error.message);
-          // If execution failed but DB has an older record, return it
+    if (fs.existsSync(pythonExe) && fs.existsSync(scriptPath)) {
+      return new Promise((resolve) => {
+        execFile(pythonExe, [scriptPath], { cwd: projectRoot, timeout: 60000 }, async (error, stdout) => {
+          if (error) {
+            console.warn('[HeroService] Local Python execution note:', error.message);
+          } else {
+            try {
+              const jsonStart = stdout.indexOf('{');
+              const jsonEnd = stdout.lastIndexOf('}');
+              if (jsonStart !== -1 && jsonEnd !== -1) {
+                const parsed = JSON.parse(stdout.slice(jsonStart, jsonEnd + 1));
+                if (redisClient.isOpen) {
+                  try {
+                    await redisClient.setEx(HERO_CACHE_KEY, HERO_CACHE_TTL, JSON.stringify(parsed));
+                  } catch {}
+                }
+                return resolve(parsed);
+              }
+            } catch (pErr) {
+              console.warn('[HeroService] JSON parse note:', pErr.message);
+            }
+          }
+          // Read latest from DB
           try {
-            const fallbackRes = await pool.query("SELECT * FROM hero_content WHERE id = 'current'");
-            if (fallbackRes.rows.length > 0) {
-              return resolve(fallbackRes.rows[0]);
+            const fallback = await pool.query("SELECT * FROM hero_content WHERE id = 'current'");
+            if (fallback.rows.length > 0) {
+              return resolve(fallback.rows[0]);
             }
           } catch {}
-          return reject(error);
-        }
-
-        try {
-          // Find JSON output in stdout
-          const jsonStart = stdout.indexOf('{');
-          const jsonEnd = stdout.lastIndexOf('}');
-          if (jsonStart !== -1 && jsonEnd !== -1) {
-            const parsed = JSON.parse(stdout.slice(jsonStart, jsonEnd + 1));
-            
-            // Invalidate/update Redis cache
-            if (redisClient.isOpen) {
-              try {
-                await redisClient.setEx(HERO_CACHE_KEY, HERO_CACHE_TTL, JSON.stringify(parsed));
-              } catch {}
-            }
-            return resolve(parsed);
-          }
-          resolve({ status: 'completed', raw: stdout });
-        } catch (parseErr) {
-          console.error('[HeroService] Failed to parse python output JSON:', parseErr.message);
-          resolve({ status: 'partial', error: parseErr.message });
-        }
+          resolve({ status: 'completed' });
+        });
       });
-    });
+    }
+
+    // 3. Fallback: Query current PostgreSQL record and update Redis
+    try {
+      const fallbackRes = await pool.query("SELECT * FROM hero_content WHERE id = 'current'");
+      if (fallbackRes.rows.length > 0) {
+        const row = fallbackRes.rows[0];
+        if (redisClient.isOpen) {
+          try {
+            await redisClient.setEx(HERO_CACHE_KEY, HERO_CACHE_TTL, JSON.stringify(row));
+          } catch {}
+        }
+        return row;
+      }
+    } catch (fallbackDbErr) {
+      console.error('[HeroService] Fallback DB query failed:', fallbackDbErr.message);
+    }
+
+    return { status: 'fallback', message: 'Hero content unavailable' };
   }
 
   /**
@@ -130,33 +180,43 @@ class HeroService {
   }
 
   /**
-   * Initialize 4-hour scheduled recurring refresh job (FIX X)
+   * Initialize scheduled recurring refresh job
    */
   static startScheduledJob() {
-    const FOUR_HOURS_MS = this.getRefreshIntervalMs();
+    const REFRESH_INTERVAL_MS = this.getRefreshIntervalMs();
     
-    // Initial check on startup after 5 seconds
+    // Check on startup after 5 seconds: if data is stale (>12h old), trigger refresh immediately
     setTimeout(async () => {
       try {
-        const check = await pool.query("SELECT COUNT(*) FROM hero_content WHERE id = 'current'");
-        if (parseInt(check.rows[0].count, 10) === 0) {
-          console.log('[HeroService] No hero content found, running initial FastF1 fetch...');
+        const check = await pool.query("SELECT last_updated FROM hero_content WHERE id = 'current'");
+        let isStale = true;
+        if (check.rows.length > 0 && check.rows[0].last_updated) {
+          const lastUpdated = new Date(check.rows[0].last_updated);
+          const ageHours = (Date.now() - lastUpdated.getTime()) / (1000 * 60 * 60);
+          if (ageHours < 12) {
+            isStale = false;
+          }
+        }
+        if (isStale) {
+          console.log('[HeroService] Hero content is missing or stale (>12h old). Triggering automatic FastF1 refresh...');
           await this.refreshHero();
+        } else {
+          console.log('[HeroService] Hero content is fresh, next refresh scheduled on 6-hour interval.');
         }
       } catch (err) {
-        console.warn('[HeroService] Initial startup check note:', err.message);
+        console.warn('[HeroService] Startup freshness check note:', err.message);
       }
     }, 5000);
 
-    // Schedule every 4 hours so the site reflects FastF1 data promptly
+    // Schedule every 6 hours so data is automatically kept fresh every day
     setInterval(async () => {
       try {
-        console.log('[HeroService] Running scheduled 4-hour FastF1 schedule update...');
+        console.log('[HeroService] Running scheduled recurring 6-hour FastF1 schedule update...');
         await this.refreshHero();
       } catch (jobErr) {
-        console.error('[HeroService] Scheduled 4-hour hero refresh job failed:', jobErr.message);
+        console.error('[HeroService] Scheduled hero refresh job failed:', jobErr.message);
       }
-    }, FOUR_HOURS_MS);
+    }, REFRESH_INTERVAL_MS);
   }
 }
 

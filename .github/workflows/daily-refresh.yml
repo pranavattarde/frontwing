@@ -1,0 +1,26 @@
+name: Daily F1 Schedule & Results Refresh
+
+on:
+  schedule:
+    # Run everyday at 00:00 UTC and 12:00 UTC
+    - cron: '0 0,12 * * *'
+  workflow_dispatch:
+
+jobs:
+  refresh-hero:
+    name: Refresh Hero Content & Race Debrief
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Live Backend Hero Refresh
+        run: |
+          echo "Sending refresh request to FrontWing live backend..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST https://frontwing-backend.onrender.com/hero/refresh)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n 1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "Warning: Hero refresh returned status $HTTP_CODE"
+          else
+            echo "Hero schedule successfully refreshed!"
+          fi
