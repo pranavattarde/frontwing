@@ -89,7 +89,10 @@ class HeroService {
       console.log(`[HeroService] Triggering remote refresh via ${aiServiceUrl}/hero/refresh...`);
       const response = await fetch(`${aiServiceUrl}/hero/refresh`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'User-Agent': 'FrontWing-Backend/1.0'
+        },
         signal: AbortSignal.timeout(60000)
       });
       if (response.ok) {

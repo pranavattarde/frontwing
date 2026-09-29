@@ -52,6 +52,7 @@ class StrategyController {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'User-Agent': 'FrontWing-Backend/1.0',
         },
         body: JSON.stringify({
           question: queryText,

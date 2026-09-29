@@ -22,15 +22,15 @@ class GhostBattleService {
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'https://pranav722-frontwing-ai-services.hf.space';
     try {
       if (action === 'available_years') {
-        const res = await fetch(`${aiServiceUrl}/ghost-battle/available-years`, { signal: AbortSignal.timeout(timeoutMs) });
+        const res = await fetch(`${aiServiceUrl}/ghost-battle/available-years`, { headers: { 'User-Agent': 'FrontWing-Backend/1.0' }, signal: AbortSignal.timeout(timeoutMs) });
         if (res.ok) return await res.json();
       } else if (action === 'available_gps') {
         const year = args[0] || '2024';
-        const res = await fetch(`${aiServiceUrl}/ghost-battle/available-gps?year=${year}`, { signal: AbortSignal.timeout(timeoutMs) });
+        const res = await fetch(`${aiServiceUrl}/ghost-battle/available-gps?year=${year}`, { headers: { 'User-Agent': 'FrontWing-Backend/1.0' }, signal: AbortSignal.timeout(timeoutMs) });
         if (res.ok) return await res.json();
       } else if (action === 'drivers_teams') {
         const sessionId = args[0] || '2024_british_gp_race';
-        const res = await fetch(`${aiServiceUrl}/ghost-battle/drivers-teams?session_id=${sessionId}`, { signal: AbortSignal.timeout(timeoutMs) });
+        const res = await fetch(`${aiServiceUrl}/ghost-battle/drivers-teams?session_id=${sessionId}`, { headers: { 'User-Agent': 'FrontWing-Backend/1.0' }, signal: AbortSignal.timeout(timeoutMs) });
         if (res.ok) return await res.json();
       } else if (action === 'ghost_battle_data') {
         let payload;
@@ -43,7 +43,10 @@ class GhostBattleService {
         }
         const res = await fetch(`${aiServiceUrl}/ghost-battle/data`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'User-Agent': 'FrontWing-Backend/1.0'
+          },
           body: JSON.stringify(payload),
           signal: AbortSignal.timeout(timeoutMs)
         });
