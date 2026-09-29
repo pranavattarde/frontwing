@@ -45,7 +45,7 @@ class StrategyController {
       }
 
       // 2. Proxy request to Python AI Microservice /strategy/query
-      const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+      const aiServiceUrl = process.env.AI_SERVICE_URL || 'https://pranav722-frontwing-ai-services.hf.space';
       console.log(`[StrategyController] Proxying strategy query to: ${aiServiceUrl}/strategy/query (conv: ${conversationId})`);
 
       const response = await fetch(`${aiServiceUrl}/strategy/query`, {

@@ -82,7 +82,7 @@ class HeroService {
    */
   static async refreshHero() {
     console.log('[HeroService] Refreshing live FastF1 hero schedule...');
-    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+    const aiServiceUrl = process.env.AI_SERVICE_URL || 'https://pranav722-frontwing-ai-services.hf.space';
 
     // 1. Try remote AI Service endpoint (FastAPI on Hugging Face Spaces)
     try {

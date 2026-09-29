@@ -19,7 +19,7 @@ class GhostBattleService {
 
   static async runPython(action, args = [], timeoutMs = 60000) {
     // 1. In containerized production or when AI_SERVICE_URL is reachable, delegate via HTTP
-    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+    const aiServiceUrl = process.env.AI_SERVICE_URL || 'https://pranav722-frontwing-ai-services.hf.space';
     try {
       if (action === 'available_years') {
         const res = await fetch(`${aiServiceUrl}/ghost-battle/available-years`, { signal: AbortSignal.timeout(timeoutMs) });

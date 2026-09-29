@@ -9,7 +9,7 @@ class SessionController {
         return res.status(400).json({ error: 'Missing required parameters: year, gp, session' });
       }
 
-      const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+      const aiServiceUrl = process.env.AI_SERVICE_URL || 'https://pranav722-frontwing-ai-services.hf.space';
       const response = await fetch(`${aiServiceUrl}/sessions/load`, {
         method: 'POST',
         headers: {
@@ -47,7 +47,7 @@ class SessionController {
         return res.status(400).json({ error: 'Missing sessionId parameter' });
       }
 
-      const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+      const aiServiceUrl = process.env.AI_SERVICE_URL || 'https://pranav722-frontwing-ai-services.hf.space';
       const response = await fetch(`${aiServiceUrl}/sessions/backfill-status/${encodeURIComponent(sessionId)}`, {
         method: 'GET',
         headers: {

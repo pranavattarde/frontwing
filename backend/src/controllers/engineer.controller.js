@@ -43,7 +43,7 @@ class EngineerController {
       }
 
       // 2. Proxy request to Python AI Microservice
-      const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+      const aiServiceUrl = process.env.AI_SERVICE_URL || 'https://pranav722-frontwing-ai-services.hf.space';
       console.log(`[EngineerController] Proxying query to: ${aiServiceUrl}/engineer/query (conv: ${conversationId})`);
 
       const proxyBody = {
