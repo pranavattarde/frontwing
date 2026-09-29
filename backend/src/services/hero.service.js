@@ -56,7 +56,7 @@ class HeroService {
           has_telemetry: hero.has_telemetry === true,
           track_geometry: hero.track_geometry || null,
           last_race_results: hero.last_race_results || null,
-          countdown_target: hero.countdown_target || null,
+          countdown_target: hero.countdown_target || (hero.sessions && hero.sessions[0]?.utc) || null,
           source: hero.source,
           last_updated: hero.last_updated
         };
