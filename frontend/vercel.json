@@ -1,8 +1,21 @@
 {
+  "redirects": [
+    { "source": "/strategy-engineer", "destination": "/strategy", "permanent": true }
+  ],
+  "headers": [
+    { "source": "/investigate/:path*", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
+    { "source": "/design-system", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
+    { "source": "/race/:path*", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, follow" }] },
+    { "source": "/strategy/:path+", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, follow" }] },
+    { "source": "/ghost-battle/:path+", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, follow" }] }
+  ],
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/strategy", "destination": "/strategy/index.html" },
+    { "source": "/ghost-battle", "destination": "/ghost-battle/index.html" },
+    { "source": "/investigate/:path*", "destination": "/index.html" },
+    { "source": "/race/:path*", "destination": "/index.html" },
+    { "source": "/strategy/:raceId", "destination": "/index.html" },
+    { "source": "/ghost-battle/:raceId", "destination": "/index.html" },
+    { "source": "/design-system", "destination": "/index.html" }
   ]
 }

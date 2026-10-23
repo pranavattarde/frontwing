@@ -12,6 +12,7 @@ import { NotificationContainer } from "./components/Notification";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { generateId } from "./lib/utils";
 import { DesignSystemShowcase } from "./pages/DesignSystemShowcase";
+import { PageMetadata } from "./components/PageMetadata";
 
 // Lazy-load heavy 3D Three.js dependencies so they do not bloat initial page bundle
 const GhostBattle3D = lazy(() => import("./pages/GhostBattle3D"));
@@ -53,6 +54,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <PageMetadata />
       <ErrorBoundary>
         <CommandPalette isOpen={isCommandOpen} onClose={() => setIsCommandOpen(false)} />
         <SearchOverlay

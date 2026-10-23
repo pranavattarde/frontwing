@@ -697,6 +697,19 @@ export function BriefingRoom() {
       </main>
 
       {/* Footer Info */}
+      <section aria-labelledby="about-frontwing" className="border-t border-border-subtle px-6 py-8">
+        <div className="max-w-[1440px] mx-auto text-sm leading-relaxed text-text-secondary">
+          <h2 id="about-frontwing" className="font-heading text-2xl font-bold text-text-primary mb-3">FrontWing: Formula 1 telemetry and race strategy</h2>
+          <p className="max-w-3xl">Explore telemetry, AI race investigations, pit-stop scenarios and 3D lap comparisons. Built by <a className="underline" href="https://www.pranavattarde.in/">Pranav Attarde</a>, a full stack developer, AI engineer and Formula 1 enthusiast. Check supporting evidence and simulation assumptions when interpreting an answer.</p>
+          <nav aria-label="FrontWing guides" className="flex flex-wrap gap-x-6 gap-y-3 mt-4 text-text-primary underline">
+            <a href="/about/">About FrontWing</a>
+            <a href="/guides/f1-telemetry/">Understanding F1 telemetry</a>
+            <a href="/guides/f1-strategy/">Understanding race strategy</a>
+            <a href="/strategy">Strategy Engineer</a>
+            <a href="/ghost-battle">3D Ghost Battle</a>
+          </nav>
+        </div>
+      </section>
       <footer className="border-t border-border-subtle py-4 bg-surface-base/90 mt-auto">
         <div className="max-w-[1440px] mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2 font-mono text-xs text-text-muted">
           <div>
