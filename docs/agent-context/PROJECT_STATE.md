@@ -10,7 +10,8 @@ Last updated: 2026-10-24, compact homepage revision and requested production rel
 - Production build passed (1,045 modules). Targeted ESLint checks passed. Verified live calendar/feed data, keyboard tabs, guest archive states, deliberate question prefill and strategy navigation.
 - Both `frontwing.pancred.space` and `frontwing.pranavattarde.in` currently point to the Vercel `frontwing` project. Its Git integration deploys main. The GitHub CD workflow is only an image publisher with a placeholder deployment step.
 - User explicitly authorized pushing, merging the design branch and deploying both domains. Source branch `codex/frontwing-race-ui` was merged into main at `8422103`. Both frontend aliases serve the new bundle.
-- Live verification found the gateway returned 403 for `https://frontwing.pranavattarde.in` because it was missing from the CORS allowlist. Added that exact HTTPS origin; authentication and unrelated origin restrictions remain intact. Gateway redeployment and final verification follow this fix.
+- Live verification found the gateway returned 403 for `https://frontwing.pranavattarde.in` because it was missing from the CORS allowlist. Added that exact HTTPS origin in `b9bc483`; the production gateway now returns 200 for its race feed and 204 for authenticated-request preflights on both frontend origins. An untrusted lookalike origin still returns 403.
+- Release complete: both custom domains serve the compact redesign and real race/news data. Verified production desktop and phone layouts (same 1,160 / 1,648 px heights), zero landing-page car images, tabs and source links. Vercel marked the merged release successful. Full CI passed for both the merge and gateway fix; latest verified run: `40086720215`.
 - The screenshots and full revision details are in `docs/UI_REDESIGN.md` and `docs/ui-redesign/compact-home-*.jpg`.
 
 The earlier full-application verification record below remains relevant to the analytical pages; its car-led homepage is superseded.
@@ -36,7 +37,9 @@ See `docs/UI_REDESIGN.md` for design, preserved features, checks, limitations an
 
 ## Running local stack
 
-Production preview on port 4175, Express gateway on 5000, Python AI service on 8000, local Docker PostgreSQL and Redis. Process logs are ignored under `logs/ui-*`. The environment was started for browser verification; no production deployment was performed.
+Production frontend: `https://frontwing.pancred.space/` and `https://frontwing.pranavattarde.in/`, both aliases of the Vercel project. Gateway: `https://frontwing-backend.onrender.com`. Vercel and Render publish main through their existing Git integrations. The GitHub CD workflow separately publishes container images; its deployment job is a placeholder and is not the live release mechanism.
+
+The local preview on port 4175 was used for compact-layout checks against the real public gateway. Local Docker/AI services are not running in this revision's verification session. Temporary browser verification tabs were left unmarked for cleanup; the successful test tab was explicitly closed. Logs are ignored under `logs/compact-*`.
 
 ## Known limits
 

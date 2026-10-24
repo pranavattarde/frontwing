@@ -14,6 +14,8 @@ The original design and verification record follows for context; the compact hom
 
 Release verification: the redesign branch was merged into main at `8422103`; both Vercel aliases serve `index-QC73L_rx.js`. Browser verification confirmed the new layout and race feed on pancred.space. The second alias exposed a pre-existing gateway configuration gap: the API returned 403 for its Origin. Added the exact `https://frontwing.pranavattarde.in` origin to the gateway allowlist as part of completing the requested two-domain release.
 
+Release completed: the gateway fix `b9bc483` is live. Both allowed origins return 204 for authentication preflights; an untrusted lookalike origin returns 403. Both custom domains render the compact homepage with the real race schedule and five real editorial items. Verified a fresh load on the second domain after the fix, including 390 x 844 phone layout. Live screenshots: `live-pancred-desktop.jpg`, `live-pranav-desktop.jpg`, `live-pranav-mobile.jpg`. Full GitHub CI passed for the merged redesign (`40086514201`) and the gateway fix (`40086720215`); Vercel reported a successful frontend deployment. No new runtime dependencies were introduced.
+
 Implemented 24 October 2026 on `codex/frontwing-race-ui`.
 
 ## Design

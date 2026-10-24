@@ -8,6 +8,10 @@
 - Production build passed (1,045 modules); targeted lint passed. Added compact desktop/mobile screenshots and updated design documentation.
 - Confirmed both custom domains use the same Vercel project and main-branch Git integration. The separate GitHub CD workflow publishes images but has a placeholder deployment job.
 
+- Release completed: merged main at `8422103`, Vercel deployed both aliases, and real race/news data were browser-verified on both domains.
+- Fixed a pre-existing missing CORS origin for `https://frontwing.pranavattarde.in` in `b9bc483`. Both frontend origins now pass authenticated-request preflights (204); an untrusted lookalike remains rejected (403).
+- Full GitHub CI passed for the merge and gateway fix (runs `40086514201`, `40086720215`). Added live production desktop/mobile screenshots and recorded the actual Vercel/Render deployment paths.
+
 ---
 ## Session 053 -- 2026-10-24 -- Racing editorial UI redesign
 > Branch: `codex/frontwing-race-ui`
