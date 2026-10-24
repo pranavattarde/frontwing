@@ -12,6 +12,8 @@ Production build passed with 1,045 modules; targeted ESLint checks returned no e
 
 The original design and verification record follows for context; the compact homepage supersedes its car-led landing page.
 
+Release verification: the redesign branch was merged into main at `8422103`; both Vercel aliases serve `index-QC73L_rx.js`. Browser verification confirmed the new layout and race feed on pancred.space. The second alias exposed a pre-existing gateway configuration gap: the API returned 403 for its Origin. Added the exact `https://frontwing.pranavattarde.in` origin to the gateway allowlist as part of completing the requested two-domain release.
+
 Implemented 24 October 2026 on `codex/frontwing-race-ui`.
 
 ## Design

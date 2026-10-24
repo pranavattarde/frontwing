@@ -9,7 +9,8 @@ Last updated: 2026-10-24, compact homepage revision and requested production rel
 - Added CSS perspective reliefs and short tab transitions, honoring motion pause and reduced motion. Homepage footer is compact. No runtime dependencies were added.
 - Production build passed (1,045 modules). Targeted ESLint checks passed. Verified live calendar/feed data, keyboard tabs, guest archive states, deliberate question prefill and strategy navigation.
 - Both `frontwing.pancred.space` and `frontwing.pranavattarde.in` currently point to the Vercel `frontwing` project. Its Git integration deploys main. The GitHub CD workflow is only an image publisher with a placeholder deployment step.
-- User explicitly authorized pushing, merging the design branch and deploying both domains. Source branch: `codex/frontwing-race-ui`. Production release verification is the remaining step after merge.
+- User explicitly authorized pushing, merging the design branch and deploying both domains. Source branch `codex/frontwing-race-ui` was merged into main at `8422103`. Both frontend aliases serve the new bundle.
+- Live verification found the gateway returned 403 for `https://frontwing.pranavattarde.in` because it was missing from the CORS allowlist. Added that exact HTTPS origin; authentication and unrelated origin restrictions remain intact. Gateway redeployment and final verification follow this fix.
 - The screenshots and full revision details are in `docs/UI_REDESIGN.md` and `docs/ui-redesign/compact-home-*.jpg`.
 
 The earlier full-application verification record below remains relevant to the analytical pages; its car-led homepage is superseded.
