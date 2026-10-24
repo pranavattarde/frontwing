@@ -12,7 +12,7 @@ export function SourceViewer({
   }<div className="flex justify-between items-center border-b border-border-subtle pb-2.5 mb-1 font-mono text-mono-meta"><div className="flex items-center gap-2"><span className="text-accent-primary font-semibold">Source Evidence Log</span><span className="text-text-muted capitalize">Type: {String(source?.type || "Data").replace(/_/g, " ")}</span></div><button
 
     onClick={() => setShowRaw(!showRaw)}
-    className="text-accent-primary hover:underline"
+    className="text-accent-primary "
   >{showRaw ? "[View Summary]" : "[Inspect Raw Data]"}</button></div>{
     /* Narrative Explanation */
   }{!showRaw ? <div className="flex flex-col gap-2"><p className="text-xs text-text-secondary leading-relaxed">{formattedExplanation}</p><div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-border-subtle font-mono text-[9px] text-text-muted"><div>

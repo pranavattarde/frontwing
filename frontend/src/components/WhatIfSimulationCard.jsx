@@ -16,7 +16,7 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
       >
         <div className="flex items-center gap-2 mb-3">
           <span className="px-2 py-0.5 text-xs font-mono font-bold bg-accent-danger text-text-primary rounded-sm">
-            ⚠️ Simulation Boundary
+            ! Simulation Boundary
           </span>
           <span className="text-xs font-mono text-text-muted">
             Unmodeled Variable Detected
@@ -109,13 +109,13 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
               <div className="flex items-baseline justify-between">
                 <span className="text-xs font-mono text-text-muted">Finish Position:</span>
                 <span className="text-2xl font-mono font-bold text-text-primary">
-                  P{original_scenario.finish_position ?? "—"}
+                  P{original_scenario.finish_position ?? ":"}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono text-text-muted">Actual Pit Stop:</span>
                 <span className="text-sm font-mono font-bold text-text-primary">
-                  Lap {original_scenario.pit_lap ?? "—"}
+                  Lap {original_scenario.pit_lap ?? ":"}
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -143,7 +143,7 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
                 <span className="text-xs font-mono text-text-muted">Projected Finish:</span>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-mono font-bold text-accent-primary">
-                    P{simulated_scenario.finish_position ?? "—"}
+                    P{simulated_scenario.finish_position ?? ":"}
                   </span>
                   <span className={cn(
                     "text-xs font-mono font-bold",
@@ -156,7 +156,7 @@ export function WhatIfSimulationCard({ simulation, driverName, grandPrix, season
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono text-text-muted">Simulated Pit Stop:</span>
                 <span className="text-sm font-mono font-bold text-text-primary">
-                  Lap {simulated_scenario.simulated_pit_lap ?? "—"}
+                  Lap {simulated_scenario.simulated_pit_lap ?? ":"}
                 </span>
               </div>
               <div className="flex items-center justify-between">

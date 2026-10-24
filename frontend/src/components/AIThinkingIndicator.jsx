@@ -56,11 +56,11 @@ export function AIThinkingIndicator({ stage = "parsing", detail, className }) {
             >
               {status === "completed" ? (
                 <span className="w-4 h-4 rounded-full bg-timing-green/20 text-timing-green flex items-center justify-center text-[10px] font-bold">
-                  ✓
+                  +
                 </span>
               ) : status === "active" ? (
                 <span className="w-4 h-4 rounded-full bg-accent-primary/20 text-accent-primary flex items-center justify-center text-[10px] animate-spin">
-                  ⚙
+                  …
                 </span>
               ) : (
                 <span className="w-4 h-4 rounded-full bg-surface-raised text-text-muted flex items-center justify-center text-[9px]">

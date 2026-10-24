@@ -48,7 +48,7 @@ export function Modal({
     /* Header */
   }<div className="px-5 py-4 border-b border-border-subtle flex justify-between items-center"><h3 id="modal-title" className="text-text-primary text-sm font-semibold uppercase font-mono tracking-wider">{title}</h3><button
     onClick={onClose}
-    className="text-text-muted hover:text-text-secondary text-sm font-mono"
+    className="text-text-muted  text-sm font-mono"
     aria-label="Close modal"
   >
                 [ESC]
@@ -61,9 +61,9 @@ export function Modal({
     onClick={act.onClick}
     className={cn(
       "px-3 py-1.5 font-mono text-xs rounded-badge border transition-all duration-[80ms]",
-      act.variant === "primary" && "bg-accent-primary text-white border-accent-primary hover:brightness-110 font-bold",
-      act.variant === "danger" && "bg-accent-danger/15 text-accent-danger border-accent-danger/30 hover:bg-accent-danger/25",
-      (act.variant === "secondary" || !act.variant) && "bg-surface-base text-text-secondary border-border-subtle hover:border-border-strong hover:text-text-primary"
+      act.variant === "primary" && "bg-accent-primary text-white border-accent-primary  font-bold",
+      act.variant === "danger" && "bg-accent-danger/15 text-accent-danger border-accent-danger/30 ",
+      (act.variant === "secondary" || !act.variant) && "bg-surface-base text-text-secondary border-border-subtle  "
     )}
   >{act.label.toUpperCase()}</button>)}</div>}</motion.div></div>}</AnimatePresence>;
 }

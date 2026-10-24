@@ -39,7 +39,7 @@ export function GhostBattleStatsTable({ drivers, currentTime }) {
               return (
                 <tr
                   key={d.code}
-                  className="border-b border-border-subtle/40 hover:bg-surface-raised transition-colors"
+                  className="border-b border-border-subtle/40  transition-colors"
                 >
                   <td className="py-2.5 px-2 text-center font-bold text-text-muted">
                     {d.rank || 1}
@@ -66,16 +66,16 @@ export function GhostBattleStatsTable({ drivers, currentTime }) {
                     </span>
                   </td>
                   <td className="py-2.5 px-3 text-right text-text-muted">
-                    {d.sector_1 || "—"}
+                    {d.sector_1 || ":"}
                   </td>
                   <td className="py-2.5 px-3 text-right text-text-muted">
-                    {d.sector_2 || "—"}
+                    {d.sector_2 || ":"}
                   </td>
                   <td className="py-2.5 px-3 text-right text-text-muted">
-                    {d.sector_3 || "—"}
+                    {d.sector_3 || ":"}
                   </td>
                   <td className="py-2.5 px-3 text-right text-text-primary font-bold">
-                    {d.top_speed ? `${d.top_speed} km/h` : "—"}
+                    {d.top_speed ? `${d.top_speed} km/h` : ":"}
                   </td>
                   <td className="py-2.5 px-3 text-center">
                     {isFinished ? (

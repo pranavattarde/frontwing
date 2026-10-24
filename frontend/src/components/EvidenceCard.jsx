@@ -35,7 +35,7 @@ export function EvidenceCard({
           {onExport && (
             <button
               onClick={onExport}
-              className="text-xs font-mono text-text-muted hover:text-text-primary transition-colors"
+              className="text-xs font-mono text-text-muted  transition-colors"
               title="Export"
             >
               [Export]
@@ -44,7 +44,7 @@ export function EvidenceCard({
           {onDeepDive && !isCollapsed && (
             <button
               onClick={onDeepDive}
-              className="text-xs font-mono text-accent-primary font-bold hover:underline transition-colors"
+              className="text-xs font-mono text-accent-primary font-bold  transition-colors"
             >
               Deep Dive
             </button>
@@ -52,7 +52,7 @@ export function EvidenceCard({
           {onExpand && (
             <button
               onClick={onExpand}
-              className="text-text-muted hover:text-text-primary p-0.5 transition-colors"
+              className="text-text-muted  p-0.5 transition-colors"
               aria-label={isCollapsed ? "Expand card" : "Collapse card"}
             >
               <svg
@@ -72,12 +72,6 @@ export function EvidenceCard({
       {/* Visual Content Area */}
       <div className="flex-1 w-full overflow-hidden flex flex-col justify-center">{children}</div>
 
-      {/* Progress visual loader line at top when collapsed */}
-      {variant === "collapsed" && (
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-accent-primary/20 overflow-hidden rounded-t">
-          <div className="h-full bg-accent-primary/60 w-1/3 animate-skeleton" />
-        </div>
-      )}
     </motion.section>
   );
 }

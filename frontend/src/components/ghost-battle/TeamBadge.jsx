@@ -162,24 +162,15 @@ export default function TeamBadge({ teamName, teamColor, size = 32, className = 
         height={size}
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        className="drop-shadow-sm"
+        className=""
       >
-        <defs>
-          <linearGradient id={`grad-${meta.monogram}`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={p} />
-            <stop offset="100%" stopColor={s} />
-          </linearGradient>
-          <filter id={`glow-${meta.monogram}`} x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodColor={p} floodOpacity="0.3" />
-          </filter>
-        </defs>
 
         {/* Dynamic Abstract Geometry Background */}
         {meta.shape === "shield" && (
           <path
             d="M20 3 L35 8 V22 C35 30 20 37 20 37 C20 37 5 30 5 22 V8 Z"
             fill="#12151B"
-            stroke={`url(#grad-${meta.monogram})`}
+            stroke={p}
             strokeWidth="2"
           />
         )}
@@ -188,7 +179,7 @@ export default function TeamBadge({ teamName, teamColor, size = 32, className = 
           <path
             d="M20 3 L37 20 L20 37 L3 20 Z"
             fill="#12151B"
-            stroke={`url(#grad-${meta.monogram})`}
+            stroke={p}
             strokeWidth="2"
           />
         )}
@@ -197,7 +188,7 @@ export default function TeamBadge({ teamName, teamColor, size = 32, className = 
           <path
             d="M20 3 C30 3 37 10 37 20 C37 29 30 37 20 37 C15 37 10 34 7 30 C15 32 25 28 27 18 C28 11 25 5 20 3 Z"
             fill="#12151B"
-            stroke={`url(#grad-${meta.monogram})`}
+            stroke={p}
             strokeWidth="2"
           />
         )}
@@ -206,7 +197,7 @@ export default function TeamBadge({ teamName, teamColor, size = 32, className = 
           <path
             d="M3 14 L20 6 L37 14 L33 26 L20 34 L7 26 Z"
             fill="#12151B"
-            stroke={`url(#grad-${meta.monogram})`}
+            stroke={p}
             strokeWidth="2"
           />
         )}
@@ -215,7 +206,7 @@ export default function TeamBadge({ teamName, teamColor, size = 32, className = 
           <path
             d="M20 4 L37 34 L20 28 L3 34 Z"
             fill="#12151B"
-            stroke={`url(#grad-${meta.monogram})`}
+            stroke={p}
             strokeWidth="2"
           />
         )}
@@ -224,7 +215,7 @@ export default function TeamBadge({ teamName, teamColor, size = 32, className = 
           <path
             d="M6 10 L20 4 L34 10 V26 L20 36 L6 26 Z"
             fill="#12151B"
-            stroke={`url(#grad-${meta.monogram})`}
+            stroke={p}
             strokeWidth="2"
           />
         )}
@@ -233,7 +224,7 @@ export default function TeamBadge({ teamName, teamColor, size = 32, className = 
           <path
             d="M12 4 L36 8 L28 36 L4 32 Z"
             fill="#12151B"
-            stroke={`url(#grad-${meta.monogram})`}
+            stroke={p}
             strokeWidth="2"
           />
         )}
@@ -246,7 +237,7 @@ export default function TeamBadge({ teamName, teamColor, size = 32, className = 
             height="30"
             rx="4"
             fill="#12151B"
-            stroke={`url(#grad-${meta.monogram})`}
+            stroke={p}
             strokeWidth="2"
           />
         )}
@@ -255,7 +246,7 @@ export default function TeamBadge({ teamName, teamColor, size = 32, className = 
           <path
             d="M12 4 L28 4 L36 12 L36 28 L28 36 L12 36 L4 28 L4 12 Z"
             fill="#12151B"
-            stroke={`url(#grad-${meta.monogram})`}
+            stroke={p}
             strokeWidth="2"
           />
         )}
@@ -269,7 +260,7 @@ export default function TeamBadge({ teamName, teamColor, size = 32, className = 
               height="28"
               rx="6"
               fill="#12151B"
-              stroke={`url(#grad-${meta.monogram})`}
+              stroke={p}
               strokeWidth="2"
             />
             <circle cx="15" cy="20" r="5" stroke={p} strokeWidth="1.5" />
@@ -281,7 +272,7 @@ export default function TeamBadge({ teamName, teamColor, size = 32, className = 
           <path
             d="M6 6 L34 6 L30 26 L20 36 L10 26 Z"
             fill="#12151B"
-            stroke={`url(#grad-${meta.monogram})`}
+            stroke={p}
             strokeWidth="2"
           />
         )}
@@ -290,7 +281,7 @@ export default function TeamBadge({ teamName, teamColor, size = 32, className = 
           <path
             d="M20 4 L35 12 V28 L20 36 L5 28 V12 Z"
             fill="#12151B"
-            stroke={`url(#grad-${meta.monogram})`}
+            stroke={p}
             strokeWidth="2"
           />
         )}
@@ -308,7 +299,6 @@ export default function TeamBadge({ teamName, teamColor, size = 32, className = 
           fontWeight="900"
           fontSize={meta.monogram.length > 2 ? "10" : "11"}
           letterSpacing="0.5"
-          filter={`url(#glow-${meta.monogram})`}
         >
           {meta.monogram}
         </text>

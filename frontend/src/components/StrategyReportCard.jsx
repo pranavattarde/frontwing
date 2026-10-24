@@ -72,14 +72,14 @@ export function StrategyReportCard({ report, driverName, grandPrix, season, late
           <div className="p-3 bg-surface-raised border border-border-subtle rounded">
             <span className="text-[10px] font-mono text-text-muted block mb-1">Grid Position</span>
             <span className="text-xl font-bold font-mono text-text-primary">
-              {what_happened.grid_position ? `P${what_happened.grid_position}` : "—"}
+              {what_happened.grid_position ? `P${what_happened.grid_position}` : ":"}
             </span>
           </div>
           <div className="p-3 bg-surface-raised border border-border-subtle rounded">
             <span className="text-[10px] font-mono text-text-muted block mb-1">Finish Position</span>
             <div className="flex items-baseline gap-2">
               <span className="text-xl font-bold font-mono text-text-primary">
-                {what_happened.finish_position ? `P${what_happened.finish_position}` : "—"}
+                {what_happened.finish_position ? `P${what_happened.finish_position}` : ":"}
               </span>
               <span className={cn(
                 "text-xs font-mono font-bold",
@@ -92,7 +92,7 @@ export function StrategyReportCard({ report, driverName, grandPrix, season, late
           <div className="p-3 bg-surface-raised border border-border-subtle rounded">
             <span className="text-[10px] font-mono text-text-muted block mb-1">Composite Score</span>
             <span className={cn("text-xl font-bold font-mono", getScoreColor(strategy_cost_analysis.composite_score || 0))}>
-              {strategy_cost_analysis.composite_score?.toFixed(1) || "—"}/100
+              {strategy_cost_analysis.composite_score?.toFixed(1) || ":"}/100
             </span>
           </div>
           <div className="p-3 bg-surface-raised border border-border-subtle rounded">
@@ -168,8 +168,8 @@ export function StrategyReportCard({ report, driverName, grandPrix, season, late
                   what_happened.openf1_cross_check.status === "discrepancy" ? "text-timing-yellow border-timing-yellow/30 bg-timing-yellow/10" :
                   "text-text-muted border-border-subtle bg-surface-raised"
                 )}>
-                  {what_happened.openf1_cross_check.status === "verified" ? "✓ OpenF1 Cross-Check: Verified" :
-                   what_happened.openf1_cross_check.status === "discrepancy" ? "⚠ OpenF1 Cross-Check: Discrepancy Flagged" :
+                  {what_happened.openf1_cross_check.status === "verified" ? "+ OpenF1 Cross-Check: Verified" :
+                   what_happened.openf1_cross_check.status === "discrepancy" ? "! OpenF1 Cross-Check: Discrepancy Flagged" :
                    "OpenF1: Unavailable (FastF1 Primary)"}
                 </span>
               )}
@@ -183,15 +183,15 @@ export function StrategyReportCard({ report, driverName, grandPrix, season, late
                 >
                   <span className="text-text-muted">Stop {ps.pit_stop_number}:</span>
                   <span className="text-text-primary font-bold">Lap {ps.lap}</span>
-                  <span className="text-text-muted">({ps.compound_in} ➔ {ps.compound_out})</span>
+                  <span className="text-text-muted">({ps.compound_in} → {ps.compound_out})</span>
                   {ps.cross_check_agrees === false && (
                     <span className="text-[10px] text-accent-danger font-bold bg-accent-danger/10 px-1.5 py-0.5 rounded border border-accent-danger/30">
-                      OpenF1: Lap {ps.openf1_lap ?? "—"}
+                      OpenF1: Lap {ps.openf1_lap ?? ":"}
                     </span>
                   )}
                   {ps.cross_check_agrees === true && (
                     <span className="text-[10px] text-timing-green font-bold bg-timing-green/10 px-1.5 py-0.5 rounded">
-                      ✓ OpenF1
+                      + OpenF1
                     </span>
                   )}
                 </span>
@@ -203,7 +203,7 @@ export function StrategyReportCard({ report, driverName, grandPrix, season, late
               <div className="mt-2.5 p-2.5 rounded bg-timing-yellow/10 border border-timing-yellow/30 text-xs font-mono text-timing-yellow space-y-1">
                 {what_happened.openf1_cross_check.discrepancies.map((disc, dIdx) => (
                   <div key={dIdx} className="flex items-start gap-1.5">
-                    <span className="font-bold">⚠</span>
+                    <span className="font-bold">!</span>
                     <span>{disc}</span>
                   </div>
                 ))}
@@ -250,7 +250,7 @@ export function StrategyReportCard({ report, driverName, grandPrix, season, late
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] font-mono text-text-muted tracking-wider">{metric.label}</span>
                 <span className={cn("text-xs font-mono font-bold", getScoreColor(metric.val || 0))}>
-                  {metric.val?.toFixed(1) || "—"}/100
+                  {metric.val?.toFixed(1) || ":"}/100
                 </span>
               </div>
               <div className="h-1.5 w-full bg-surface-base rounded-full overflow-hidden mb-1.5">
@@ -277,7 +277,7 @@ export function StrategyReportCard({ report, driverName, grandPrix, season, late
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-1 text-[10px] font-mono font-bold tracking-wider uppercase bg-accent-primary text-text-primary rounded-sm">
-              🏆 Best Simulated Alternative
+              # Best Simulated Alternative
             </span>
             <h3 className="text-sm font-bold tracking-wider font-mono text-text-primary">
               3. Suggested Alternative Strategy

@@ -1,5 +1,24 @@
 import React from "react";
-import { Play, Pause, RotateCcw, FastForward } from "lucide-react";
+const ControlIcon = ({ path, ...props }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+    aria-hidden="true"
+    {...props}
+  >
+    <path d={path} />
+  </svg>
+);
+const Play = (props) => <ControlIcon path="m8 4 12 8-12 8Z" {...props} />;
+const Pause = (props) => <ControlIcon path="M8 4v16M16 4v16" {...props} />;
+const RotateCcw = (props) => (
+  <ControlIcon path="M4 4v6h6M4 10a8 8 0 1 1 0 7" {...props} />
+);
+const FastForward = (props) => (
+  <ControlIcon path="m3 5 8 7-8 7Zm10 0 8 7-8 7Z" {...props} />
+);
 
 export function GhostBattleControls({
   isPlaying,
@@ -9,7 +28,7 @@ export function GhostBattleControls({
   onSeek,
   playbackSpeed,
   onChangeSpeed,
-  onReset
+  onReset,
 }) {
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -35,6 +54,7 @@ export function GhostBattleControls({
             step="0.05"
             value={currentTime}
             onChange={(e) => onSeek(parseFloat(e.target.value))}
+            aria-label="Replay timeline"
             className="w-full h-1.5 bg-surface-raised rounded appearance-none cursor-pointer accent-accent-primary focus:outline-none"
           />
         </div>
@@ -53,7 +73,11 @@ export function GhostBattleControls({
             className="btn-f1-primary flex items-center gap-1.5 px-3.5 py-1.5 text-xs"
             title={isPlaying ? "Pause (Space)" : "Play (Space)"}
           >
-            {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+            {isPlaying ? (
+              <Pause className="w-3.5 h-3.5" />
+            ) : (
+              <Play className="w-3.5 h-3.5" />
+            )}
             <span>{isPlaying ? "Pause" : "Play"}</span>
           </button>
 
@@ -70,15 +94,18 @@ export function GhostBattleControls({
 
         {/* Speed Multipliers */}
         <div className="flex items-center gap-1">
-          <span className="text-text-muted text-[11px] mr-1 hidden sm:inline">Speed:</span>
+          <span className="text-text-muted text-[11px] mr-1 hidden sm:inline">
+            Speed:
+          </span>
           {speeds.map((s) => (
             <button
               key={s}
               onClick={() => onChangeSpeed(s)}
+              aria-pressed={playbackSpeed === s}
               className={`px-2 py-1 rounded text-[11px] font-mono transition-colors ${
                 playbackSpeed === s
                   ? "bg-accent-primary/20 border border-accent-primary text-accent-primary font-bold"
-                  : "bg-surface-raised border border-border-subtle text-text-muted hover:text-text-primary"
+                  : "bg-surface-raised border border-border-subtle text-text-muted "
               }`}
             >
               {s}x
@@ -89,4 +116,3 @@ export function GhostBattleControls({
     </div>
   );
 }
-

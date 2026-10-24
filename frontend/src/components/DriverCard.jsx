@@ -17,7 +17,7 @@ export function DriverCard({
     onClick={onClick}
     className={cn(
       "evidence-card relative flex flex-col justify-between hover-lift transition-all duration-[80ms]",
-      onClick && "cursor-pointer hover:border-border-strong",
+      onClick && "cursor-pointer ",
       isDetailed ? "p-5 w-full sm:w-[360px]" : "p-3 w-full sm:w-[240px]"
     )}
     initial={{ opacity: 0, y: 12 }}
@@ -85,7 +85,7 @@ export function DriverCard({
           e.stopPropagation();
           onCompare();
         }}
-        className="mt-4 w-full py-1.5 border border-border-subtle rounded-badge text-mono-meta font-mono text-text-secondary hover:bg-surface-raised hover:text-text-primary hover:border-border-strong transition-all duration-[80ms]"
+        className="mt-4 w-full py-1.5 border border-border-subtle rounded-badge text-mono-meta font-mono text-text-secondary    transition-all duration-[80ms]"
       >
         Compare with Teammate
       </button>

@@ -35,13 +35,13 @@ export function DataTable({ columns, rows, sortable = true, className }) {
       className={cn(
         "px-4 py-2.5 font-semibold text-[10px] uppercase tracking-wider",
         alignRight ? "text-right" : "text-left",
-        sortable && "cursor-pointer hover:text-text-secondary transition-colors"
+        sortable && "cursor-pointer  transition-colors"
       )}
       aria-sort={isSorted ? sortConfig.direction === "asc" ? "ascending" : "descending" : void 0}
     ><div className={cn("flex items-center gap-1.5", alignRight ? "justify-end" : "justify-start")}><span>{col.label}</span>{isSorted && <span className="text-accent-primary text-[9px]">{sortConfig.direction === "asc" ? "▲" : "▼"}</span>}</div></th>;
   })}</tr></thead>{
     /* Table Body */
-  }<tbody className="divide-y divide-border-subtle">{sortedRows.map((row, rIdx) => <tr key={rIdx} className="hover:bg-surface-raised/50 transition-colors">{columns.map((col) => {
+  }<tbody className="divide-y divide-border-subtle">{sortedRows.map((row, rIdx) => <tr key={rIdx} className=" transition-colors">{columns.map((col) => {
     const alignRight = col.align === "right";
     const val = row[col.key];
     return <td

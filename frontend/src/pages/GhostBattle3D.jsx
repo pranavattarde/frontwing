@@ -12,7 +12,7 @@ import {
   fetchGhostBattleYears,
   fetchGhostBattleGPs,
   fetchGhostBattleRoster,
-  fetchGhostBattleData
+  fetchGhostBattleData,
 } from "@/lib/api";
 
 export function GhostBattle3D() {
@@ -37,12 +37,14 @@ export function GhostBattle3D() {
   const [roster, setRoster] = useState(null);
   const [selectedDriverCodes, setSelectedDriverCodes] = useState([]);
   const [isLoadingRoster, setIsLoadingRoster] = useState(false);
-  const [hoveredTeamId, setHoveredTeamId] = useState(null);
 
   // Step 4: 3D Ghost Battle Simulation Data
   const [battleData, setBattleData] = useState(null);
   const [isLoadingBattle, setIsLoadingBattle] = useState(false);
   const [battleError, setBattleError] = useState("");
+  // Publishing the current selection to the URL must not discard its loaded replay.
+  const generatedBattleRef = useRef(null);
+  const [authRevision, setAuthRevision] = useState(0);
 
   // Playback State
   const [isPlaying, setIsPlaying] = useState(false);
@@ -51,8 +53,28 @@ export function GhostBattle3D() {
   const animFrameRef = useRef(null);
   const lastTimestampRef = useRef(null);
 
+  useEffect(() => {
+    const authChanged = () => {
+      generatedBattleRef.current = null;
+      setBattleData(null);
+      setBattleError("");
+      setIsPlaying(false);
+      setAuthRevision((revision) => revision + 1);
+    };
+    const motionChanged = (event) => {
+      if (event.detail?.paused) setIsPlaying(false);
+    };
+    window.addEventListener("frontwing-auth-changed", authChanged);
+    window.addEventListener("frontwing-motion-changed", motionChanged);
+    return () => {
+      window.removeEventListener("frontwing-auth-changed", authChanged);
+      window.removeEventListener("frontwing-motion-changed", motionChanged);
+    };
+  }, []);
+
   // Load Years on Mount
   useEffect(() => {
+    if (generatedBattleRef.current?.session === querySession) return;
     async function loadYears() {
       try {
         setIsLoadingYears(true);
@@ -76,18 +98,26 @@ export function GhostBattle3D() {
         }
       } catch (err) {
         console.warn("[GhostBattle3D] Years load warning:", err.message);
-        setYears([2024, 2023, 2022]);
-        setSelectedYear(2024);
+        setYears([]);
+        setBattleError(
+          err.message ||
+            "Available seasons could not be loaded. Please retry or sign in.",
+        );
       } finally {
         setIsLoadingYears(false);
       }
     }
     loadYears();
-  }, [querySession, queryYear]);
+  }, [querySession, queryYear, authRevision]);
 
   // Load Completed GPs when Year changes
   useEffect(() => {
     if (!selectedYear) return;
+    if (
+      generatedBattleRef.current?.session === querySession &&
+      generatedBattleRef.current?.year === selectedYear
+    )
+      return;
     async function loadGPs() {
       try {
         setIsLoadingGPs(true);
@@ -105,12 +135,16 @@ export function GhostBattle3D() {
             matchedGp = data.gps.find(
               (g) =>
                 g.session_id === querySession ||
-                g.session_id.toLowerCase().includes(querySession.toLowerCase()) ||
-                g.name.toLowerCase().includes(querySession.toLowerCase())
+                g.session_id
+                  .toLowerCase()
+                  .includes(querySession.toLowerCase()) ||
+                g.name.toLowerCase().includes(querySession.toLowerCase()),
             );
           }
           if (!matchedGp) {
-            matchedGp = data.gps.find((g) => g.session_id.includes("british")) || data.gps[0];
+            matchedGp =
+              data.gps.find((g) => g.session_id.includes("british")) ||
+              data.gps[0];
           }
           setSelectedSessionId(matchedGp.session_id);
           setSelectedGpName(matchedGp.name);
@@ -122,11 +156,16 @@ export function GhostBattle3D() {
       }
     }
     loadGPs();
-  }, [selectedYear, querySession]);
+  }, [selectedYear, querySession, authRevision]);
 
   // Load Roster when Session changes
   useEffect(() => {
     if (!selectedSessionId) return;
+    if (
+      generatedBattleRef.current?.session === selectedSessionId &&
+      generatedBattleRef.current?.drivers === queryDrivers
+    )
+      return;
     async function loadRoster() {
       try {
         setIsLoadingRoster(true);
@@ -151,18 +190,23 @@ export function GhostBattle3D() {
           }
           // Default to first two drivers
           if (data.drivers.length >= 2) {
-            setSelectedDriverCodes([data.drivers[0].code, data.drivers[1].code]);
+            setSelectedDriverCodes([
+              data.drivers[0].code,
+              data.drivers[1].code,
+            ]);
           }
         }
       } catch (err) {
         console.warn("[GhostBattle3D] Roster load warning:", err.message);
-        setBattleError("Failed to fetch session driver roster. Please sign in or check your connection.");
+        setBattleError(
+          "Failed to fetch session driver roster. Please sign in or check your connection.",
+        );
       } finally {
         setIsLoadingRoster(false);
       }
     }
     loadRoster();
-  }, [selectedSessionId, queryDrivers]);
+  }, [selectedSessionId, queryDrivers, authRevision]);
 
   // Handle Driver Toggle
   const handleToggleDriver = (code) => {
@@ -179,11 +223,15 @@ export function GhostBattle3D() {
   // Handle Team Toggle (auto-selects both of that team's drivers)
   const handleToggleTeam = (team) => {
     const teamDriverCodes = team.drivers.map((d) => d.code);
-    const allSelected = teamDriverCodes.every((c) => selectedDriverCodes.includes(c));
+    const allSelected = teamDriverCodes.every((c) =>
+      selectedDriverCodes.includes(c),
+    );
 
     if (allSelected) {
       // Deselect team's drivers
-      setSelectedDriverCodes((prev) => prev.filter((c) => !teamDriverCodes.includes(c)));
+      setSelectedDriverCodes((prev) =>
+        prev.filter((c) => !teamDriverCodes.includes(c)),
+      );
     } else {
       // Select team's drivers
       setSelectedDriverCodes((prev) => {
@@ -202,7 +250,9 @@ export function GhostBattle3D() {
       return;
     }
     if (selectedDriverCodes.length < 2) {
-      setBattleError("Please select at least 2 drivers (maximum 22) for the ghost battle.");
+      setBattleError(
+        "Please select at least 2 drivers (maximum 22) for the ghost battle.",
+      );
       return;
     }
 
@@ -212,16 +262,27 @@ export function GhostBattle3D() {
       setIsPlaying(false);
       setCurrentTime(0);
 
-      const data = await fetchGhostBattleData(selectedSessionId, selectedDriverCodes);
+      const data = await fetchGhostBattleData(
+        selectedSessionId,
+        selectedDriverCodes,
+      );
       if (data && data.drivers) {
         setBattleData(data);
-        setIsPlaying(true);
+        setIsPlaying(document.documentElement.dataset.motion !== "paused");
+        generatedBattleRef.current = {
+          session: selectedSessionId,
+          drivers: selectedDriverCodes.join(","),
+          year: selectedYear,
+        };
         setSearchParams({
           session: selectedSessionId,
-          drivers: selectedDriverCodes.join(",")
+          drivers: selectedDriverCodes.join(","),
         });
         setTimeout(() => {
-          battleSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          battleSectionRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
         }, 150);
       }
     } catch (err) {
@@ -286,12 +347,12 @@ export function GhostBattle3D() {
   };
 
   return (
-    <div className="min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-accent-primary/20 selection:text-accent-primary">
+    <div className="workspace-page min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-accent-primary/20 selection:text-accent-primary">
       {/* Header */}
       <BriefingHeader
         breadcrumbs={[
           { label: "Home", href: "/" },
-          { label: "Ghost Battle 3D", href: "/ghost-battle" }
+          { label: "Ghost Battle 3D", href: "/ghost-battle" },
         ]}
         sessionState="idle"
         onLogoClick={() => navigate("/")}
@@ -299,28 +360,30 @@ export function GhostBattle3D() {
 
       {/* Main Container */}
       <main className="flex-1 w-full max-w-[1500px] mx-auto px-4 py-6 flex flex-col gap-8">
-        {/* Title Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border-subtle pb-5">
+        <section className="workspace-banner" aria-labelledby="battle-heading">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-mono-meta font-mono text-accent-primary tracking-widest uppercase">
-                Ghost Battle • 3D Telemetry
-              </span>
-              <span className="text-badge font-mono px-2 py-0.5 rounded-badge bg-accent-primary/10 border border-accent-primary/30 text-accent-primary font-bold">
-                Multi-Car Timing Sync
-              </span>
-            </div>
-            <h1 className="text-display text-text-primary mt-1">
-              Interactive 3D Telemetry Ghost Battle
+            <div className="eyebrow">03 / THE GHOST BATTLE</div>
+            <h1 id="battle-heading">
+              SAME TRACK.
+              <br />
+              <em>DIFFERENT LIMITS.</em>
             </h1>
-            <p className="text-text-muted text-sm max-w-2xl mt-1">
-              Select any completed Grand Prix, pick up to 22 drivers or entire teams, and experience their authentic fastest flying laps synchronized by real elapsed time in full 3D space.
+            <p>
+              One circuit. Up to 22 drivers. Compare authentic fastest laps in
+              3D, synchronised to the same clock. Every braking point tells a
+              story.
             </p>
           </div>
-        </div>
+          <div className="banner-actions">
+            <span className="banner-index" aria-hidden="true">
+              03
+            </span>
+            <span className="eyebrow">AUTHENTIC TELEMETRY / 3D REPLAY</span>
+          </div>
+        </section>
 
         {/* 4-Step Selection Control Deck */}
-        <div className="flex flex-col gap-6 p-5 rounded-card border border-border-subtle bg-surface-base/80 backdrop-blur-md shadow-card">
+        <div className="battle-setup flex flex-col gap-6 p-5 rounded-card border border-border-subtle bg-surface-base/80 backdrop-blur-md shadow-card">
           <div className="flex items-center justify-between border-b border-border-subtle pb-3">
             <span className="text-mono-meta font-mono text-text-muted uppercase tracking-wider">
               Configure Ghost Battle • Setup
@@ -333,7 +396,10 @@ export function GhostBattle3D() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Step 1: Season Dropdown */}
             <div className="flex flex-col gap-1.5 relative z-30">
-              <label htmlFor="year-select" className="text-badge font-mono uppercase text-text-muted flex items-center justify-between">
+              <label
+                htmlFor="year-select"
+                className="text-badge font-mono uppercase text-text-muted flex items-center justify-between"
+              >
                 <span>Step 1: Select Season</span>
                 {selectedYear === 2026 && (
                   <span className="text-[9px] font-mono text-accent-primary px-1.5 py-0.5 rounded-badge bg-accent-primary/10 border border-accent-primary/30 font-bold">
@@ -351,14 +417,20 @@ export function GhostBattle3D() {
                 options={years.map((y) => ({
                   value: y,
                   label: `${y} Season`,
-                  sublabel: y === 2026 ? "Authentic 2026 Regulations Grid & Lineups" : "Official Session Telemetry"
+                  sublabel:
+                    y === 2026
+                      ? "Authentic 2026 Regulations Grid & Lineups"
+                      : "Official Session Telemetry",
                 }))}
               />
             </div>
 
             {/* Step 2: Completed GP Dropdown */}
             <div className="flex flex-col gap-1.5 relative z-20">
-              <label htmlFor="gp-select" className="text-badge font-mono uppercase text-text-muted flex items-center justify-between">
+              <label
+                htmlFor="gp-select"
+                className="text-badge font-mono uppercase text-text-muted flex items-center justify-between"
+              >
                 <span>Step 2: Select Grand Prix ({gps.length} Completed)</span>
                 {selectedGpName && (
                   <span className="text-[9px] text-text-muted truncate max-w-[140px]">
@@ -375,12 +447,16 @@ export function GhostBattle3D() {
                   if (found) setSelectedGpName(found.name);
                 }}
                 disabled={isLoadingGPs || gps.length === 0 || isLoadingBattle}
-                placeholder={isLoadingGPs ? "Loading Grand Prix..." : "Select Grand Prix..."}
+                placeholder={
+                  isLoadingGPs
+                    ? "Loading Grand Prix..."
+                    : "Select Grand Prix..."
+                }
                 accentColor="red"
                 options={gps.map((gp) => ({
                   value: gp.session_id,
                   label: `Round ${gp.round}: ${gp.name}`,
-                  sublabel: `${gp.location}, ${gp.country} • ${gp.event_date}`
+                  sublabel: `${gp.location}, ${gp.country} • ${gp.event_date}`,
                 }))}
               />
             </div>
@@ -404,7 +480,10 @@ export function GhostBattle3D() {
                     <span>Extracting 3D telemetry...</span>
                   </>
                 ) : (
-                  <span>Generate 3D Ghost Battle ({selectedDriverCodes.length} Drivers) →</span>
+                  <span>
+                    Generate 3D Ghost Battle ({selectedDriverCodes.length}{" "}
+                    Drivers) →
+                  </span>
                 )}
               </button>
             </div>
@@ -413,7 +492,7 @@ export function GhostBattle3D() {
           {/* Error Banner if any */}
           {battleError && (
             <div className="p-3 rounded-card bg-accent-danger/10 border border-accent-danger/40 text-accent-danger text-xs font-mono">
-              ⚠ {battleError}
+              {battleError}
             </div>
           )}
 
@@ -422,15 +501,18 @@ export function GhostBattle3D() {
             <div className="flex flex-col gap-4 pt-4 border-t border-border-subtle">
               <div className="flex items-center justify-between">
                 <span className="text-badge font-mono text-text-muted uppercase tracking-wider">
-                  Step 3: Select Teams & Drivers ({selectedGpName || "Grand Prix"} Official Grid)
+                  Step 3: Select Teams & Drivers (
+                  {selectedGpName || "Grand Prix"} Official Grid)
                 </span>
                 <div className="flex gap-2">
                   <button
                     id="btn-select-all-drivers"
                     onClick={() =>
-                      setSelectedDriverCodes(roster.drivers.slice(0, 22).map((d) => d.code))
+                      setSelectedDriverCodes(
+                        roster.drivers.slice(0, 22).map((d) => d.code),
+                      )
                     }
-                    className="text-badge font-mono text-accent-primary hover:underline cursor-pointer"
+                    className="text-badge font-mono text-accent-primary  cursor-pointer"
                   >
                     Select All ({roster.drivers.length})
                   </button>
@@ -438,7 +520,7 @@ export function GhostBattle3D() {
                   <button
                     id="btn-clear-drivers"
                     onClick={() => setSelectedDriverCodes([])}
-                    className="text-badge font-mono text-text-muted hover:text-text-primary cursor-pointer"
+                    className="text-badge font-mono text-text-muted  cursor-pointer"
                   >
                     Clear
                   </button>
@@ -446,45 +528,54 @@ export function GhostBattle3D() {
               </div>
 
               {/* Team 3D & Geometric Badged Cards (Auto-select both drivers) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5">
+              <div className="battle-team-grid grid gap-3.5">
                 {roster.teams.map((team) => {
                   const teamCodes = team.drivers.map((d) => d.code);
-                  const isTeamSelected = teamCodes.length > 0 && teamCodes.every((c) => selectedDriverCodes.includes(c));
+                  const isTeamSelected =
+                    teamCodes.length > 0 &&
+                    teamCodes.every((c) => selectedDriverCodes.includes(c));
                   const isPartiallySelected =
-                    !isTeamSelected && teamCodes.some((c) => selectedDriverCodes.includes(c));
+                    !isTeamSelected &&
+                    teamCodes.some((c) => selectedDriverCodes.includes(c));
                   const teamName = team.name || team.team_name || "Unknown";
                   const teamColor = team.color || team.team_color || "#E10600";
-                  const teamSlug = teamName.toLowerCase().replace(/[^a-z0-9]/g, "-");
+                  const teamSlug = teamName
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]/g, "-");
 
                   return (
                     <div
                       key={team.id}
                       id={`team-card-${teamSlug}`}
                       onClick={() => handleToggleTeam(team)}
-                      onMouseEnter={() => setHoveredTeamId(team.id)}
-                      onMouseLeave={() => setHoveredTeamId(null)}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Select ${teamName} drivers`}
+                      aria-pressed={isTeamSelected}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          handleToggleTeam(team);
+                        }
+                      }}
                       className={`cursor-pointer p-3.5 rounded-card border transition-all duration-200 flex flex-col justify-between relative overflow-hidden select-none group ${
                         isTeamSelected
                           ? "border-accent-primary bg-surface-raised shadow-[0_0_16px_rgba(225,6,0,0.2)] ring-1 ring-accent-primary/40"
                           : isPartiallySelected
-                          ? "border-border-strong bg-surface-raised/90 shadow-card"
-                          : "border-border-subtle bg-surface-base/80 hover:border-border-strong hover:bg-surface-raised shadow-card"
+                            ? "border-border-strong bg-surface-raised/90 shadow-card"
+                            : "border-border-subtle bg-surface-base/80   shadow-card"
                       }`}
                     >
-                      {/* Ambient Accent Tint */}
-                      <div
-                        className="absolute inset-0 opacity-10 pointer-events-none transition-opacity group-hover:opacity-20"
-                        style={{
-                          background: `radial-gradient(circle at top right, ${teamColor} 0%, transparent 70%)`
-                        }}
-                      />
-
                       {/* Header: Geometric Badge, Team Name, and Selection Status */}
                       <div className="flex items-center justify-between gap-2 mb-2 relative z-10">
                         <div className="flex items-center gap-2 min-w-0">
-                          <TeamBadge teamName={teamName} teamColor={teamColor} size={28} />
+                          <TeamBadge
+                            teamName={teamName}
+                            teamColor={teamColor}
+                            size={28}
+                          />
                           <div className="flex flex-col min-w-0">
-                            <span className="text-xs font-mono font-bold text-text-primary truncate group-hover:text-accent-primary transition-colors">
+                            <span className="text-xs font-mono font-bold text-text-primary truncate  transition-colors">
                               {teamName}
                             </span>
                             <span className="text-[10px] font-mono text-text-muted truncate">
@@ -498,11 +589,11 @@ export function GhostBattle3D() {
                             isTeamSelected
                               ? "bg-accent-primary text-white border-accent-primary font-bold"
                               : isPartiallySelected
-                              ? "border-accent-primary text-accent-primary"
-                              : "border-border-subtle text-transparent"
+                                ? "border-accent-primary text-accent-primary"
+                                : "border-border-subtle text-transparent"
                           }`}
                         >
-                          {isTeamSelected ? "✓" : isPartiallySelected ? "•" : ""}
+                          {isTeamSelected ? "" : isPartiallySelected ? "•" : ""}
                         </span>
                       </div>
 
@@ -511,21 +602,22 @@ export function GhostBattle3D() {
                         <TeamCar3D
                           teamName={teamName}
                           primaryColor={teamColor}
-                          isHovered={hoveredTeamId === team.id}
                         />
                       </div>
 
                       {/* Bottom: Driver Pills */}
                       <div className="flex items-center gap-1.5 pt-2 relative z-10">
                         {team.drivers.map((drv) => {
-                          const isDriverSelected = selectedDriverCodes.includes(drv.code);
+                          const isDriverSelected = selectedDriverCodes.includes(
+                            drv.code,
+                          );
                           return (
                             <div
                               key={drv.code}
                               className={`flex-1 flex items-center justify-between px-2 py-1 rounded text-[10px] font-mono border transition-all ${
                                 isDriverSelected
                                   ? "bg-accent-primary/15 text-accent-primary font-bold border-accent-primary/40 shadow-sm"
-                                  : "bg-surface-base text-text-muted border-border-subtle hover:border-border-strong"
+                                  : "bg-surface-base text-text-muted border-border-subtle "
                               }`}
                             >
                               <span>{drv.code}</span>
@@ -550,15 +642,27 @@ export function GhostBattle3D() {
                       key={drv.code}
                       id={`driver-card-${drv.code.toLowerCase()}`}
                       onClick={() => handleToggleDriver(drv.code)}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Select ${drv.name || drv.code}`}
+                      aria-pressed={isSelected}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          handleToggleDriver(drv.code);
+                        }
+                      }}
                       className={`cursor-pointer p-2.5 rounded-card border transition-all select-none flex flex-col items-center justify-between text-center relative group ${
                         isSelected
                           ? "border-accent-primary bg-accent-primary/10 shadow-[0_0_12px_rgba(225,6,0,0.25)] ring-1 ring-accent-primary/30"
-                          : "border-border-subtle bg-surface-base/80 hover:border-border-strong hover:bg-surface-raised"
+                          : "border-border-subtle bg-surface-base/80  "
                       }`}
                     >
                       {/* Top Header: Number and Status indicator */}
                       <div className="w-full flex items-center justify-between text-[10px] font-mono text-text-muted mb-1">
-                        <span className="font-bold type-tabular">#{drv.number}</span>
+                        <span className="font-bold type-tabular">
+                          #{drv.number}
+                        </span>
                         <span
                           className={`w-3 h-3 rounded-full flex items-center justify-center text-[8px] border ${
                             isSelected
@@ -566,7 +670,7 @@ export function GhostBattle3D() {
                               : "border-border-subtle text-transparent"
                           }`}
                         >
-                          {isSelected ? "✓" : ""}
+                          {isSelected ? "" : ""}
                         </span>
                       </div>
 
@@ -576,15 +680,19 @@ export function GhostBattle3D() {
                           teamColor={drv.team_color}
                           size={38}
                           isSelected={isSelected}
-                          className="group-hover:scale-105 transition-transform"
+                          className=" transition-transform"
                         />
                       </div>
 
                       {/* Driver Info */}
                       <div className="w-full mt-1.5 pt-1 border-t border-border-subtle">
-                        <h4 className={`text-xs font-mono font-bold leading-tight ${
-                          isSelected ? "text-accent-primary" : "text-text-primary"
-                        }`}>
+                        <h4
+                          className={`text-xs font-mono font-bold leading-tight ${
+                            isSelected
+                              ? "text-accent-primary"
+                              : "text-text-primary"
+                          }`}
+                        >
                           {drv.code}
                         </h4>
                         <p className="text-[10px] font-sans text-text-muted truncate mt-0.5">

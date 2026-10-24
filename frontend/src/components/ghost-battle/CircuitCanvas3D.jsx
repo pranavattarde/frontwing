@@ -1,5 +1,5 @@
-import React, { useMemo, useRef } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import React, { useLayoutEffect, useMemo, useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Html } from "@react-three/drei";
 import * as THREE from "three";
 
@@ -14,34 +14,54 @@ function F1CarMesh({ color = "#E10600", isFinished = false }) {
   return (
     <group scale={isFinished ? [0.85, 0.85, 0.85] : [1, 1, 1]}>
       {/* Main Chassis Body */}
-      <mesh position={[0, 0.25, 0]} castShadow>
+      <mesh position={[0, 0.25, 0]}>
         <boxGeometry args={[0.9, 0.35, 3.2]} />
-        <meshStandardMaterial color={primaryColor} roughness={0.3} metalness={0.6} />
+        <meshStandardMaterial
+          color={primaryColor}
+          roughness={0.3}
+          metalness={0.6}
+        />
       </mesh>
 
       {/* Cockpit & Airbox */}
-      <mesh position={[0, 0.52, -0.2]} castShadow>
+      <mesh position={[0, 0.52, -0.2]}>
         <boxGeometry args={[0.55, 0.35, 1.2]} />
-        <meshStandardMaterial color={carbonColor} roughness={0.6} metalness={0.4} />
+        <meshStandardMaterial
+          color={carbonColor}
+          roughness={0.6}
+          metalness={0.4}
+        />
       </mesh>
 
       {/* Front Nose Cone */}
-      <mesh position={[0, 0.18, 1.8]} castShadow>
+      <mesh position={[0, 0.18, 1.8]}>
         <coneGeometry args={[0.35, 1.0, 4]} rotation={[Math.PI / 2, 0, 0]} />
-        <meshStandardMaterial color={primaryColor} roughness={0.3} metalness={0.6} />
+        <meshStandardMaterial
+          color={primaryColor}
+          roughness={0.3}
+          metalness={0.6}
+        />
       </mesh>
 
       {/* Front Wing Mainplane */}
-      <mesh position={[0, 0.1, 2.2]} castShadow>
+      <mesh position={[0, 0.1, 2.2]}>
         <boxGeometry args={[1.9, 0.08, 0.45]} />
-        <meshStandardMaterial color={carbonColor} roughness={0.5} metalness={0.5} />
+        <meshStandardMaterial
+          color={carbonColor}
+          roughness={0.5}
+          metalness={0.5}
+        />
       </mesh>
 
       {/* Rear Wing Assembly */}
       <group position={[0, 0.8, -1.6]}>
-        <mesh castShadow>
+        <mesh>
           <boxGeometry args={[1.5, 0.1, 0.4]} />
-          <meshStandardMaterial color={primaryColor} roughness={0.3} metalness={0.6} />
+          <meshStandardMaterial
+            color={primaryColor}
+            roughness={0.3}
+            metalness={0.6}
+          />
         </mesh>
         {/* Endplates */}
         <mesh position={[-0.75, -0.15, 0]}>
@@ -78,7 +98,10 @@ function F1CarMesh({ color = "#E10600", isFinished = false }) {
 
       {/* Halo Safety Structure */}
       <mesh position={[0, 0.65, 0.1]}>
-        <torusGeometry args={[0.32, 0.04, 6, 12, Math.PI]} rotation={[Math.PI / 3, 0, 0]} />
+        <torusGeometry
+          args={[0.32, 0.04, 6, 12, Math.PI]}
+          rotation={[Math.PI / 3, 0, 0]}
+        />
         <meshStandardMaterial color={carbonColor} />
       </mesh>
     </group>
@@ -102,9 +125,11 @@ function SynchronizedGhostVehicle({ driver, currentTime }) {
       const prev = telem[Math.max(0, telem.length - 2)];
       return {
         pt: last,
-        heading: prev ? new THREE.Vector3(last.x - prev.x, last.y - prev.y, last.z - prev.z) : new THREE.Vector3(0, 0, 1),
+        heading: prev
+          ? new THREE.Vector3(last.x - prev.x, last.y - prev.y, last.z - prev.z)
+          : new THREE.Vector3(0, 0, 1),
         isFinished: true,
-        speed: 0
+        speed: 0,
       };
     }
 
@@ -132,14 +157,18 @@ function SynchronizedGhostVehicle({ driver, currentTime }) {
     const curY = p1.y + (p2.y - p1.y) * alpha;
     const curZ = p1.z + (p2.z - p1.z) * alpha;
 
-    const heading = new THREE.Vector3(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z).normalize();
+    const heading = new THREE.Vector3(
+      p2.x - p1.x,
+      p2.y - p1.y,
+      p2.z - p1.z,
+    ).normalize();
     const curSpeed = Math.round(p1.s + (p2.s - p1.s) * alpha);
 
     return {
       pt: { x: curX, y: curY, z: curZ },
       heading,
       isFinished: false,
-      speed: curSpeed
+      speed: curSpeed,
     };
   }, [driver, currentTime]);
 
@@ -151,7 +180,11 @@ function SynchronizedGhostVehicle({ driver, currentTime }) {
 
     // Compute rotation towards heading vector
     if (heading.lengthSq() > 0.0001) {
-      const target = new THREE.Vector3(pt.x + heading.x, pt.y + heading.y, pt.z + heading.z);
+      const target = new THREE.Vector3(
+        pt.x + heading.x,
+        pt.y + heading.y,
+        pt.z + heading.z,
+      );
       groupRef.current.lookAt(target);
     }
   });
@@ -165,7 +198,11 @@ function SynchronizedGhostVehicle({ driver, currentTime }) {
       <F1CarMesh color={driver.team_color} isFinished={isFinished} />
 
       {/* 3D Billboard Tag above vehicle */}
-      <Html position={[0, 2.0, 0]} center distanceFactor={28} className="pointer-events-none select-none">
+      <Html
+        position={[0, 2.0, 0]}
+        center
+        className="pointer-events-none select-none"
+      >
         <div
           className={`flex items-center gap-1.5 px-2 py-0.5 rounded border text-[10px] font-mono font-bold shadow-md whitespace-nowrap transition-opacity ${
             isFinished
@@ -190,14 +227,15 @@ function SynchronizedGhostVehicle({ driver, currentTime }) {
 /**
  * 3D Circuit Track Ribbon & Start/Finish Line
  */
-function CircuitTrackRibbon({ centerline }) {
+function CircuitTrackRibbon({ centerline, palette }) {
   const { curve, startFinishPoint } = useMemo(() => {
-    if (!centerline || centerline.length < 3) return { curve: null, startFinishPoint: null };
+    if (!centerline || centerline.length < 3)
+      return { curve: null, startFinishPoint: null };
     const vectors = centerline.map((p) => new THREE.Vector3(p[0], p[1], p[2]));
     const closedCurve = new THREE.CatmullRomCurve3(vectors, true);
     return {
       curve: closedCurve,
-      startFinishPoint: vectors[0]
+      startFinishPoint: vectors[0],
     };
   }, [centerline]);
 
@@ -206,20 +244,31 @@ function CircuitTrackRibbon({ centerline }) {
   return (
     <group>
       {/* Main Track Ribbon / Tube */}
-      <mesh receiveShadow>
+      <mesh>
         <tubeGeometry args={[curve, 500, 1.4, 8, true]} />
-        <meshStandardMaterial color="#181C22" roughness={0.7} metalness={0.2} />
+        <meshBasicMaterial color={palette.track} />
       </mesh>
 
       {/* Subtle Luminous Curbs / Edges */}
       <mesh>
         <tubeGeometry args={[curve, 500, 1.48, 4, true]} />
-        <meshBasicMaterial color="#E10600" wireframe opacity={0.15} transparent />
+        <meshBasicMaterial
+          color={palette.edge}
+          wireframe
+          opacity={0.2}
+          transparent
+        />
       </mesh>
 
       {/* Start/Finish Line Marker & Arch */}
       {startFinishPoint && (
-        <group position={[startFinishPoint.x, startFinishPoint.y, startFinishPoint.z]}>
+        <group
+          position={[
+            startFinishPoint.x,
+            startFinishPoint.y,
+            startFinishPoint.z,
+          ]}
+        >
           {/* Start/Finish Ground Checkered Strip */}
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[4, 1.6]} />
@@ -232,7 +281,7 @@ function CircuitTrackRibbon({ centerline }) {
             <meshBasicMaterial color="#E10600" opacity={0.6} transparent />
           </mesh>
 
-          <Html position={[0, 5.5, 0]} center distanceFactor={30}>
+          <Html position={[0, 5.5, 0]} center>
             <div className="px-2 py-0.5 rounded bg-accent-primary text-text-primary text-[9px] font-mono font-bold tracking-widest uppercase shadow-sm">
               START / FINISH
             </div>
@@ -243,14 +292,55 @@ function CircuitTrackRibbon({ centerline }) {
   );
 }
 
-/**
- * Dedicated 3D Ghost Battle Viewport Canvas
- */
+/** Fit the real circuit to the available viewport, including narrow phone screens. */
+function FitTrackCamera({ centerline }) {
+  const { camera, size, controls, invalidate } = useThree();
+  useLayoutEffect(() => {
+    if (!centerline.length) return;
+    const bounds = new THREE.Box3().setFromPoints(
+      centerline.map((point) => new THREE.Vector3(...point)),
+    );
+    const center = bounds.getCenter(new THREE.Vector3());
+    const span = bounds.getSize(new THREE.Vector3());
+    const radius = Math.max(span.x, span.y, span.z) * 0.7;
+    const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
+    const aspect = size.width / Math.max(1, size.height);
+    const limitingFov = Math.min(
+      halfFov,
+      Math.atan(Math.tan(halfFov) * aspect),
+    );
+    const distance = radius / Math.sin(limitingFov);
+    camera.position
+      .copy(center)
+      .add(
+        new THREE.Vector3(0, 0.95, 0.85).normalize().multiplyScalar(distance),
+      );
+    camera.lookAt(center);
+    camera.updateProjectionMatrix();
+    controls?.target.copy(center);
+    controls?.update();
+    invalidate();
+  }, [camera, centerline, controls, invalidate, size.width, size.height]);
+  return null;
+}
+
+/** Dedicated 3D Ghost Battle viewport. */
 export function CircuitCanvas3D({ circuit, drivers = [], currentTime = 0 }) {
   const centerline = circuit?.centerline || [];
+  const palette = useMemo(() => {
+    const style = getComputedStyle(document.documentElement);
+    return {
+      track: style.getPropertyValue("--paper-muted").trim(),
+      edge: style.getPropertyValue("--racing-red").trim(),
+    };
+  }, []);
 
   return (
-    <div className="w-full h-[480px] sm:h-[560px] lg:h-[620px] rounded-lg border border-[var(--border-subtle)] bg-[var(--canvas)] relative overflow-hidden shadow-2xl">
+    <div
+      className="battle-canvas w-full h-[440px] sm:h-[560px] lg:h-[620px] border border-border-medium bg-surface-base relative overflow-hidden"
+      role="img"
+      aria-label={`Interactive 3D lap comparison for ${drivers.map((driver) => driver.code).join(" and ")}. Drag to orbit the circuit.`}
+    >
       {/* 3D Viewport Controls Hint */}
       <div className="absolute top-3 left-3 z-10 flex items-center gap-2 pointer-events-none select-none">
         <span className="text-[10px] font-mono px-2 py-1 rounded bg-[var(--canvas)]/80 border border-[var(--border-subtle)] text-[var(--text-muted)] backdrop-blur-sm">
@@ -259,21 +349,21 @@ export function CircuitCanvas3D({ circuit, drivers = [], currentTime = 0 }) {
       </div>
 
       <Canvas
-        shadows
+        frameloop="demand"
+        dpr={[1, 1.5]}
         camera={{ position: [0, 160, 170], fov: 42, near: 0.5, far: 2000 }}
       >
         <ambientLight intensity={0.75} />
-        <directionalLight
-          position={[80, 150, 100]}
-          intensity={1.2}
-          castShadow
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
+        <directionalLight position={[80, 150, 100]} intensity={1.2} />
+        <hemisphereLight
+          skyColor="#242B35"
+          groundColor="#0B0D11"
+          intensity={0.5}
         />
-        <hemisphereLight skyColor="#242B35" groundColor="#0B0D11" intensity={0.5} />
 
         {/* 3D Track Geometry */}
-        <CircuitTrackRibbon centerline={centerline} />
+        <CircuitTrackRibbon centerline={centerline} palette={palette} />
+        <FitTrackCamera centerline={centerline} />
 
         {/* Synchronized F1 Driver Cars */}
         {drivers.map((d) => (
@@ -284,19 +374,13 @@ export function CircuitCanvas3D({ circuit, drivers = [], currentTime = 0 }) {
           />
         ))}
 
-        {/* Subtle Horizon Ground Grid */}
-        <gridHelper
-          args={[350, 24, "#1E242C", "#13171D"]}
-          position={[0, -2, 0]}
-        />
-
         {/* Orbit Camera Controls */}
         <OrbitControls
           makeDefault
           enableDamping
           dampingFactor={0.08}
           minDistance={20}
-          maxDistance={450}
+          maxDistance={1500}
           maxPolarAngle={Math.PI / 2.05}
         />
       </Canvas>

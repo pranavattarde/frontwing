@@ -60,14 +60,14 @@ export function TyreDegradationGraph({
               <span className="text-timing-yellow font-bold">{latest?.compound || "N/A"}</span>
             </span>
             <span className="text-text-muted">
-              Deg: <span className="text-timing-yellow font-bold type-tabular">{latest?.wear_pct !== null && latest?.wear_pct !== undefined ? `${latest.wear_pct}%` : "—"}</span>
+              Deg: <span className="text-timing-yellow font-bold type-tabular">{latest?.wear_pct !== null && latest?.wear_pct !== undefined ? `${latest.wear_pct}%` : ":"}</span>
             </span>
             <span className="text-text-muted">
-              Life: <span className="text-timing-green font-bold type-tabular">{latest?.wear_pct !== null && latest?.wear_pct !== undefined ? `${(100 - latest.wear_pct).toFixed(1).replace(/\.0$/, "")}%` : "—"}</span>
+              Life: <span className="text-timing-green font-bold type-tabular">{latest?.wear_pct !== null && latest?.wear_pct !== undefined ? `${(100 - latest.wear_pct).toFixed(1).replace(/\.0$/, "")}%` : ":"}</span>
             </span>
             <button
               onClick={() => setIsExpanded(true)}
-              className="text-[11px] font-mono text-timing-yellow hover:text-timing-yellow/80 border border-timing-yellow/30 hover:border-timing-yellow px-2 py-0.5 rounded bg-timing-yellow/5 transition-colors font-semibold"
+              className="text-[11px] font-mono text-timing-yellow  border border-timing-yellow/30  px-2 py-0.5 rounded bg-timing-yellow/5 transition-colors font-semibold"
             >
               [Expand]
             </button>
@@ -168,7 +168,6 @@ export function TyreDegradationGraph({
                   fill={getTyreWearColor(d.wear_pct)}
                   stroke={isHovered ? "#FFFFFF" : "rgba(0,0,0,0.5)"}
                   strokeWidth={isHovered ? 2 : 0.5}
-                  filter={isHovered ? "drop-shadow(0 0 6px rgba(245, 158, 11, 0.9))" : undefined}
                   className="cursor-pointer transition-[r,stroke-width] duration-150 ease-out"
                   onMouseEnter={() => setHoveredPoint(d)}
                 />
@@ -193,7 +192,7 @@ export function TyreDegradationGraph({
               <div className="text-[10px] mt-1 flex items-center justify-between gap-4 type-tabular">
                 <span className="text-text-muted">TYRE DEG:</span>
                 <span className="font-bold text-timing-yellow font-mono">
-                  {hoveredPoint.wear_pct !== null && hoveredPoint.wear_pct !== undefined ? `${hoveredPoint.wear_pct}%` : "—"}
+                  {hoveredPoint.wear_pct !== null && hoveredPoint.wear_pct !== undefined ? `${hoveredPoint.wear_pct}%` : ":"}
                 </span>
               </div>
               <div className="text-[10px] mt-0.5 flex items-center justify-between gap-4 type-tabular">
@@ -212,7 +211,7 @@ export function TyreDegradationGraph({
                 >
                   {hoveredPoint.wear_pct !== null && hoveredPoint.wear_pct !== undefined
                     ? `${(100 - hoveredPoint.wear_pct).toFixed(1).replace(/\.0$/, "")}%`
-                    : "—"}
+                    : ":"}
                 </span>
               </div>
               {hoveredPoint.compound && (
@@ -254,7 +253,7 @@ export function TyreDegradationGraph({
               </div>
               <button
                 onClick={() => setIsExpanded(false)}
-                className="text-text-muted hover:text-text-primary font-mono text-xs px-2 py-1 rounded bg-surface-raised border border-border-subtle"
+                className="text-text-muted  font-mono text-xs px-2 py-1 rounded bg-surface-raised border border-border-subtle"
               >
                 [Close]
               </button>
@@ -328,7 +327,7 @@ export function TyreDegradationGraph({
                   </thead>
                   <tbody className="divide-y divide-border-subtle">
                     {data.map((d) => (
-                      <tr key={d.lap} className="hover:bg-surface-raised transition-colors type-tabular">
+                      <tr key={d.lap} className=" transition-colors type-tabular">
                         <td className="py-2 px-3 font-bold text-text-primary">LAP {d.lap}</td>
                         <td className="py-2 px-3 font-mono text-text-secondary text-[11px]">
                           STINT {d.stint || 1}
@@ -344,7 +343,7 @@ export function TyreDegradationGraph({
                               {d.wear_pct}%
                             </span>
                           ) : (
-                            <span className="text-[11px] text-text-muted font-mono">—</span>
+                            <span className="text-[11px] text-text-muted font-mono">:</span>
                           )}
                         </td>
                         <td className="py-2 px-3 font-bold">
@@ -358,7 +357,7 @@ export function TyreDegradationGraph({
                               {(100 - d.wear_pct).toFixed(1).replace(/\.0$/, "")}%
                             </span>
                           ) : (
-                            <span className="text-[11px] text-text-muted font-mono">—</span>
+                            <span className="text-[11px] text-text-muted font-mono">:</span>
                           )}
                         </td>
                         <td className="py-2 px-3 text-text-muted font-mono">
@@ -367,11 +366,11 @@ export function TyreDegradationGraph({
                           ) : d.pace_loss_s !== null && d.pace_loss_s !== undefined ? (
                             `+${Number(d.pace_loss_s).toFixed(3)}s/lap`
                           ) : (
-                            <span className="text-[10px] text-text-muted">—</span>
+                            <span className="text-[10px] text-text-muted">:</span>
                           )}
                         </td>
                         <td className="py-2 px-3 text-timing-yellow font-bold">
-                          {d.compound || "—"}
+                          {d.compound || ":"}
                         </td>
                       </tr>
                     ))}

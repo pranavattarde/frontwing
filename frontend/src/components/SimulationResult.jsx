@@ -14,7 +14,7 @@ export function SimulationResult({
   return (
     <motion.div
       className={cn(
-        "bg-surface-base border border-border-subtle rounded border-l-2 border-l-accent-primary shadow-sm",
+        "bg-surface-base border border-border-subtle rounded  shadow-sm",
         isDetailed ? "p-5 w-full sm:w-[320px]" : "p-3 w-full"
       )}
       initial={{ opacity: 0, y: 8 }}

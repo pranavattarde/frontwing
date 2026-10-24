@@ -201,7 +201,6 @@ export function GhostFightSimulator({
       {/* SVG Circuit Outline & Synced Ghost Battle Track Map */}
       <div className="relative w-full h-[220px] bg-[var(--canvas)] rounded-lg border border-[var(--border-subtle)] flex flex-col items-center justify-center p-2 overflow-hidden">
         {/* Subtle Background Radial Glow */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(225,6,0,0.02)_0%,transparent_70%)] pointer-events-none" />
 
         <svg
           viewBox={circuit.viewBox}
@@ -422,19 +421,19 @@ export function GhostFightSimulator({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsPlaying(!isPlaying)}
-            className="px-2 py-0.5 rounded border border-border-subtle hover:border-accent-primary text-text-primary hover:text-accent-primary transition-colors text-[10px]"
+            className="px-2 py-0.5 rounded border border-border-subtle  text-text-primary  transition-colors text-[10px]"
           >
             {isPlaying ? "PAUSE" : "PLAY"}
           </button>
           <button
             onClick={() => setSpeedMultiplier((prev) => (prev === 1 ? 2 : prev === 2 ? 0.5 : 1))}
-            className="px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)] text-[10px]"
+            className="px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-muted)]  text-[10px]"
           >
             {speedMultiplier}X
           </button>
           <button
             onClick={() => setProgressDist(0)}
-            className="px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)] text-[10px]"
+            className="px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[var(--text-muted)]  text-[10px]"
           >
             RESTART
           </button>

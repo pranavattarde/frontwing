@@ -17,7 +17,7 @@ export function GhostBattle() {
     { label: "Ghost Battle: PIA vs SAI", href: "#" }
   ];
   return (
-    <div className="min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-accent-primary/20 selection:text-accent-primary">
+    <div className="workspace-page min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-accent-primary/20 selection:text-accent-primary">
       {/* Header */}
       <BriefingHeader
         breadcrumbs={breadcrumbs}
@@ -41,7 +41,7 @@ export function GhostBattle() {
               Oscar Piastri vs Carlos Sainz
             </h1>
             <p className="text-text-muted text-sm mt-0.5">
-              Spielberg GP 2024 — Speed overlay comparison. Driver A: PIA (Papaya) vs Driver B: SAI (Speed Red).
+              Spielberg GP 2024 : Speed overlay comparison. Driver A: PIA (Papaya) vs Driver B: SAI (Speed Red).
             </p>
           </div>
 
@@ -56,7 +56,7 @@ export function GhostBattle() {
                   className={`px-2 py-1 font-mono text-xs rounded-badge border transition-all type-tabular ${
                     lapNumber === lap
                       ? "border-accent-primary text-accent-primary bg-accent-primary/10 font-semibold"
-                      : "border-border-subtle text-text-muted hover:text-text-primary"
+                      : "border-border-subtle text-text-muted "
                   }`}
                 >
                   L{lap}

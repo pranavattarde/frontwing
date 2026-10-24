@@ -53,7 +53,7 @@ export function LapTimeGraph({
             </div>
             <button
               onClick={() => setIsExpanded(true)}
-              className="text-[11px] font-mono text-accent-primary hover:text-accent-primary-hover border border-accent-primary/30 hover:border-accent-primary px-2 py-0.5 rounded bg-accent-primary/5 hover:bg-accent-primary/10 transition-colors font-semibold"
+              className="text-[11px] font-mono text-accent-primary  border border-accent-primary/30  px-2 py-0.5 rounded bg-accent-primary/5  transition-colors font-semibold"
             >
               [Expand]
             </button>
@@ -141,7 +141,6 @@ export function LapTimeGraph({
                   fill={isPB ? "#00D26A" : "#E10600"}
                   stroke={isHovered ? "#FFFFFF" : "rgba(0,0,0,0.5)"}
                   strokeWidth={isHovered ? 2 : 0.5}
-                  filter={isHovered ? (isPB ? "drop-shadow(0 0 6px rgba(0,210,106,0.9))" : "drop-shadow(0 0 6px rgba(225,6,0,0.9))") : undefined}
                   className="cursor-pointer transition-[r,stroke-width] duration-150 ease-out"
                   onMouseEnter={() => setHoveredLap(d)}
                 />
@@ -161,7 +160,7 @@ export function LapTimeGraph({
               <div className="font-bold border-b border-border-subtle pb-1 mb-1 flex items-center justify-between gap-4">
                 <span>Lap {hoveredLap.lap}</span>
                 {hoveredLap.lap_time === fastestLapTime && (
-                  <span className="text-timing-green font-bold text-[10px]">★ Personal Best</span>
+                  <span className="text-timing-green font-bold text-[10px]">* Personal Best</span>
                 )}
               </div>
               <div className="flex justify-between gap-4 type-tabular">
@@ -196,7 +195,7 @@ export function LapTimeGraph({
               </div>
               <button
                 onClick={() => setIsExpanded(false)}
-                className="text-text-muted hover:text-text-primary font-mono text-xs px-2 py-1 rounded bg-surface-raised border border-border-subtle"
+                className="text-text-muted  font-mono text-xs px-2 py-1 rounded bg-surface-raised border border-border-subtle"
               >
                 [Close]
               </button>
@@ -261,10 +260,10 @@ export function LapTimeGraph({
                       const isPB = d.lap_time === fastestLapTime;
                       const deltaPB = d.lap_time - fastestLapTime;
                       return (
-                        <tr key={d.lap} className={cn("hover:bg-surface-raised transition-colors type-tabular", isPB ? "bg-accent-primary/10" : "")}>
+                        <tr key={d.lap} className={cn(" transition-colors type-tabular", isPB ? "bg-accent-primary/10" : "")}>
                           <td className="py-2 px-3 font-bold text-text-primary">Lap {d.lap}</td>
                           <td className={cn("py-2 px-3 font-bold", isPB ? "text-timing-green font-extrabold" : "text-text-primary")}>
-                            {d.lap_time.toFixed(3)}s {isPB && "★ (PB)"}
+                            {d.lap_time.toFixed(3)}s {isPB && "* (PB)"}
                           </td>
                           <td className="py-2 px-3 text-text-muted">
                             {isPB ? "0.000s" : `+${deltaPB.toFixed(3)}s`}

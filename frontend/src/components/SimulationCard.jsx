@@ -149,7 +149,7 @@ export function SimulationCard({ data, className }) {
         <span className="text-text-muted">Engine: FastF1 Monte Carlo Simulation</span>
         <button
           onClick={() => setShowDetails(!showDetails)}
-          className="text-accent-primary hover:underline transition-colors font-mono tracking-wider font-bold"
+          className="text-accent-primary  transition-colors font-mono tracking-wider font-bold"
         >
           {showDetails ? "[- Hide Simulation Notes]" : "[+ Show Simulation Notes]"}
         </button>

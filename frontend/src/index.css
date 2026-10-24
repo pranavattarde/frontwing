@@ -1,457 +1,216 @@
 @import "./styles/design_tokens.css";
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* ==========================================================================
-   FrontWing Official F1 Broadcast Design System — CSS Core
-   ========================================================================== */
 
 @layer base {
   * {
     border-color: var(--border-subtle);
   }
-
-  body {
-    background-color: var(--bg-canvas);
-    color: var(--text-secondary);
-    font-family: var(--font-f1-sans);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+  html {
+    color-scheme: dark;
+    scroll-behavior: smooth;
+    scroll-padding-top: 105px;
   }
-
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-f1-display);
+  body {
+    margin: 0;
+    background: var(--surface-canvas);
+    color: var(--text-secondary);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
     color: var(--text-primary);
   }
-
-  /* Scrollbar — clean, dark broadcast look */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
   }
-  ::-webkit-scrollbar-track {
-    background: transparent;
+  button:disabled {
+    cursor: not-allowed;
   }
-  ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.12);
-    border-radius: 3px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.24);
-  }
-
-  /* Focus ring — Broadcast Red Beacon */
   :focus-visible {
     outline: 2px solid var(--border-focus);
-    outline-offset: 2px;
+    outline-offset: 4px;
   }
-
-  /* Selection — Speed Red subtle wash with high-contrast text */
   ::selection {
-    background: rgba(225, 6, 0, 0.25);
-    color: #FFFFFF;
+    background: var(--racing-red);
+    color: var(--paper);
+  }
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--surface-canvas);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
   }
 }
-
-/* ==========================================================================
-   Component Layer — F1 Broadcast Badges, Tables & Panels
-   ========================================================================== */
-
 @layer components {
-  /* F1 Official Timing Badges */
   .badge-sector-purple {
-    background-color: var(--sector-purple-bg);
-    color: var(--sector-purple);
-    border: 1px solid var(--sector-purple-border);
+    background: var(--timing-purple-subtle);
+    color: var(--timing-purple);
+    border: 1px solid var(--timing-purple-border);
   }
-
   .badge-sector-green {
-    background-color: var(--sector-green-bg);
-    color: var(--sector-green);
-    border: 1px solid var(--sector-green-border);
+    background: var(--timing-green-subtle);
+    color: var(--timing-green);
+    border: 1px solid var(--timing-green-border);
   }
-
   .badge-sector-yellow {
-    background-color: var(--sector-yellow-bg);
-    color: var(--sector-yellow);
-    border: 1px solid var(--sector-yellow-border);
+    background: var(--timing-yellow-subtle);
+    color: var(--timing-yellow);
+    border: 1px solid var(--timing-yellow-border);
   }
-
   .badge-f1-red {
-    background-color: var(--f1-red-bg);
-    color: var(--f1-red);
-    border: 1px solid var(--f1-red-border);
+    background: var(--accent-primary-subtle);
+    color: var(--accent-primary);
+    border: 1px solid var(--accent-primary-border);
   }
-
-  /* Broadcast Card Base */
   .broadcast-card {
-    background-color: var(--bg-panel);
+    background: var(--surface-base);
     border: 1px solid var(--border-subtle);
-    border-radius: 6px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   }
-
-  /* Semantic F1 Broadcast HTML Table */
   .f1-table-container {
     width: 100%;
     overflow-x: auto;
     border: 1px solid var(--border-subtle);
-    border-radius: 6px;
-    background-color: var(--bg-panel);
+    background: var(--surface-base);
   }
-
   .f1-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
     text-align: left;
   }
-
   .f1-table th {
-    background-color: var(--bg-elevated);
+    background: var(--surface-raised);
     color: var(--text-muted);
-    font-family: var(--font-f1-mono);
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
+    font: 500 10px var(--font-mono);
     letter-spacing: 0.08em;
-    padding: 10px 14px;
+    text-transform: uppercase;
+    padding: 14px 16px;
     border-bottom: 1px solid var(--border-medium);
   }
-
   .f1-table td {
-    padding: 10px 14px;
-    color: var(--text-primary);
+    padding: 14px 16px;
     border-bottom: 1px solid var(--border-subtle);
-    font-family: var(--font-f1-sans);
-  }
-
-  .f1-table tr:last-child td {
-    border-bottom: none;
-  }
-
-  .f1-table tr:hover td {
-    background-color: rgba(255, 255, 255, 0.02);
-  }
-
-  /* Interactive Button System */
-  .btn-f1-primary {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    background-color: var(--accent-primary);
-    color: #FFFFFF;
-    font-family: var(--font-display);
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    padding: 8px 16px;
-    border-radius: var(--radius-sm);
-    border: 1px solid transparent;
-    cursor: pointer;
-    transition: background-color var(--motion-fast) var(--ease-mechanical),
-                transform var(--motion-fast) var(--ease-mechanical),
-                box-shadow var(--motion-fast) var(--ease-mechanical);
-  }
-  .btn-f1-primary:hover {
-    background-color: var(--accent-primary-hover);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-glow-red);
-  }
-  .btn-f1-primary:active {
-    background-color: var(--accent-primary-active);
-    transform: scale(0.98);
-    box-shadow: none;
-  }
-  .btn-f1-primary:focus-visible {
-    outline: 2px solid var(--border-focus);
-    outline-offset: 2px;
-  }
-  .btn-f1-primary:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    pointer-events: none;
-    transform: none;
-    box-shadow: none;
-  }
-
-  .btn-f1-secondary {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    background-color: var(--surface-raised);
     color: var(--text-primary);
-    font-family: var(--font-display);
-    font-size: 13px;
-    font-weight: 700;
-    font-style: italic;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 8px 16px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-medium);
-    cursor: pointer;
-    transition: background-color var(--motion-fast) var(--ease-mechanical),
-                border-color var(--motion-fast) var(--ease-mechanical),
-                transform var(--motion-fast) var(--ease-mechanical);
   }
-  .btn-f1-secondary:hover {
-    background-color: var(--surface-overlay);
-    border-color: var(--border-strong);
-    color: #FFFFFF;
-    transform: translateY(-1px);
-  }
-  .btn-f1-secondary:active {
-    background-color: var(--surface-base);
-    transform: scale(0.98);
-  }
-  .btn-f1-secondary:focus-visible {
-    outline: 2px solid var(--border-focus);
-    outline-offset: 2px;
-  }
-  .btn-f1-secondary:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-    pointer-events: none;
-    transform: none;
-  }
-
+  .btn-f1-primary,
+  .btn-f1-secondary,
   .btn-f1-ghost {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    background-color: transparent;
-    color: var(--text-secondary);
-    font-family: var(--font-display);
-    font-size: 13px;
-    font-weight: 600;
-    font-style: italic;
-    text-transform: uppercase;
+    padding: 12px 20px;
+    font: 700 11px var(--font-body);
     letter-spacing: 0.05em;
-    padding: 8px 14px;
-    border-radius: var(--radius-sm);
-    border: 1px solid transparent;
+    text-transform: uppercase;
     cursor: pointer;
-    transition: color var(--motion-fast) var(--ease-mechanical),
-                background-color var(--motion-fast) var(--ease-mechanical),
-                transform var(--motion-fast) var(--ease-mechanical);
-  }
-  .btn-f1-ghost:hover {
-    color: var(--text-primary);
-    background-color: var(--surface-subtle);
-  }
-  .btn-f1-ghost:active {
-    transform: scale(0.98);
-  }
-  .btn-f1-ghost:focus-visible {
-    outline: 2px solid var(--border-focus);
-    outline-offset: 2px;
-  }
-  .btn-f1-ghost:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-    pointer-events: none;
-  }
-
-  /* Interactive Input System */
-  .input-f1 {
-    width: 100%;
-    background-color: var(--surface-base);
     border: 1px solid var(--border-medium);
-    border-radius: var(--radius-sm);
+    min-height: 42px;
+  }
+  .btn-f1-primary {
+    background: var(--racing-red);
+    color: var(--paper);
+    border-color: var(--racing-red);
+  }
+  .btn-f1-secondary {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+  }
+  .btn-f1-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+  }
+  .btn-f1-primary:disabled,
+  .btn-f1-secondary:disabled,
+  .btn-f1-ghost:disabled {
+    opacity: 0.45;
+  }
+  .input-f1 {
+    background: var(--surface-base);
+    border: 1px solid var(--border-medium);
+    padding: 12px 16px;
     color: var(--text-primary);
     font-family: var(--font-body);
-    font-size: 13px;
-    padding: 8px 12px;
-    transition: border-color var(--motion-fast) var(--ease-mechanical),
-                box-shadow var(--motion-fast) var(--ease-mechanical);
   }
   .input-f1::placeholder {
     color: var(--text-muted);
   }
-  .input-f1:hover {
-    border-color: var(--border-strong);
-  }
-  .input-f1:focus-visible {
-    outline: 2px solid var(--border-focus);
-    outline-offset: 1px;
-    border-color: var(--accent-primary);
-    box-shadow: 0 0 8px rgba(225, 6, 0, 0.25);
-  }
-  .input-f1:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    background-color: var(--surface-canvas);
-  }
-
-  /* Interactive Card System */
   .card-interactive {
-    background-color: var(--surface-base);
     border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    transition: border-color var(--motion-fast) var(--ease-mechanical),
-                transform var(--motion-fast) var(--ease-mechanical),
-                box-shadow var(--motion-fast) var(--ease-mechanical);
+    background: var(--surface-base);
   }
-  .card-interactive:hover {
-    border-color: var(--border-strong);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-  }
-  .card-interactive:focus-visible {
-    outline: 2px solid var(--border-focus);
-    outline-offset: 2px;
-  }
-
-  /* Tyre Compound Badges */
   .badge-tyre-soft {
-    background-color: var(--tyre-soft-bg);
+    background: var(--tyre-soft-bg);
     color: var(--tyre-soft);
-    border: 1px solid rgba(255, 24, 1, 0.4);
   }
   .badge-tyre-medium {
-    background-color: var(--tyre-medium-bg);
+    background: var(--tyre-medium-bg);
     color: var(--tyre-medium);
-    border: 1px solid rgba(255, 214, 0, 0.4);
   }
   .badge-tyre-hard {
-    background-color: var(--tyre-hard-bg);
+    background: var(--tyre-hard-bg);
     color: var(--tyre-hard);
-    border: 1px solid rgba(255, 255, 255, 0.35);
   }
   .badge-tyre-inter {
-    background-color: var(--tyre-inter-bg);
+    background: var(--tyre-inter-bg);
     color: var(--tyre-inter);
-    border: 1px solid rgba(0, 210, 106, 0.4);
   }
   .badge-tyre-wet {
-    background-color: var(--tyre-wet-bg);
+    background: var(--tyre-wet-bg);
     color: var(--tyre-wet);
-    border: 1px solid rgba(0, 144, 255, 0.4);
-  }
-
-  /* Skeleton shimmer base */
-  .skeleton {
-    background: linear-gradient(
-      90deg,
-      #15151E 0%,
-      #252738 40%,
-      #15151E 80%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-shimmer 1.5s linear infinite;
-    border-radius: 4px;
   }
 }
-
-/* ==========================================================================
-   Utility Layer
-   ========================================================================== */
-
 @layer utilities {
-  /* Full Broadcast Typography Scale */
   .type-display {
-    font-family: var(--font-display);
-    font-size: 2.25rem; /* 36px */
-    line-height: 1.1;
-    font-weight: 800;
-    font-style: italic;
+    font: 800 clamp(38px, 5vw, 80px) / 0.95 var(--font-display);
+    letter-spacing: -0.035em;
     text-transform: uppercase;
-    letter-spacing: -0.01em;
-    color: var(--text-primary);
   }
-
   .type-h1 {
-    font-family: var(--font-display);
-    font-size: 1.75rem; /* 28px */
-    line-height: 1.2;
-    font-weight: 800;
-    font-style: italic;
-    text-transform: uppercase;
-    letter-spacing: -0.01em;
-    color: var(--text-primary);
+    font: 800 40px/1 var(--font-display);
   }
-
   .type-h2 {
-    font-family: var(--font-display);
-    font-size: 1.375rem; /* 22px */
-    line-height: 1.25;
-    font-weight: 700;
-    font-style: italic;
-    text-transform: uppercase;
-    letter-spacing: 0em;
-    color: var(--text-primary);
+    font: 700 28px/1.1 var(--font-display);
   }
-
   .type-h3 {
-    font-family: var(--font-display);
-    font-size: 1.125rem; /* 18px */
-    line-height: 1.3;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    color: var(--text-primary);
+    font: 700 22px/1.2 var(--font-display);
   }
-
   .type-h4 {
-    font-family: var(--font-display);
-    font-size: 0.9375rem; /* 15px */
-    line-height: 1.35;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-primary);
+    font: 700 16px/1.3 var(--font-display);
   }
-
   .type-body {
-    font-family: var(--font-body);
-    font-size: 0.875rem; /* 14px */
-    line-height: 1.5;
-    font-weight: 400;
-    color: var(--text-secondary);
+    font: 400 14px/1.7 var(--font-body);
   }
-
   .type-body-sm {
-    font-family: var(--font-body);
-    font-size: 0.8125rem; /* 13px */
-    line-height: 1.45;
-    font-weight: 400;
-    color: var(--text-secondary);
+    font: 400 13px/1.6 var(--font-body);
   }
-
   .type-caption {
-    font-family: var(--font-display);
-    font-size: 0.6875rem; /* 11px */
-    line-height: 1.3;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-muted);
+    font: 400 11px/1.5 var(--font-mono);
   }
-
-  /* Monospace & Tabular figures for telemetry, delta times, and lap times */
   .type-tabular,
   .tabular-timing,
   .font-data {
-    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    font-feature-settings: 'tnum' 1;
-    letter-spacing: -0.01em;
+    font-feature-settings: "tnum" 1;
   }
-
-  .font-display {
+  .font-heading {
     font-family: var(--font-display);
-  }
-
-  .hover-lift {
-    transition: transform var(--motion-fast) var(--ease-mechanical);
-  }
-  .hover-lift:hover {
-    transform: translateY(-1px);
   }
 }

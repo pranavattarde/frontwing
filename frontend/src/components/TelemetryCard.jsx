@@ -449,7 +449,7 @@ export function TelemetryCard({
                   "px-2 py-0.5 rounded text-[10px] capitalize font-mono transition-colors",
                   activeMetric === met
                     ? "bg-accent-primary text-text-primary font-bold shadow-sm"
-                    : "text-text-muted hover:text-text-primary hover:bg-surface-elevated"
+                    : "text-text-muted  "
                 )}
               >
                 {met}
@@ -468,7 +468,7 @@ export function TelemetryCard({
                 "px-2 py-0.5 rounded text-[10px] font-mono border transition-colors",
                 showTable
                   ? "border-accent-primary text-accent-primary bg-accent-primary/10 font-bold"
-                  : "border-border-subtle text-text-muted hover:text-text-primary hover:bg-surface-raised"
+                  : "border-border-subtle text-text-muted  "
               )}
             >
               {showTable ? "[Hide Table]" : "[Data Table]"}
@@ -477,7 +477,7 @@ export function TelemetryCard({
           {onExpand && (
             <button
               onClick={onExpand}
-              className="text-accent-primary hover:text-accent-primary-hover hover:underline transition-colors font-bold"
+              className="text-accent-primary   transition-colors font-bold"
             >
               {isCollapsed ? "[Expand]" : "[Pop Out]"}
             </button>
@@ -504,7 +504,7 @@ export function TelemetryCard({
           {activeMetric === "gear" && !hasGearData && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-base/95 backdrop-blur-sm z-10 text-center font-mono p-4 border border-border-subtle">
               <span className="text-timing-yellow font-bold text-xs tracking-wider mb-1">
-                ⚠️ Gear Data Unavailable
+                ! Gear Data Unavailable
               </span>
               <span className="text-[11px] text-text-muted max-w-sm">
                 FastF1 telemetry for this session does not contain recorded physical nGear channels.
@@ -702,7 +702,7 @@ export function TelemetryCard({
                     <tr
                       key={idx}
                       className={cn(
-                        "hover:bg-surface-raised transition-colors type-tabular",
+                        " transition-colors type-tabular",
                         activeHoverDist !== null && Math.abs(dist - activeHoverDist) < 50
                           ? "bg-accent-primary/15 font-bold"
                           : ""

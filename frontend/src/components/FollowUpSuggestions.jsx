@@ -18,15 +18,15 @@ export function FollowUpSuggestions({
             disabled={disabled}
             onClick={() => onSuggestionClick?.(suggestion)}
             className={cn(
-              "flex items-center justify-between px-3 py-2 border border-border-subtle rounded-card bg-surface-base hover:bg-surface-raised text-left hover:border-border-strong transition-all duration-[80ms] group",
+              "flex items-center justify-between px-3 py-2 border border-border-subtle rounded-card bg-surface-base  text-left  transition-all duration-[80ms] group",
               disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
             )}
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: idx * 0.05, duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
           >
-            <span className="text-sm text-text-secondary group-hover:text-text-primary transition-colors">{suggestion}</span>
-            <span className="font-mono text-mono-meta text-text-muted group-hover:text-accent-primary transition-colors ml-4 shrink-0">
+            <span className="text-sm text-text-secondary  transition-colors">{suggestion}</span>
+            <span className="font-mono text-mono-meta text-text-muted  transition-colors ml-4 shrink-0">
               Ask →
             </span>
           </motion.button>

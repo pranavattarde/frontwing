@@ -23,8 +23,8 @@ export function FilterBar({ filters, onFilterChange, className }) {
       onClick={() => handleToggle(filter.id, opt.value, isSelected)}
       className={cn(
         "px-2.5 py-1 text-xs font-mono rounded-badge border transition-all duration-[80ms]",
-        isSelected ? "bg-accent-primary/15 text-accent-primary border-accent-primary/40 font-medium" : "bg-surface-base text-text-secondary border-border-subtle hover:border-border-strong hover:text-text-primary"
+        isSelected ? "bg-accent-primary/15 text-accent-primary border-accent-primary/40 font-medium" : "bg-surface-base text-text-secondary border-border-subtle  "
       )}
-    >{opt.label}{isSelected && <span className="ml-1 text-[9px] font-semibold">✓</span>}</button>;
+    >{opt.label}{isSelected && <span className="ml-1 text-[9px] font-semibold">+</span>}</button>;
   })}</div></div>)}</div>;
 }
