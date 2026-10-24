@@ -1,6 +1,18 @@
 # PROJECT STATE -- FrontWing
 
-Last updated: 2026-10-24, UI redesign session. Branch: `codex/frontwing-race-ui`.
+Last updated: 2026-10-24, compact homepage revision and requested production release.
+
+## Latest revision
+
+- Replaced the car-led homepage with a product introduction and the current race overview at the top. The investigation room stays prominent; tools, recent history, saved history and real news share one accessible tabbed panel.
+- Desktop page height is 1,160 px at 1280 x 720; phone height is 1,648 px at 390 x 844. Both fit within two screens without horizontal overflow.
+- Added CSS perspective reliefs and short tab transitions, honoring motion pause and reduced motion. Homepage footer is compact. No runtime dependencies were added.
+- Production build passed (1,045 modules). Targeted ESLint checks passed. Verified live calendar/feed data, keyboard tabs, guest archive states, deliberate question prefill and strategy navigation.
+- Both `frontwing.pancred.space` and `frontwing.pranavattarde.in` currently point to the Vercel `frontwing` project. Its Git integration deploys main. The GitHub CD workflow is only an image publisher with a placeholder deployment step.
+- User explicitly authorized pushing, merging the design branch and deploying both domains. Source branch: `codex/frontwing-race-ui`. Production release verification is the remaining step after merge.
+- The screenshots and full revision details are in `docs/UI_REDESIGN.md` and `docs/ui-redesign/compact-home-*.jpg`.
+
+The earlier full-application verification record below remains relevant to the analytical pages; its car-led homepage is superseded.
 
 ## Current verified state
 

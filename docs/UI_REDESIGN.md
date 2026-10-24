@@ -1,5 +1,17 @@
 # FrontWing UI redesign
 
+## Compact homepage revision, 24 October 2026
+
+The homepage now acts as a product workspace. The team-branded car and full-screen promotional hero are removed. A concise product introduction sits beside the current race weekend, next-session countdown and full IST timetable. The investigation room remains prominent immediately below.
+
+The former long sections 02 through 05 share one keyboard-accessible panel with Race tools, Recent, Saved and Paddock feed tabs. The tools link to the actual strategy and replay workspaces. CSS perspective creates depth in the race-round relief and tool illustrations; panel changes use a short perspective entrance. Motion pause and reduced-motion preferences suppress it. The homepage footer is compact; analytical pages retain their established footer.
+
+Browser verification of the production bundle measured 1,160 px total page height at 1280 x 720 (1.61 screens) and 1,648 px at 390 x 844 (1.95 screens). Current race information and the question area are present in the first desktop screen. Five real news items fit inside the shared feed panel. No horizontal page overflow was observed. Verified arrow-key tab navigation, guest history/saved states, suggestion prefill without submission and direct strategy navigation. Screenshots: `compact-home-desktop.jpg` and `compact-home-mobile.jpg` in `docs/ui-redesign/`.
+
+Production build passed with 1,045 modules; targeted ESLint checks returned no errors. This revision adds no runtime dependency. Verification used the existing public Render gateway, avoiding a second local database/AI stack. Both requested custom domains are aliases of the Vercel `frontwing` project, whose existing Git integration publishes the main branch. The GitHub CD workflow only publishes container images and contains a placeholder deployment step; it is not the Vercel release mechanism.
+
+The original design and verification record follows for context; the compact homepage supersedes its car-led landing page.
+
 Implemented 24 October 2026 on `codex/frontwing-race-ui`.
 
 ## Design

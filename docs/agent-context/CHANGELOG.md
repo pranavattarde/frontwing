@@ -1,3 +1,14 @@
+## Session 054 -- 2026-10-24 -- Compact product homepage and production release
+> Source branch: `codex/frontwing-race-ui`; user authorized merge and deployment to both custom domains.
+
+- Removed the team-branded car hero; brought product purpose, current race, next session and timetable to the opening view.
+- Preserved the investigation room and condensed tools/history/news into an accessible tabbed pit wall with CSS perspective depth, transition effects and motion controls.
+- Added a compact homepage footer. No new runtime dependencies.
+- Browser measurements: 1,160 px at 1280 x 720; 1,648 px at 390 x 844, both under two screens with no horizontal overflow. Verified real calendar/news, keyboard tabs, guest history states, prefill without submission and strategy navigation.
+- Production build passed (1,045 modules); targeted lint passed. Added compact desktop/mobile screenshots and updated design documentation.
+- Confirmed both custom domains use the same Vercel project and main-branch Git integration. The separate GitHub CD workflow publishes images but has a placeholder deployment job.
+
+---
 ## Session 053 -- 2026-10-24 -- Racing editorial UI redesign
 > Branch: `codex/frontwing-race-ui`
 > Scope: React/Tailwind interface, preserved backend features, production browser verification.

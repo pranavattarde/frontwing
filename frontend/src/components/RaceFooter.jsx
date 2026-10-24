@@ -1,7 +1,8 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 export function RaceFooter() {
+  const compact = useLocation().pathname === "/";
   return (
-    <footer className="race-footer">
+    <footer className={`race-footer ${compact ? "race-footer-compact" : ""}`}>
       <div className="footer-top">
         <span>
           INDEPENDENT INTELLIGENCE.
