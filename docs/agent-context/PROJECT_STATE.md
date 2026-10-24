@@ -1,59 +1,48 @@
 # PROJECT STATE -- FrontWing
 
-Last updated: 2026-10-24, compact homepage revision and requested production release.
+Last updated: 2026-10-24, homepage UX rebuild. Source branch: `codex/homepage-ux-rebuild`.
 
-## Latest revision
+## Current design direction
 
-- Replaced the car-led homepage with a product introduction and the current race overview at the top. The investigation room stays prominent; tools, recent history, saved history and real news share one accessible tabbed panel.
-- Desktop page height is 1,160 px at 1280 x 720; phone height is 1,648 px at 390 x 844. Both fit within two screens without horizontal overflow.
-- Added CSS perspective reliefs and short tab transitions, honoring motion pause and reduced motion. Homepage footer is compact. No runtime dependencies were added.
-- Production build passed (1,045 modules). Targeted ESLint checks passed. Verified live calendar/feed data, keyboard tabs, guest archive states, deliberate question prefill and strategy navigation.
-- Both `frontwing.pancred.space` and `frontwing.pranavattarde.in` currently point to the Vercel `frontwing` project. Its Git integration deploys main. The GitHub CD workflow is only an image publisher with a placeholder deployment step.
-- User explicitly authorized pushing, merging the design branch and deploying both domains. Source branch `codex/frontwing-race-ui` was merged into main at `8422103`. Both frontend aliases serve the new bundle.
-- Live verification found the gateway returned 403 for `https://frontwing.pranavattarde.in` because it was missing from the CORS allowlist. Added that exact HTTPS origin in `b9bc483`; the production gateway now returns 200 for its race feed and 204 for authenticated-request preflights on both frontend origins. An untrusted lookalike origin still returns 403.
-- Release complete: both custom domains serve the compact redesign and real race/news data. Verified production desktop and phone layouts (same 1,160 / 1,648 px heights), zero landing-page car images, tabs and source links. Vercel marked the merged release successful. Full CI passed for both the merge and gateway fix; latest verified run: `40086720215`.
-- The screenshots and full revision details are in `docs/UI_REDESIGN.md` and `docs/ui-redesign/compact-home-*.jpg`.
+The user rejected the earlier compact homepage because it reduced type sizes and compressed unrelated content to hit a literal screen count. That layout is superseded. Do not restore it or use viewport height as the main acceptance criterion.
 
-The earlier full-application verification record below remains relevant to the analytical pages; its car-led homepage is superseded.
+The homepage now has a single investigation workspace with a visible field label and Investigate button. The current race is supporting context beside it on desktop; phones show a concise weekend summary above the question area. Full schedules and news open on demand. Strategy Engineer and Ghost Battle have separate readable entry rows. History, saved items, pinning, groups and deletion remain in the canonical archive; authenticated users can continue their latest investigation from the homepage.
 
-## Current verified state
+## UX acceptance criteria
 
-The frontend has a complete racing editorial redesign. React and Tailwind remain the implementation foundation. No new runtime dependency was added; Lucide was removed. The existing Framer Motion and lazy-loaded Three.js / React Three Fiber features remain.
+- Primary copy is 18 px on desktop and 17 px on phones. Input is 16 px or larger. Labels and controls retain comfortable sizes; metadata is at least 12 px.
+- The enabled Investigate button has 4.90:1 text contrast. Interactive targets are at least 44 px.
+- Keep one clear primary action, readable hierarchy, purposeful spacing and progressive disclosure. Avoid miniature timetables, duplicate hero/query sections, mixed-content tab walls and decorative fake 3D demos.
+- Suggested question intents only prefill; explicit submission remains necessary. The race calendar loads independently of the editorial feed.
+- Dialogs have accessible names, focus traps, Escape support, body scroll locking and focus restoration. Existing motion pause and reduced-motion preferences are honored.
+- Keep the original exclusions, including no hover animation, gradients, shadows, soft cards, Lucide or team-car advertising on the homepage.
 
-The new shell includes responsive navigation, an accessible account/investigation archive, real-history search, a large editorial homepage, scroll-driven car artwork, motion pause, a matching footer and reading-page styles. Strategy and investigation response widgets share the new typography, colors and angular surfaces. The original investigation, simulation, history, authentication, event-feed and 3D APIs remain connected.
+## Verified in this session
 
-See `docs/UI_REDESIGN.md` for design, preserved features, checks, limitations and screenshot locations.
+- Production Vite build passes: 1,045 modules. The lazy Three.js vendor size warning remains unchanged.
+- Targeted ESLint checks pass with zero errors.
+- Browser QA at 1280 x 720 and 390 x 844, normal zoom: no horizontal overflow; desktop body text 18 px, phone input 16 px and submit button 52 px tall.
+- Real weekend schedule renders all five sessions in readable IST and circuit-local rows. Phone schedule uses a single-column reading layout.
+- Real editorial feed contains five articles with source links. News uses a readable drawer, rather than loading all stories into the landing page.
+- Verified suggestion prefill without submission, keyboard modal loop, Escape/focus restoration, mobile motion pause and both tool destinations.
+- QuestionBar now accepts optional inputId and submitLabel props. Existing analytical pages retain their default input and submit behavior.
+- No new runtime dependency, backend or schema change. Hero timeout allows 30 seconds for gateway cold starts.
 
-## Verified this session
+Screenshots: `docs/ui-redesign/ux-rebuild-desktop.jpg`, `ux-rebuild-mobile.jpg`, `ux-rebuild-full-page.jpg`, `ux-weekend-schedule.jpg`, `ux-news-drawer.jpg`.
 
-- Frontend production build succeeds (1,046 modules).
-- Frontend lint exits successfully: zero errors, 147 unused-variable warnings. Many JSX imports are reported because the existing configuration does not enable React JSX usage rules.
-- Browser verification used the production bundle at `http://127.0.0.1:4175/`, desktop 1280 x 720 and phone 390 x 844, with actual local backend responses.
-- British 2024 investigation returned Hamilton as winner. Real strategy simulation results, lap chart and comparison table rendered and reopened from saved history.
-- Ctrl+K history search opened the correct strategy route. Mobile menu, authentication, archive close/navigation and motion pause were exercised.
-- British 2024 HAM/VER Ghost Battle generated, stayed visible after its URL changed, and rendered actual sectors, lap times and top speeds. Seeking, reset and speed controls worked.
-- Team selection uses static thumbnails and zero WebGL canvases. The generated circuit uses one demand-rendered canvas. Responsive track framing derives from real circuit bounds.
-- User-requested cleanup closed all five research/testing tabs created for this redesign, including the final preview. No agent-created testing tab remains open.
+## Release and infrastructure
 
-## Running local stack
+Prior release main commit: `ad6e361`. The existing Vercel project serves both `https://frontwing.pancred.space/` and `https://frontwing.pranavattarde.in/`; its Git integration deploys main. Gateway: `https://frontwing-backend.onrender.com`. Keep the exact custom-domain CORS entry added in `b9bc483`.
 
-Production frontend: `https://frontwing.pancred.space/` and `https://frontwing.pranavattarde.in/`, both aliases of the Vercel project. Gateway: `https://frontwing-backend.onrender.com`. Vercel and Render publish main through their existing Git integrations. The GitHub CD workflow separately publishes container images; its deployment job is a placeholder and is not the live release mechanism.
+The user authorized push, merge and deployment to both domains earlier in this same task. The UX rebuild is ready for merge and production verification. Record final deployment evidence here after release.
 
-The local preview on port 4175 was used for compact-layout checks against the real public gateway. Local Docker/AI services are not running in this revision's verification session. Temporary browser verification tabs were left unmarked for cleanup; the successful test tab was explicitly closed. Logs are ignored under `logs/compact-*`.
+Local preview uses port 4175 and the public gateway. No local Docker/AI stack was started for this revision. Browser testing reuses one temporary tab.
 
-## Known limits
+## Maintenance and evidence limits
 
-- The lazy Three.js vendor bundle is 906.85 kB and Vite warns about its size. It is isolated from the initial homepage bundle.
-- The existing backend returned duplicate saved strategy turns during QA. Persistence logic was outside this UI change.
-- Backend and Python test suites were not rerun for this frontend-only change. Earlier audit results remain historical in CHANGELOG.md; they are not new verification claims.
-- Unrelated untracked interview-preparation documents and scratch scripts were left untouched and excluded from the redesign commit.
-- Live external data, account operations and analysis still depend on their backend/upstream services. No fallback race results, telemetry or circuit outlines were fabricated.
-
-## Important maintenance points
-
-- Keep `GhostBattle3D` lazy-loaded from App.jsx.
-- Preserve `generatedBattleRef`: updating replay URL parameters must not trigger setup effects that discard the generated data.
-- Suggestions only prefill. Agent queries and telemetry extraction require an explicit submit/generate action.
-- Keep original API contracts and correct `/strategy?id=...` history routing.
-- Preserve authentic circuit geometry and honest missing-data messages.
-- Read RULES_AND_GOTCHAS.md and update this file plus CHANGELOG.md for subsequent work.
+- Preserve lazy loading of GhostBattle3D and its generated URL-state guard.
+- Preserve real API contracts, explicit query/generate actions and correct `/strategy?id=...` history routing.
+- Keep authentic circuit geometry and honest unavailable states; do not fabricate telemetry or news.
+- Full service-suite results from previous sessions are historical unless reverified for this release.
+- Unrelated untracked interview documents and scratch scripts are untouched.
+- Update this state file and prepend CHANGELOG.md for subsequent work; RULES_AND_GOTCHAS.md is append-only.

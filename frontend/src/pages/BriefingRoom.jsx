@@ -1,32 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { QuestionBar } from "@/components/QuestionBar";
-import { getCircuitByTrackName } from "@/lib/circuitTracks";
-import { generateId } from "@/lib/utils";
 import {
   fetchHistory,
-  deleteHistory,
   fetchHeroCurrent,
   fetchEditorialCurrent,
 } from "@/lib/api";
+import { generateId } from "@/lib/utils";
 
 const QUESTIONS = [
-  "Compare Norris and Verstappen's fastest laps at the 2024 Dutch GP",
-  "Why did Hamilton win the 2024 British Grand Prix?",
-  "Analyze Leclerc's tyre degradation at the 2024 Italian GP",
+  [
+    "Compare laps",
+    "Compare Norris and Verstappen's fastest laps at the 2024 Dutch GP",
+  ],
+  ["Explain a result", "Why did Hamilton win the 2024 British Grand Prix?"],
+  [
+    "Tyre analysis",
+    "Analyze Leclerc's tyre degradation at the 2024 Italian GP",
+  ],
 ];
-const PANELS = [
-  ["tools", "Race tools"],
-  ["recent", "Recent"],
-  ["saved", "Saved"],
-  ["news", "Paddock feed"],
-];
-const clean = (text) => {
+const clean = (value) => {
   const decoder = document.createElement("textarea");
-  decoder.innerHTML = String(text || "");
+  decoder.innerHTML = String(value || "");
   return decoder.value
     .replace(/<[^>]*(?:>|$)/g, "")
-    .replace(/\u2014|\u0393\u00c7\u00f6/g, ":")
+    .replace(/[\u2013\u2014]|\u0393\u00c7[\u00f4\u00f6]/g, ":")
     .trim();
 };
 const isStrategy = (item) =>
@@ -36,321 +34,222 @@ const isStrategy = (item) =>
   item.type === "strategy" ||
   item.conversation_id?.startsWith("strat-");
 
-function RaceWeekend({ hero, loading, reload, now }) {
-  const circuit = hero
-    ? getCircuitByTrackName(hero.circuit_key, hero.location)
-    : null;
-  const track =
-    hero?.track_geometry || (circuit?.hasTelemetry ? circuit : null);
-  const nextSession = hero?.sessions?.find(
-    (session) => new Date(session.utc).getTime() > now,
+function Dialog({ title, onClose, children, kind = "schedule" }) {
+  const panel = useRef(null);
+  useEffect(() => {
+    const previous = document.activeElement;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panel.current?.querySelector("button")?.focus();
+    const keyDown = (event) => {
+      if (event.key === "Escape") onClose();
+      if (event.key !== "Tab") return;
+      const controls = [
+        ...panel.current.querySelectorAll('button, a[href], [tabindex="0"]'),
+      ].filter(
+        (element) => element.getClientRects().length && !element.disabled,
+      );
+      const first = controls[0],
+        last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      }
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener("keydown", keyDown);
+    const otherDialogs = [
+      "toggle-command-palette",
+      "toggle-search-overlay",
+      "frontwing-open-auth-modal",
+      "frontwing-toggle-sidebar",
+    ];
+    otherDialogs.forEach((event) => window.addEventListener(event, onClose));
+    return () => {
+      document.body.style.overflow = overflow;
+      document.removeEventListener("keydown", keyDown);
+      otherDialogs.forEach((event) =>
+        window.removeEventListener(event, onClose),
+      );
+      previous?.focus();
+    };
+  }, [onClose]);
+  return (
+    <div className={`home-dialog-layer home-dialog-${kind}`}>
+      <button
+        className="home-dialog-scrim"
+        onClick={onClose}
+        aria-label={`Close ${title}`}
+        tabIndex={-1}
+      />
+      <section
+        ref={panel}
+        className="home-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="home-dialog-title"
+      >
+        <header>
+          <div>
+            <span className="home-kicker">
+              FRONTWING /{" "}
+              {kind === "schedule" ? "RACE WEEKEND" : "FROM THE PADDOCK"}
+            </span>
+            <h2 id="home-dialog-title">{title}</h2>
+          </div>
+          <button onClick={onClose} aria-label="Close dialog">
+            Close <span aria-hidden="true">×</span>
+          </button>
+        </header>
+        <div className="home-dialog-content">{children}</div>
+      </section>
+    </div>
   );
-  const advertised = new Date(hero?.countdown_target).getTime();
-  const target =
-    advertised > now ? advertised : new Date(nextSession?.utc).getTime();
-  const seconds = Math.max(0, Math.floor((target - now) / 1000));
+}
+
+function RaceContext({ race, loading, now, onSchedule, onRetry }) {
+  const upcoming = (race?.sessions || [])
+    .filter((session) => new Date(session.utc).getTime() > now)
+    .sort((a, b) => new Date(a.utc) - new Date(b.utc));
+  const next = upcoming[0];
+  const remaining = next
+    ? Math.max(0, Math.floor((new Date(next.utc).getTime() - now) / 1000))
+    : null;
   const countdown =
-    Number.isFinite(seconds) && seconds > 0
+    remaining !== null
       ? [
-          Math.floor(seconds / 86400),
-          Math.floor(seconds / 3600) % 24,
-          Math.floor(seconds / 60) % 60,
-          seconds % 60,
+          Math.floor(remaining / 86400),
+          Math.floor(remaining / 3600) % 24,
+          Math.floor(remaining / 60) % 60,
+          remaining % 60,
         ]
       : null;
   return (
-    <section className="weekend-deck" aria-labelledby="weekend-heading">
-      {hero ? (
+    <aside className="home-race-context" aria-label="Current race weekend">
+      {race ? (
         <>
-          <div className="weekend-deck-top">
-            <span className="eyebrow">THE CURRENT RACE WEEKEND</span>
-            <span className="eyebrow">
-              {hero.season} / ROUND {hero.round_number}
+          <button
+            className="home-race-mobile"
+            onClick={onSchedule}
+            aria-label={`View weekend schedule for ${race.event_name}`}
+          >
+            <span>
+              <small>This weekend</small>
+              <strong>{race.event_name}</strong>
+              <span>{next ? `${next.name} · ${next.ist}` : race.location}</span>
             </span>
-          </div>
-          <div className="weekend-deck-main">
-            <div className="weekend-event">
-              <h2 id="weekend-heading">{hero.event_name}</h2>
-              <p>{hero.location}</p>
-              <div className="weekend-next">
-                <span>
-                  {nextSession ? `NEXT / ${nextSession.name}` : "RACE WEEKEND"}
-                </span>
-                {countdown ? (
-                  <strong
-                    aria-label="Time to next session"
-                    className="weekend-clock"
-                  >
-                    {countdown.map((value, i) => (
-                      <span key={i}>
-                        {String(value).padStart(2, "0")}
-                        <small>{["D", "H", "M", "S"][i]}</small>
-                      </span>
-                    ))}
-                  </strong>
-                ) : (
-                  <strong>
-                    {nextSession?.ist || "Follow the session timetable"}
-                  </strong>
-                )}
-              </div>
+            <span aria-hidden="true">+</span>
+          </button>
+          <div className="home-race-desktop">
+            <div className="home-context-label">
+              <span>This weekend</span>
+              <span>
+                {race.season} / R
+                {String(race.round_number || "").padStart(2, "0")}
+              </span>
             </div>
-            <div className="weekend-relief" aria-hidden="true">
-              {track?.trackPath ? (
-                <svg viewBox={track.viewBox || "0 0 480 260"} fill="none">
-                  <path d={track.trackPath} />
-                  <path
-                    className="relief-trace"
-                    d={track.trackPath}
-                    pathLength="100"
-                  />
-                </svg>
-              ) : (
-                <>
-                  <span>ROUND</span>
-                  <strong>
-                    {String(hero.round_number || "").padStart(2, "0")}
-                  </strong>
-                  <small>{hero.location?.split(",")[0]}</small>
-                </>
-              )}
+            <h2>{race.event_name}</h2>
+            <p className="home-context-location">{race.location}</p>
+            <div className="home-next-session">
+              <span className="home-kicker">UP NEXT</span>
+              <h3>{next?.name || "Weekend timetable"}</h3>
+              <p>{next?.ist || "See the complete weekend schedule"}</p>
             </div>
-          </div>
-          <div className="weekend-agenda" aria-label="Session timetable in IST">
-            {hero.sessions?.map((session, i) => (
+            {countdown && (
               <div
-                key={`${session.name}-${i}`}
-                className={session === nextSession ? "is-next" : ""}
+                className="home-context-countdown"
+                aria-label="Time to next session"
               >
-                <span>{session.name.replace("Practice ", "FP")}</span>
-                <time>{session.ist}</time>
+                {countdown.map((value, index) => (
+                  <span key={index}>
+                    <strong>{String(value).padStart(2, "0")}</strong>
+                    <small>{["Days", "Hours", "Mins", "Secs"][index]}</small>
+                  </span>
+                ))}
               </div>
-            ))}
+            )}
+            <button className="home-schedule-button" onClick={onSchedule}>
+              Weekend schedule <span aria-hidden="true">+</span>
+            </button>
+            <p className="home-context-note">
+              Times shown in Indian Standard Time.
+            </p>
           </div>
-          <span className="weekend-timezone">
-            ALL TIMES IST
-            {nextSession?.local
-              ? ` / NEXT AT TRACK: ${nextSession.local}`
-              : " / OFFICIAL EVENT CALENDAR"}
-          </span>
         </>
       ) : (
-        <div className="weekend-unavailable">
-          <span className="eyebrow">THE CURRENT RACE WEEKEND</span>
-          <h2 id="weekend-heading">THE CALENDAR</h2>
+        <div className="home-race-unavailable">
+          <span className="home-kicker">THIS RACE WEEKEND</span>
+          <h2>The race calendar</h2>
           <p role="status">
             {loading
               ? "Connecting to the race calendar…"
-              : "The race calendar is temporarily unavailable."}
+              : "The calendar is temporarily unavailable."}
           </p>
-          <button onClick={reload} disabled={loading}>
-            {loading ? "CONNECTING" : "RETRY CONNECTION"} +
+          <button
+            className="home-schedule-button"
+            disabled={loading}
+            onClick={onRetry}
+          >
+            {loading ? "Connecting…" : "Try again"}
           </button>
         </div>
       )}
-    </section>
-  );
-}
-
-function RaceTools() {
-  return (
-    <div className="compact-tools">
-      <article className="compact-tool">
-        <div className="tool-caption">
-          <span className="eyebrow">02 / STRATEGY ENGINEER</span>
-          <span>WHAT IF?</span>
-        </div>
-        <div className="compact-tool-body">
-          <div>
-            <h3>
-              CHANGE THE CALL.
-              <br />
-              <em>SEE THE OUTCOME.</em>
-            </h3>
-            <p>
-              Move the pit stop. Switch the compound. Compare the projected
-              result with the race that happened.
-            </p>
-          </div>
-          <div className="strategy-relief" aria-hidden="true">
-            <div>
-              <span>ACTUAL</span>
-              <i />
-              <i />
-            </div>
-            <div>
-              <span>WHAT IF</span>
-              <i />
-              <i />
-            </div>
-            <strong>BOX.</strong>
-          </div>
-        </div>
-        <Link className="console-action" to="/strategy">
-          OPEN STRATEGY ENGINEER <span aria-hidden="true">↗</span>
-        </Link>
-      </article>
-      <article className="compact-tool">
-        <div className="tool-caption">
-          <span className="eyebrow">03 / GHOST BATTLE</span>
-          <span>LAP VS LAP</span>
-        </div>
-        <div className="compact-tool-body">
-          <div>
-            <h3>
-              SAME TRACK.
-              <br />
-              <em>DIFFERENT LIMITS.</em>
-            </h3>
-            <p>
-              Replay authentic laps together. Compare up to 22 drivers and find
-              where the difference is made.
-            </p>
-          </div>
-          <div className="ghost-relief" aria-hidden="true">
-            <span>3D</span>
-            <i />
-            <i />
-            <i />
-          </div>
-        </div>
-        <Link className="console-action" to="/ghost-battle">
-          ENTER GHOST BATTLE <span aria-hidden="true">↗</span>
-        </Link>
-      </article>
-    </div>
-  );
-}
-
-function PaddockFeed({ editorial, loading }) {
-  const news = [
-    ...(editorial?.featured_stories || []),
-    ...(editorial?.trending_insights || []),
-  ];
-  return (
-    <div className="compact-feed">
-      <div className="console-section-label">
-        <span>05 / FROM THE PADDOCK</span>
-        <a
-          href="https://www.formula1.com/en/latest"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          ALL F1 NEWS ↗
-        </a>
-      </div>
-      {news.length ? (
-        <div className="compact-news-list">
-          {news.map((item, index) => {
-            const title = clean(item.title || item.headline);
-            const sourceUrl = item.source_url || item.sourceUrl;
-            const href = /^https?:\/\//i.test(sourceUrl || "")
-              ? sourceUrl
-              : null;
-            return (
-              <article key={item.id || index}>
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                <div>
-                  <small>
-                    {item.source_outlet || item.source || "FROM THE PADDOCK"}
-                  </small>
-                  <h3>
-                    {href ? (
-                      <a href={href} target="_blank" rel="noopener noreferrer">
-                        {title}
-                      </a>
-                    ) : (
-                      title
-                    )}
-                  </h3>
-                </div>
-                {href && (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Read ${title}`}
-                  >
-                    <span aria-hidden="true">↗</span>
-                  </a>
-                )}
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <p className="console-message" role="status">
-          {loading
-            ? "Opening the editorial feed…"
-            : "The editorial feed is unavailable. Visit Formula 1 for the latest reporting."}
-        </p>
-      )}
-    </div>
+    </aside>
   );
 }
 
 export function BriefingRoom() {
   const navigate = useNavigate();
-  const [recent, setRecent] = useState([]);
-  const [authenticated, setAuthenticated] = useState(
-    !!localStorage.getItem("frontwing_token"),
-  );
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState("");
+  const [race, setRace] = useState(null);
+  const [editorial, setEditorial] = useState(null);
+  const [raceLoading, setRaceLoading] = useState(true);
+  const [newsLoading, setNewsLoading] = useState(true);
+  const [dialog, setDialog] = useState(null);
+  const closeDialog = useCallback(() => setDialog(null), []);
   const [prefill, setPrefill] = useState(
     new URLSearchParams(window.location.search).get("q") || "",
   );
-  const [hero, setHero] = useState(null);
-  const [editorial, setEditorial] = useState(null);
-  const [feedLoading, setFeedLoading] = useState(true);
-  const [activePanel, setActivePanel] = useState("tools");
-  const panelTabs = useRef([]);
+  const [authenticated, setAuthenticated] = useState(
+    !!localStorage.getItem("frontwing_token"),
+  );
+  const [latest, setLatest] = useState(null);
   const [now, setNow] = useState(Date.now());
-  const [deleting, setDeleting] = useState(null);
-  const deleteDialog = useRef(null);
   const loadHistory = useCallback(async () => {
     const signedIn = !!localStorage.getItem("frontwing_token");
     setAuthenticated(signedIn);
     if (!signedIn) {
-      setRecent([]);
+      setLatest(null);
       return;
     }
-    setHistoryLoading(true);
-    setHistoryError("");
     try {
-      const data = await fetchHistory({ limit: 10 });
-      setRecent(data?.investigations || []);
+      const history = await fetchHistory({ limit: 1 });
+      setLatest(history?.investigations?.[0] || null);
     } catch {
-      setHistoryError("Your archive could not be reached. Try again shortly.");
-    } finally {
-      setHistoryLoading(false);
+      setLatest(null);
     }
   }, []);
   const loadFeeds = useCallback(async () => {
-    setFeedLoading(true);
-    const [race, news] = await Promise.all([
-      fetchHeroCurrent(),
-      fetchEditorialCurrent(),
+    setRaceLoading(true);
+    setNewsLoading(true);
+    await Promise.all([
+      fetchHeroCurrent().then((currentRace) => {
+        setRace(currentRace?.event_name ? currentRace : null);
+        setRaceLoading(false);
+      }),
+      fetchEditorialCurrent().then((news) => {
+        setEditorial(news);
+        setNewsLoading(false);
+      }),
     ]);
-    setHero(race?.event_name ? race : null);
-    setEditorial(news);
-    setFeedLoading(false);
   }, []);
   useEffect(() => {
     loadHistory();
     loadFeeds();
     const prefillQuery = (event) => {
-      if (!event.detail?.query) return;
-      setPrefill(event.detail.query);
-      document
-        .getElementById("race-engineer")
-        ?.scrollIntoView({
-          behavior:
-            document.documentElement.dataset.motion === "paused" ||
-            window.matchMedia("(prefers-reduced-motion: reduce)").matches
-              ? "auto"
-              : "smooth",
-        });
+      if (event.detail?.query) setPrefill(event.detail.query);
     };
     window.addEventListener("frontwing-auth-changed", loadHistory);
     window.addEventListener("frontwing-auth-unauthorized", loadHistory);
@@ -365,36 +264,13 @@ export function BriefingRoom() {
       window.removeEventListener("frontwing-prefill-query", prefillQuery);
     };
   }, [loadHistory, loadFeeds]);
-  useEffect(() => {
-    if (!deleting) return;
-    const previous = document.activeElement;
-    deleteDialog.current?.querySelector("button")?.focus();
-    const onKey = (event) => {
-      if (event.key === "Escape") setDeleting(null);
-      if (event.key !== "Tab") return;
-      const buttons = deleteDialog.current.querySelectorAll("button");
-      if (event.shiftKey && document.activeElement === buttons[0]) {
-        event.preventDefault();
-        buttons[1].focus();
-      }
-      if (!event.shiftKey && document.activeElement === buttons[1]) {
-        event.preventDefault();
-        buttons[0].focus();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      previous?.focus();
-    };
-  }, [deleting]);
-  const submit = (query) => {
-    if (!query.trim()) return;
+  const submit = (question) => {
+    if (!question.trim()) return;
     const id = generateId();
     const investigation = {
       id,
-      question: query,
-      display_title: query,
+      question,
+      display_title: question,
       status: "loading",
       exchanges: [],
       timestamp: new Date().toISOString(),
@@ -410,297 +286,234 @@ export function BriefingRoom() {
     );
     navigate(`/investigate/${id}`);
   };
-  const remove = async () => {
-    if (!deleting) return;
-    try {
-      if (!(await deleteHistory(deleting.id))) throw new Error();
-      localStorage.removeItem(`frontwing_investigation_${deleting.id}`);
-      window.dispatchEvent(new CustomEvent("frontwing-history-updated"));
-      setDeleting(null);
-    } catch {
-      setHistoryError(
-        "The investigation could not be deleted. Please try again.",
-      );
-      setDeleting(null);
-    }
-  };
-  const visibleHistory =
-    activePanel === "saved" ? recent.filter((item) => item.is_saved) : recent;
-  const openAuth = () =>
-    window.dispatchEvent(new CustomEvent("frontwing-open-auth-modal"));
+  const openArchive = () =>
+    window.dispatchEvent(new CustomEvent("frontwing-toggle-sidebar"));
+  const news = [
+    ...(editorial?.featured_stories || []),
+    ...(editorial?.trending_insights || []),
+  ];
 
   return (
-    <div className="briefing-page compact-briefing">
-      <section className="pitwall-overview" aria-labelledby="pitwall-heading">
-        <div className="pitwall-intro">
-          <span className="eyebrow">
-            FRONTWING / YOUR RACE INTELLIGENCE WORKSPACE
-          </span>
-          <h1 id="pitwall-heading">
-            UNDERSTAND
+    <div className="home-workspace">
+      <section className="home-primary" aria-labelledby="home-heading">
+        <div className="home-investigate" id="race-engineer">
+          <span className="home-kicker">01 / YOUR RACE ENGINEER</span>
+          <h1 id="home-heading">
+            Good questions.
             <br />
-            <em>THE RACE.</em>
+            <em>Race-winning insight.</em>
           </h1>
-          <p>
-            Ask what happened. Find out why. Explore the telemetry, test a
-            pit-wall decision, or compare laps in 3D.
+          <p className="home-introduction">
+            Understand the story behind every lap.
+            <br className="home-desktop-break" /> Ask a race question and
+            explore the evidence.
           </p>
-          <div className="pitwall-principles">
-            <span>REAL RACE DATA</span>
-            <span>EVIDENCE YOU CAN EXPLORE</span>
+          <div className="home-query">
+            <label htmlFor="home-question">Ask the race engineer</label>
+            <QuestionBar
+              variant="hero"
+              inputId="home-question"
+              placeholder="A driver, a race, or a lap…"
+              submitLabel="Investigate"
+              prefillValue={prefill}
+              onSubmit={submit}
+            />
+            <div className="home-question-starts">
+              <span>Try a question</span>
+              <div>
+                {QUESTIONS.map(([label, question]) => (
+                  <button
+                    key={label}
+                    onClick={() => {
+                      setPrefill(question);
+                      window.dispatchEvent(
+                        new CustomEvent("frontwing-focus-input"),
+                      );
+                    }}
+                  >
+                    {label} <span aria-hidden="true">+</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="home-returning">
+            {latest ? (
+              <button
+                onClick={() =>
+                  navigate(
+                    isStrategy(latest)
+                      ? `/strategy?id=${latest.id}`
+                      : `/investigate/${latest.id}`,
+                  )
+                }
+              >
+                <span>Continue your last investigation</span>
+                <strong>{latest.display_title || latest.question}</strong>
+              </button>
+            ) : null}
+            <button
+              className="home-text-link"
+              onClick={
+                authenticated
+                  ? openArchive
+                  : () =>
+                      window.dispatchEvent(
+                        new CustomEvent("frontwing-open-auth-modal"),
+                      )
+              }
+            >
+              {authenticated
+                ? "Open your archive"
+                : "Sign in to save investigations"}{" "}
+              <span aria-hidden="true">↗</span>
+            </button>
           </div>
         </div>
-        <RaceWeekend
-          hero={hero}
-          loading={feedLoading}
-          reload={loadFeeds}
+        <RaceContext
+          race={race}
+          loading={raceLoading}
           now={now}
+          onSchedule={() => setDialog("schedule")}
+          onRetry={loadFeeds}
         />
       </section>
 
-      <section
-        className="engineer-section"
-        id="race-engineer"
-        aria-labelledby="engineer-heading"
-      >
-        <div className="compact-engineer-copy">
-          <span className="eyebrow">01 / THE INVESTIGATION ROOM</span>
-          <h2 id="engineer-heading">
-            GOOD QUESTIONS.
-            <br />
-            <em>RACE-WINNING INSIGHT.</em>
-          </h2>
+      <section className="home-explore" aria-labelledby="home-explore-heading">
+        <div className="home-explore-heading">
+          <div>
+            <span className="home-kicker">A DIFFERENT QUESTION?</span>
+            <h2 id="home-explore-heading">Take it to the pit wall.</h2>
+          </div>
           <p>
-            Your direct line to the race engineer. Pick a driver, question a
-            decision, follow the evidence.
+            Two dedicated workspaces for the decisions
+            <br className="home-desktop-break" /> and differences that shape a
+            race.
           </p>
-          <button
-            className="compact-search"
-            onClick={() =>
-              window.dispatchEvent(new CustomEvent("toggle-search-overlay"))
-            }
-          >
-            SEARCH YOUR ARCHIVE <kbd>CTRL K</kbd>
-          </button>
         </div>
-        <div className="engineer-workbench">
-          <div className="workbench-title">
-            <span>ASK THE RACE ENGINEER</span>
-            <span>RADIO / OPEN</span>
+        <div className="home-tool-list">
+          <article className="home-tool">
+            <span className="home-tool-index" aria-hidden="true">
+              02
+            </span>
+            <div>
+              <h3>Strategy Engineer</h3>
+              <p>
+                Change the pit lap or tyre compound. See how a different call
+                could have changed the result.
+              </p>
+            </div>
+            <Link className="home-tool-action" to="/strategy">
+              Test a strategy <span aria-hidden="true">↗</span>
+            </Link>
+          </article>
+          <article className="home-tool">
+            <span className="home-tool-index" aria-hidden="true">
+              03
+            </span>
+            <div>
+              <h3>Ghost Battle</h3>
+              <p>
+                Put authentic laps on the same track. Discover where a driver
+                gains time, corner by corner.
+              </p>
+            </div>
+            <Link className="home-tool-action" to="/ghost-battle">
+              Compare laps <span aria-hidden="true">↗</span>
+            </Link>
+          </article>
+        </div>
+        <div className="home-utility">
+          <div>
+            <span className="home-kicker">FROM THE PADDOCK</span>
+            <p>Keep up with the race beyond the data.</p>
           </div>
-          <QuestionBar
-            variant="hero"
-            placeholder="What do you want to know about the race?"
-            onSubmit={submit}
-            prefillValue={prefill}
-          />
-          <div className="question-examples">
-            <span>OR START HERE</span>
-            {QUESTIONS.map((question, i) => (
-              <button
-                key={question}
-                onClick={() => {
-                  setPrefill(question);
-                  window.dispatchEvent(
-                    new CustomEvent("frontwing-focus-input"),
-                  );
-                }}
-              >
-                <small>0{i + 1}</small>
-                {question}
-                <span aria-hidden="true">+</span>
-              </button>
-            ))}
-          </div>
+          <button className="home-text-link" onClick={() => setDialog("news")}>
+            News & race debriefs <span aria-hidden="true">+</span>
+          </button>
         </div>
       </section>
 
-      <section className="paddock-console" aria-labelledby="paddock-heading">
-        <div className="paddock-console-header">
-          <div>
-            <span className="eyebrow">YOUR NEXT MOVE</span>
-            <h2 id="paddock-heading">THE PIT WALL.</h2>
+      {dialog === "schedule" && (
+        <Dialog title="The weekend schedule" onClose={closeDialog}>
+          <div className="home-schedule-intro">
+            <h3>{race?.event_name || "Race calendar"}</h3>
+            <p>
+              {race?.location} {race?.season && ` / ${race.season}`}
+            </p>
           </div>
-          <div
-            className="paddock-tabs"
-            role="tablist"
-            aria-label="Pit wall workspace"
-          >
-            {PANELS.map(([id, label], index) => (
-              <button
-                key={id}
-                ref={(element) => {
-                  panelTabs.current[index] = element;
-                }}
-                id={`paddock-tab-${id}`}
-                role="tab"
-                aria-selected={activePanel === id}
-                aria-controls="paddock-panel"
-                tabIndex={activePanel === id ? 0 : -1}
-                onClick={() => setActivePanel(id)}
-                onKeyDown={(event) => {
-                  let next;
-                  if (event.key === "ArrowRight")
-                    next = (index + 1) % PANELS.length;
-                  else if (event.key === "ArrowLeft")
-                    next = (index + PANELS.length - 1) % PANELS.length;
-                  else if (event.key === "Home") next = 0;
-                  else if (event.key === "End") next = PANELS.length - 1;
-                  if (next !== undefined) {
-                    event.preventDefault();
-                    setActivePanel(PANELS[next][0]);
-                    panelTabs.current[next]?.focus();
-                  }
-                }}
-              >
-                {label}
-                {id === "saved" && authenticated && (
-                  <small>{recent.filter((item) => item.is_saved).length}</small>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div
-          key={activePanel}
-          className="paddock-panel"
-          id="paddock-panel"
-          role="tabpanel"
-          aria-labelledby={`paddock-tab-${activePanel}`}
-          tabIndex={0}
-        >
-          {activePanel === "tools" ? (
-            <RaceTools />
-          ) : activePanel === "news" ? (
-            <PaddockFeed editorial={editorial} loading={feedLoading} />
-          ) : (
-            <div className="compact-history">
-              <div className="console-section-label">
-                <span>
-                  04 / YOUR {activePanel === "saved" ? "SAVED" : "RECENT"}{" "}
-                  INVESTIGATIONS
-                </span>
-                <button
-                  onClick={() =>
-                    window.dispatchEvent(
-                      new CustomEvent("frontwing-toggle-sidebar"),
-                    )
-                  }
-                >
-                  OPEN FULL ARCHIVE +
-                </button>
+          {race?.sessions?.length ? (
+            <>
+              <div className="home-schedule-legend">
+                <span>Session</span>
+                <span>Indian Standard Time</span>
+                <span>At the circuit</span>
               </div>
-              {!authenticated ? (
-                <div className="console-empty">
-                  <div>
-                    <h3>
-                      YOUR RACE HISTORY.
-                      <br />
-                      <em>READY WHEN YOU ARE.</em>
-                    </h3>
-                    <p>
-                      Sign in to save investigations, pin a question and pick up
-                      where you left off.
-                    </p>
+              <div className="home-schedule-list">
+                {race.sessions.map((session, index) => (
+                  <div key={`${session.name}-${index}`}>
+                    <strong>{session.name}</strong>
+                    <time dateTime={session.utc}>{session.ist}</time>
+                    <span>{session.local}</span>
                   </div>
-                  <button className="console-action" onClick={openAuth}>
-                    SIGN IN TO YOUR PADDOCK <span aria-hidden="true">↗</span>
-                  </button>
-                </div>
-              ) : historyLoading ? (
-                <p className="console-message" role="status">
-                  Opening your archive…
-                </p>
-              ) : historyError ? (
-                <p className="console-message" role="alert">
-                  {historyError} <button onClick={loadHistory}>Retry</button>
-                </p>
-              ) : visibleHistory.length ? (
-                <div className="compact-history-list">
-                  {visibleHistory.map((item, index) => (
-                    <div key={item.id}>
-                      <span>{String(index + 1).padStart(2, "0")}</span>
-                      <button
-                        onClick={() =>
-                          navigate(
-                            isStrategy(item)
-                              ? `/strategy?id=${item.id}`
-                              : `/investigate/${item.id}`,
-                          )
-                        }
-                      >
-                        {item.display_title || item.question}
-                      </button>
-                      <time>
-                        {new Date(
-                          item.timestamp || item.created_at,
-                        ).toLocaleDateString("en-GB", {
-                          day: "2-digit",
-                          month: "short",
-                        })}
-                      </time>
-                      <button
-                        aria-label={`Delete ${item.display_title || item.question}`}
-                        onClick={() => setDeleting(item)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="console-empty">
-                  <div>
-                    <h3>
-                      START WITH
-                      <br />
-                      <em>A QUESTION.</em>
-                    </h3>
-                    <p>
-                      {activePanel === "saved"
-                        ? "Save an investigation to find it here."
-                        : "Your first investigation starts with the race engineer above."}
-                    </p>
-                  </div>
-                  <a className="console-action" href="#race-engineer">
-                    ASK THE RACE ENGINEER <span aria-hidden="true">↗</span>
-                  </a>
-                </div>
-              )}
-            </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p>The schedule is currently unavailable.</p>
           )}
-        </div>
-        <div className="console-bottom">
-          <span>ONE WORKSPACE. EVERY ANGLE OF THE RACE.</span>
-          <span>TELEMETRY / STRATEGY / 3D REPLAY</span>
-        </div>
-      </section>
-      {deleting && (
-        <div className="confirmation-backdrop">
-          <section
-            ref={deleteDialog}
-            className="confirmation-dialog"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="delete-title"
-          >
-            <span className="eyebrow">YOUR ARCHIVE</span>
-            <h2 id="delete-title">Delete investigation?</h2>
-            <p>{deleting.display_title || deleting.question}</p>
-            <p>This will permanently remove this investigation.</p>
-            <div>
-              <button
-                className="race-button race-button-outline"
-                onClick={() => setDeleting(null)}
-              >
-                CANCEL
-              </button>
-              <button className="race-button" onClick={remove}>
-                DELETE
-              </button>
+        </Dialog>
+      )}
+      {dialog === "news" && (
+        <Dialog title="From the paddock" kind="news" onClose={closeDialog}>
+          <p className="home-news-intro">
+            Race reporting and debriefs from the original sources.
+          </p>
+          {news.length ? (
+            <div className="home-news-list">
+              {news.map((item, index) => {
+                const title = clean(item.title || item.headline);
+                const source = item.source_url || item.sourceUrl;
+                const href = /^https?:\/\//i.test(source || "") ? source : null;
+                return (
+                  <article key={item.id || index}>
+                    <span>
+                      {item.source_outlet || item.source || "Race reporting"}
+                    </span>
+                    <h3>
+                      {href ? (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {title} <span aria-hidden="true">↗</span>
+                        </a>
+                      ) : (
+                        title
+                      )}
+                    </h3>
+                    {item.summary && <p>{clean(item.summary)}</p>}
+                  </article>
+                );
+              })}
             </div>
-          </section>
-        </div>
+          ) : (
+            <p role="status">
+              {newsLoading
+                ? "Opening the feed…"
+                : "The editorial feed is temporarily unavailable."}
+            </p>
+          )}
+          <a
+            className="home-text-link"
+            href="https://www.formula1.com/en/latest"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Visit Formula 1 news <span aria-hidden="true">↗</span>
+          </a>
+        </Dialog>
       )}
     </div>
   );
