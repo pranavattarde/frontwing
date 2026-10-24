@@ -1,5 +1,5 @@
 /**
- * circuitTracks.js — Authentic FastF1 Telemetry Track Geometry & Resolution Engine
+ * circuitTracks.js : Authentic FastF1 Telemetry Track Geometry & Resolution Engine
  * 
  * Provides authentic 2D vector path geometries extracted directly from FastF1 position
  * telemetry decimeters (X, Y, Z coordinates).

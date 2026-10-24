@@ -225,7 +225,7 @@ export function StrategyEngineer() {
   };
 
   return (
-    <div className="min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-accent-primary/20 selection:text-accent-primary">
+    <div className="workspace-page min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-accent-primary/20 selection:text-accent-primary">
       {/* Top Header */}
       <BriefingHeader
         breadcrumbs={[{ label: "Strategy Engineer" }]}
@@ -236,51 +236,15 @@ export function StrategyEngineer() {
 
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 lg:px-8 py-6 space-y-6">
         {/* Page Banner & Chat Controls */}
-        <div className="border border-border-subtle rounded bg-surface-base p-6 relative overflow-hidden shadow-sm">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-accent-primary" />
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="strategy-intro">
+          <section className="workspace-banner" aria-labelledby="strategy-heading">
             <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="px-2 py-0.5 text-[10px] font-mono font-bold tracking-wide bg-accent-primary text-text-primary rounded-sm">
-                  Pit Wall
-                </span>
-                <span className="text-xs font-mono text-text-muted">
-                  Strategy Engineer • Multi-Turn Workspace
-                </span>
-              </div>
-              <h1 className="text-xl sm:text-2xl font-bold font-sans tracking-tight text-text-primary">
-                Pit Stop Diagnostics & What-If Simulations
-              </h1>
-              <p className="text-xs sm:text-sm text-text-secondary mt-1">
-                Analyze why drivers finished where they did, and continue in the same chat with counterfactual pit stop scenarios and undercut projections.
-              </p>
+              <div className="eyebrow">02 / THE STRATEGY ENGINEER</div>
+              <h1 id="strategy-heading">CHANGE<br /><em>THE OUTCOME.</em></h1>
+              <p>Move the pit stop. Switch the compound. Find out what a different call could have changed, using the evidence from the race.</p>
             </div>
-
-            {/* Actions: New Chat & Navigation */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleNewChat}
-                className="btn-f1-primary text-xs flex items-center gap-1.5 py-2 px-3"
-                title="Discard current strategy chat and start fresh"
-              >
-                <span className="text-sm leading-none">+</span> New Chat
-              </button>
-
-              <div className="flex items-center gap-1 border border-border-subtle rounded bg-surface-base p-1">
-                <button
-                  onClick={() => navigate("/")}
-                  className="px-3 py-1 text-xs font-mono text-text-muted hover:text-text-primary transition-colors"
-                >
-                  Investigation
-                </button>
-                <button
-                  className="px-3 py-1 text-xs font-mono font-bold text-accent-primary bg-surface-raised rounded border border-border-medium shadow-sm"
-                >
-                  Strategy
-                </button>
-              </div>
-            </div>
-          </div>
+            <div className="banner-actions"><span className="banner-index" aria-hidden="true">02</span><button onClick={handleNewChat} className="btn-f1-primary">+ NEW STRATEGY</button></div>
+          </section>
 
           {/* Active Conversation Context Bar */}
           {activeContext.driver_name && (
@@ -299,7 +263,7 @@ export function StrategyEngineer() {
               </div>
               <button
                 onClick={handleNewChat}
-                className="text-[11px] text-text-muted hover:text-accent-primary hover:underline transition-colors"
+                className="text-[11px] text-text-muted   transition-colors"
               >
                 Start different driver/session
               </button>
@@ -309,7 +273,7 @@ export function StrategyEngineer() {
 
         {/* Initial Empty State Preset Query Suggestions */}
         {chatHistory.length === 0 && !isLoading && (
-          <div className="rounded border border-border-subtle bg-surface-base p-6 shadow-sm space-y-4">
+          <div className="workspace-presets space-y-4">
             <div className="flex items-center justify-between border-b border-border-subtle pb-3">
               <span className="text-xs font-mono font-bold text-text-primary tracking-wide flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-accent-primary" />
@@ -334,10 +298,10 @@ export function StrategyEngineer() {
                           setQuestion(preset);
                           inputRef.current?.focus();
                         }}
-                        className="p-3 text-left text-xs font-mono rounded bg-surface-raised border border-border-subtle hover:border-border-medium hover:bg-surface-overlay text-text-secondary hover:text-text-primary transition-all group flex items-center justify-between gap-2 shadow-sm"
+                        className="p-3 text-left text-xs font-mono rounded bg-surface-raised border border-border-subtle   text-text-secondary  transition-all group flex items-center justify-between gap-2 shadow-sm"
                       >
                         <span>{preset}</span>
-                        <span className="text-text-muted group-hover:text-accent-primary transition-colors">→</span>
+                        <span className="text-text-muted  transition-colors">→</span>
                       </button>
                     ))}
                   </div>
@@ -463,7 +427,7 @@ export function StrategyEngineer() {
         {chatHistory.length > 0 && !isLoading && (
           <div className="p-3 rounded border border-border-subtle bg-surface-base flex flex-col gap-2">
             <span className="text-[10px] font-mono text-text-muted tracking-wide flex items-center gap-1.5">
-              <span className="text-accent-primary font-bold">💬</span> Continuation Suggestions:
+              <span className="text-accent-primary font-bold"></span> Continuation Suggestions:
             </span>
             <div className="flex flex-wrap gap-2">
               {getContextualSuggestions().map((suggestion) => (
@@ -484,7 +448,7 @@ export function StrategyEngineer() {
         )}
 
         {/* Dedicated Chat Input Bar */}
-        <div className="sticky bottom-4 z-30 rounded border border-border-subtle bg-surface-base/95 backdrop-blur-md p-3.5 shadow-xl">
+        <div className="strategy-composer sticky bottom-4 z-30 rounded border border-border-subtle bg-surface-base/95 backdrop-blur-md p-3.5 shadow-xl">
           <form onSubmit={handleSubmitForm} className="relative flex items-center">
             <div className="absolute left-3.5 flex items-center pointer-events-none">
               <span className="text-accent-primary font-mono text-xs font-bold tracking-wider">
@@ -493,6 +457,7 @@ export function StrategyEngineer() {
             </div>
             <input
               ref={inputRef}
+              aria-label="Strategy question"
               type="text"
               value={question}
               onChange={(e) => setQuestion(e.target.value)}

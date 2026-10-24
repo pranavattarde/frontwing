@@ -42,7 +42,7 @@ export function RaceBriefing() {
     ],
     selected: selectedTeams
   };
-  return <div className="min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-accent-primary/20 selection:text-accent-primary">{
+  return <div className="workspace-page min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-accent-primary/20 selection:text-accent-primary">{
     /* Header */
   }<BriefingHeader
     breadcrumbs={breadcrumbs}
@@ -64,11 +64,11 @@ export function RaceBriefing() {
                 Grand Prix Briefing • Tactical Debrief
               </span>
               <h1 className="text-display text-text-primary mt-1">{AUSTRIAN_GP.name}</h1>
-              <p className="text-text-muted text-sm mt-0.5">{AUSTRIAN_GP.circuit} — {AUSTRIAN_GP.date}</p>
+              <p className="text-text-muted text-sm mt-0.5">{AUSTRIAN_GP.circuit} : {AUSTRIAN_GP.date}</p>
             </div>
             <button
               onClick={() => navigate(`/strategy/${AUSTRIAN_GP.id}`)}
-              className="px-4 py-2 border border-accent-primary/30 bg-accent-primary/10 text-accent-primary hover:bg-accent-primary/20 rounded-badge font-mono text-xs font-semibold tracking-wider transition-all duration-[80ms]"
+              className="px-4 py-2 border border-accent-primary/30 bg-accent-primary/10 text-accent-primary  rounded-badge font-mono text-xs font-semibold tracking-wider transition-all duration-[80ms]"
             >
               Launch Strategy Playground [What-If]
             </button>
@@ -137,7 +137,7 @@ export function RaceBriefing() {
                   <button
                     key={key}
                     onClick={() => setSortKey(key)}
-                    className={`px-1.5 py-0.5 border rounded-badge transition-all uppercase ${sortKey === key ? "border-accent-primary text-accent-primary bg-accent-primary/10 font-semibold" : "border-border-subtle text-text-muted hover:text-text-secondary"}`}
+                    className={`px-1.5 py-0.5 border rounded-badge transition-all uppercase ${sortKey === key ? "border-accent-primary text-accent-primary bg-accent-primary/10 font-semibold" : "border-border-subtle text-text-muted "}`}
                   >
                     {key}
                   </button>

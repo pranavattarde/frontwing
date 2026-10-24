@@ -22,19 +22,6 @@ export default function DriverAvatar({ teamColor = "#E10600", size = 36, isSelec
         xmlns="http://www.w3.org/2000/svg"
         className="transition-transform duration-200"
       >
-        <defs>
-          <linearGradient id={`driver-grad-${accent.replace("#", "")}`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={accent} stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#12151B" stopOpacity="0.9" />
-          </linearGradient>
-          <linearGradient id={`visor-grad-${accent.replace("#", "")}`} x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor={accent} />
-            <stop offset="100%" stopColor="#FFFFFF" />
-          </linearGradient>
-          <filter id={`driver-glow-${accent.replace("#", "")}`} x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor={accent} floodOpacity={isSelected ? "0.6" : "0.25"} />
-          </filter>
-        </defs>
 
         {/* Circular Asphalt Base with Team Color Glow Border */}
         <circle
@@ -44,7 +31,6 @@ export default function DriverAvatar({ teamColor = "#E10600", size = 36, isSelec
           fill="#12151B"
           stroke={isSelected ? accent : "rgba(255, 255, 255, 0.12)"}
           strokeWidth={isSelected ? "2" : "1.5"}
-          filter={`url(#driver-glow-${accent.replace("#", "")})`}
         />
 
         {/* Racing Suit Shoulders / Collarbone Contour */}
@@ -66,7 +52,7 @@ export default function DriverAvatar({ teamColor = "#E10600", size = 36, isSelec
         {/* Aerodynamic Helmet Shell */}
         <path
           d="M20 28 C20 18 24 12 32 12 C40 12 44 18 44 28 C44 36 39 39 32 39 C25 39 20 36 20 28 Z"
-          fill={`url(#driver-grad-${accent.replace("#", "")})`}
+          fill={accent}
           stroke="rgba(255, 255, 255, 0.25)"
           strokeWidth="1.5"
         />
@@ -75,7 +61,7 @@ export default function DriverAvatar({ teamColor = "#E10600", size = 36, isSelec
         <path
           d="M22 26 C23 23 27 22 32 22 C37 22 41 23 42 26 C41 29 38 30 32 30 C26 30 23 29 22 26 Z"
           fill="#0B0D10"
-          stroke={`url(#visor-grad-${accent.replace("#", "")})`}
+          stroke={accent}
           strokeWidth="1.4"
         />
 

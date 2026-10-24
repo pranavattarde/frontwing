@@ -578,13 +578,13 @@ export function InvestigationThread() {
         {
           id: `verdict-${activeId}-${Date.now()}`,
           type: "verdict",
-          content: "⚠️ Strategy analysis and What-If simulations are out of scope for the General Investigation tab.",
+          content: "! Strategy analysis and What-If simulations are out of scope for the General Investigation tab.",
           timestamp: Date.now()
         },
         {
           id: `narrative-${activeId}-${Date.now()}`,
           type: "narrative",
-          content: `**Strategy Question Detected:** "${queryText}"\n\nThe General Investigation tab is reserved for telemetry channel analysis, fastest lap comparisons, and race classifications. Counterfactual simulations, stint degradation, and pit strategy cost analysis are exclusively handled in the **Strategy Engineer** workspace.\n\n👉 [**Open Strategy Engineer Workspace →**](/strategy)`,
+          content: `**Strategy Question Detected:** "${queryText}"\n\nThe General Investigation tab is reserved for telemetry channel analysis, fastest lap comparisons, and race classifications. Counterfactual simulations, stint degradation, and pit strategy cost analysis are exclusively handled in the **Strategy Engineer** workspace.\n\n [**Open Strategy Engineer Workspace →**](/strategy)`,
           timestamp: Date.now() + 100
         }
       ];
@@ -884,7 +884,7 @@ export function InvestigationThread() {
 
   if (errorMsg) {
     return (
-      <div className="min-h-screen bg-canvas flex flex-col items-center justify-center p-6 text-text-secondary">
+      <div className="workspace-page min-h-screen bg-canvas flex flex-col items-center justify-center p-6 text-text-secondary">
         <div className="max-w-md w-full border border-border-subtle bg-surface-base/90 rounded-card p-8 flex flex-col gap-6 items-center text-center shadow-card relative overflow-hidden backdrop-blur-md">
           <div className="w-12 h-12 rounded-full border border-accent-danger/20 flex items-center justify-center bg-accent-danger/10 animate-pulse">
             <span className="text-accent-danger font-bold text-lg font-mono">!</span>
@@ -902,7 +902,7 @@ export function InvestigationThread() {
             </button>
             <button
               onClick={handleGoHome}
-              className="flex-1 py-2.5 px-4 rounded-badge border border-border-subtle text-text-primary hover:bg-surface-raised transition-colors text-xs font-semibold"
+              className="flex-1 py-2.5 px-4 rounded-badge border border-border-subtle text-text-primary  transition-colors text-xs font-semibold"
             >
               Go Home
             </button>
@@ -912,7 +912,7 @@ export function InvestigationThread() {
     );
   }
   return (
-    <div className="min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-accent-primary/20 selection:text-accent-primary">
+    <div className="workspace-page min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-accent-primary/20 selection:text-accent-primary">
       {/* Navigation Header */}
       <BriefingHeader
         breadcrumbs={breadcrumbs}
@@ -923,7 +923,7 @@ export function InvestigationThread() {
           if (index === 1) navigate(`/race/${sessionId}`);
         }}
       />
-      {/* Main Investigation Canvas — Full Viewport Width */}
+      {/* Main Investigation Canvas : Full Viewport Width */}
       <div className="flex-1 flex w-full max-w-[1600px] mx-auto">
         <main
           className={cn(
@@ -938,7 +938,7 @@ export function InvestigationThread() {
                 Investigation Thread • {resolvedGrandPrix || sessionId || "Active Session"}
               </span>
             </div>
-            <h1 className="text-display-sm text-text-primary">{questionTitle || "Live Telemetry Investigation"}</h1>
+            <h1 className="investigation-title text-text-primary">{questionTitle || "Live Telemetry Investigation"}</h1>
           </div>
           {/* Messages list container */}
           <div className="flex flex-col gap-6 flex-1 pr-1">
@@ -957,7 +957,7 @@ export function InvestigationThread() {
                 <AIThinkingIndicator stage={loadingStage} detail={loadingDetail} />
                 <button
                   onClick={handleCancel}
-                  className="self-center px-4 py-1.5 border border-accent-primary/30 hover:border-accent-primary text-accent-primary hover:bg-accent-primary/10 transition-colors rounded-badge font-mono text-[10px] uppercase tracking-widest"
+                  className="self-center px-4 py-1.5 border border-accent-primary/30  text-accent-primary  transition-colors rounded-badge font-mono text-[10px] uppercase tracking-widest"
                 >
                   Cancel Investigation
                 </button>
@@ -1151,7 +1151,7 @@ export function InvestigationThread() {
           </span>
           <button
             onClick={() => setExpandedTelemetry(null)}
-            className="text-text-muted hover:text-text-primary font-mono text-mono-meta"
+            className="text-text-muted  font-mono text-mono-meta"
           >
             [Close]
           </button>

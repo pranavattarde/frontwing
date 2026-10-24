@@ -10,16 +10,16 @@ export function ExplanationPanel({ steps = [], conclusion, reasoningGraph, plann
       {/* Header Toggle */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-surface-raised transition-colors cursor-pointer group"
+        className="w-full px-4 py-3 flex items-center justify-between  transition-colors cursor-pointer group"
         aria-expanded={isOpen}
       >
         <div className="flex items-center gap-2.5">
-          <span className="text-xs font-mono font-bold text-text-primary flex items-center gap-2 group-hover:text-accent-primary transition-colors">
-            <span>⚙️</span>
+          <span className="text-xs font-mono font-bold text-text-primary flex items-center gap-2  transition-colors">
+            <span>…</span>
             <span>{isOpen ? "Hide Technical Reasoning & Telemetry Logs" : "Show Technical Reasoning & Telemetry Logs"}</span>
           </span>
         </div>
-        <span className="text-[11px] font-mono text-accent-primary group-hover:underline">
+        <span className="text-[11px] font-mono text-accent-primary ">
           {isOpen ? "[Collapse]" : "[Expand]"}
         </span>
       </button>
@@ -37,7 +37,7 @@ export function ExplanationPanel({ steps = [], conclusion, reasoningGraph, plann
             <div className="p-4 flex flex-col gap-4 font-mono text-xs">
               {/* Conclusion Block */}
               {conclusion && (
-                <div className="bg-surface-raised border border-border-subtle p-3 rounded-card text-text-primary border-l-2 border-l-accent-primary leading-relaxed">
+                <div className="bg-surface-raised border border-border-subtle p-3 rounded-card text-text-primary  leading-relaxed">
                   <span className="text-[10px] font-mono text-text-muted block mb-1 font-bold">
                     Synthesis Conclusion
                   </span>

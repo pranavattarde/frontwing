@@ -36,8 +36,8 @@ export function SectorComparisonGraph({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {data.map((s) => {
           const isAFaster = s.delta <= 0;
-          const winnerCode = s.winner_badge ? s.winner_badge.replace("🏆 ", "").replace(" FASTER", "").replace(" Faster", "").trim() : (s.faster_driver ? String(s.faster_driver).toUpperCase() : (isAFaster ? codeA : codeB));
-          const winnerBadgeText = s.winner_badge || `🏆 ${winnerCode} Faster`;
+          const winnerCode = s.winner_badge ? s.winner_badge.replace("# ", "").replace(" FASTER", "").replace(" Faster", "").trim() : (s.faster_driver ? String(s.faster_driver).toUpperCase() : (isAFaster ? codeA : codeB));
+          const winnerBadgeText = s.winner_badge || `# ${winnerCode} Faster`;
           const deltaAbs = Math.abs(s.delta);
           const deltaStr = isAFaster ? `-${deltaAbs.toFixed(3)}s` : `+${deltaAbs.toFixed(3)}s`;
 

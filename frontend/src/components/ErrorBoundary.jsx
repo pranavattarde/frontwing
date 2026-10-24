@@ -48,7 +48,7 @@ export class ErrorBoundary extends Component {
               </button>
               <button
                 onClick={this.handleGoHome}
-                className="flex-1 py-2.5 px-4 rounded-badge border border-border-subtle text-text-primary hover:bg-surface-raised transition-colors text-xs font-semibold"
+                className="flex-1 py-2.5 px-4 rounded-badge border border-border-subtle text-text-primary  transition-colors text-xs font-semibold"
               >
                 Go Home
               </button>

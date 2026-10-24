@@ -15,7 +15,7 @@ export function ScoreCard({ data, className }) {
       key: "pace",
       name: "Pace Index",
       score: data.pace_score,
-      color: "#E10600", // F1 Speed Red
+      color: "var(--accent-primary)", // F1 Speed Red
       desc: "Fastest clean laps vs grid/teammate optimal",
       details: data.breakdown?.pace ? [
         { label: "Optimal Lap", val: data.breakdown.pace.optimal_lap ? `${data.breakdown.pace.optimal_lap.toFixed(3)}s` : "N/A" },
@@ -27,7 +27,7 @@ export function ScoreCard({ data, className }) {
       key: "consistency",
       name: "Consistency",
       score: data.consistency_score,
-      color: "#00D2BE", // Timing Green
+      color: "var(--timing-green)", // Timing Green
       desc: "Flying lap variance excluding neutralizations",
       details: data.breakdown?.consistency ? [
         { label: "Lap Variance", val: data.breakdown.consistency.lap_variance ? `σ² ${data.breakdown.consistency.lap_variance.toFixed(3)}` : "N/A" },
@@ -39,7 +39,7 @@ export function ScoreCard({ data, className }) {
       key: "racecraft",
       name: "Racecraft",
       score: data.racecraft_score,
-      color: "#FF8000", // Sector Orange
+      color: "var(--timing-purple)", // Sector Orange
       desc: "Grid-to-flag delta and track combat efficiency",
       details: data.breakdown?.racecraft ? [
         { label: "Grid Position", val: data.breakdown.racecraft.grid_position ? `P${data.breakdown.racecraft.grid_position}` : "N/A" },
@@ -51,7 +51,7 @@ export function ScoreCard({ data, className }) {
       key: "strategy",
       name: "Strategy Execution",
       score: data.strategy_score,
-      color: "#B138DD", // Sector Purple
+      color: "var(--text-secondary)", // Sector Purple
       desc: "Pit window timing and undercut conversion",
       details: data.breakdown?.strategy ? [
         { label: "Undercut Success", val: data.breakdown.strategy.undercut_success ? "YES" : "NO" },
@@ -62,7 +62,7 @@ export function ScoreCard({ data, className }) {
       key: "tire",
       name: "Tyre Management",
       score: data.tire_score,
-      color: "#FFD600", // Timing Yellow
+      color: "var(--timing-yellow)", // Timing Yellow
       desc: "Degradation slope vs session grid median",
       details: data.breakdown?.tire ? [
         { label: "Driver Deg", val: data.breakdown.tire.deg_slope ? `${data.breakdown.tire.deg_slope.toFixed(4)} s/lap` : "N/A" },
@@ -113,7 +113,7 @@ export function ScoreCard({ data, className }) {
           return (
             <div
               key={dim.key}
-              className="flex flex-col gap-2 p-3 rounded bg-surface-raised border border-border-subtle hover:border-border-medium transition-colors"
+              className="flex flex-col gap-2 p-3 rounded bg-surface-raised border border-border-subtle  transition-colors"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -159,7 +159,7 @@ export function ScoreCard({ data, className }) {
         <span className="text-text-muted">Formula Model: FastF1 Ingestion Data</span>
         <button
           onClick={() => setShowDetails(!showDetails)}
-          className="text-accent-primary hover:underline transition-colors font-mono tracking-wider font-bold"
+          className="text-accent-primary  transition-colors font-mono tracking-wider font-bold"
         >
           {showDetails ? "[- Hide Calculation Breakdown]" : "[+ Show Calculation Breakdown]"}
         </button>

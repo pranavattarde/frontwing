@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
  * Formats seconds into F1 standard lap time notation (e.g. 76.123 -> "1:16.123")
  */
 function formatLapTime(seconds) {
-  if (!seconds || isNaN(seconds) || seconds <= 0) return "—";
+  if (!seconds || isNaN(seconds) || seconds <= 0) return ":";
   const mins = Math.floor(seconds / 60);
   const remSecs = (seconds % 60).toFixed(3);
   if (mins > 0) {
@@ -22,24 +22,54 @@ function formatLapTime(seconds) {
 function getCompoundBadge(compound) {
   const c = String(compound || "").toUpperCase();
   if (c.includes("SOFT")) {
-    return { label: "S", name: "SOFT", className: "bg-accent-danger/20 text-accent-danger border-accent-danger/40" };
+    return {
+      label: "S",
+      name: "SOFT",
+      className:
+        "bg-accent-danger/20 text-accent-danger border-accent-danger/40",
+    };
   }
   if (c.includes("MEDIUM")) {
-    return { label: "M", name: "MEDIUM", className: "bg-timing-yellow/20 text-timing-yellow border-timing-yellow/40" };
+    return {
+      label: "M",
+      name: "MEDIUM",
+      className:
+        "bg-timing-yellow/20 text-timing-yellow border-timing-yellow/40",
+    };
   }
   if (c.includes("HARD")) {
-    return { label: "H", name: "HARD", className: "bg-white/20 text-white border-white/40" };
+    return {
+      label: "H",
+      name: "HARD",
+      className: "bg-white/20 text-white border-white/40",
+    };
   }
   if (c.includes("INTER")) {
-    return { label: "I", name: "INTER", className: "bg-timing-green/20 text-timing-green border-timing-green/40" };
+    return {
+      label: "I",
+      name: "INTER",
+      className: "bg-timing-green/20 text-timing-green border-timing-green/40",
+    };
   }
   if (c.includes("WET")) {
-    return { label: "W", name: "WET", className: "bg-[#0070FF]/20 text-[#3671C6] border-[#0070FF]/40" };
+    return {
+      label: "W",
+      name: "WET",
+      className: "bg-[#0070FF]/20 text-[#3671C6] border-[#0070FF]/40",
+    };
   }
-  return { label: "C", name: c || "UNKNOWN", className: "bg-surface-raised text-text-muted border-border-subtle" };
+  return {
+    label: "C",
+    name: c || "UNKNOWN",
+    className: "bg-surface-raised text-text-muted border-border-subtle",
+  };
 }
 
-export function StrategyTelemetryComparison({ comparison, mode = "whatif", className }) {
+export function StrategyTelemetryComparison({
+  comparison,
+  mode = "whatif",
+  className,
+}) {
   const [hoveredLap, setHoveredLap] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -51,25 +81,35 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
     scenario_label = "",
     driver_name = "Driver",
     actual = {},
-    simulated = {}
+    simulated = {},
   } = comparison;
 
   // 1. Extract and normalize lap times for both series
-  const { combinedLaps, minLap, maxLap, minTime, maxTime, actualPitLaps, simulatedPitLaps } = useMemo(() => {
+  const {
+    combinedLaps,
+    minLap,
+    maxLap,
+    minTime,
+    maxTime,
+    actualPitLaps,
+    simulatedPitLaps,
+  } = useMemo(() => {
     const rawActual = actual.lap_times || [];
     const rawSim = simulated.lap_times || [];
 
     const actMap = new Map();
     rawActual.forEach((item, idx) => {
       if (typeof item === "object" && item !== null) {
-        const lapNum = item.lap_number ?? (idx + 1);
+        const lapNum = item.lap_number ?? idx + 1;
         const time = item.lap_time ?? item.time;
         if (time && !isNaN(time)) {
           actMap.set(lapNum, {
             lap: lapNum,
             time: Number(time),
-            compound: item.compound || (actual.compounds ? actual.compounds[0] : "HARD"),
-            isPitLap: Boolean(item.is_pit_lap)
+            compound:
+              item.compound ||
+              (actual.compounds ? actual.compounds[0] : "HARD"),
+            isPitLap: Boolean(item.is_pit_lap),
           });
         }
       } else if (typeof item === "number" && !isNaN(item)) {
@@ -77,7 +117,7 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
           lap: idx + 1,
           time: item,
           compound: actual.compounds ? actual.compounds[0] : "HARD",
-          isPitLap: false
+          isPitLap: false,
         });
       }
     });
@@ -85,14 +125,16 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
     const simMap = new Map();
     rawSim.forEach((item, idx) => {
       if (typeof item === "object" && item !== null) {
-        const lapNum = item.lap_number ?? (idx + 1);
+        const lapNum = item.lap_number ?? idx + 1;
         const time = item.lap_time ?? item.time;
         if (time && !isNaN(time)) {
           simMap.set(lapNum, {
             lap: lapNum,
             time: Number(time),
-            compound: item.compound || (simulated.compounds ? simulated.compounds[0] : "HARD"),
-            isPitLap: Boolean(item.is_pit_lap)
+            compound:
+              item.compound ||
+              (simulated.compounds ? simulated.compounds[0] : "HARD"),
+            isPitLap: Boolean(item.is_pit_lap),
           });
         }
       } else if (typeof item === "number" && !isNaN(item)) {
@@ -100,12 +142,14 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
           lap: idx + 1,
           time: item,
           compound: simulated.compounds ? simulated.compounds[0] : "HARD",
-          isPitLap: false
+          isPitLap: false,
         });
       }
     });
 
-    const allLapNums = Array.from(new Set([...actMap.keys(), ...simMap.keys()])).sort((a, b) => a - b);
+    const allLapNums = Array.from(
+      new Set([...actMap.keys(), ...simMap.keys()]),
+    ).sort((a, b) => a - b);
     const validTimes = [];
 
     const combined = allLapNums.map((lap) => {
@@ -125,7 +169,8 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
         simulatedTime: simTime,
         simulatedCompound: simEntry?.compound,
         simulatedPit: simEntry?.isPitLap,
-        delta: actTime && simTime ? Number((actTime - simTime).toFixed(3)) : null
+        delta:
+          actTime && simTime ? Number((actTime - simTime).toFixed(3)) : null,
       };
     });
 
@@ -134,11 +179,20 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
 
     // Filter out extreme outlier laps (e.g. pit-lane in/out laps +15s or Safety Car laps) for scaling window
     const sortedTimes = [...validTimes].sort((a, b) => a - b);
-    const median = sortedTimes.length > 0 ? sortedTimes[Math.floor(sortedTimes.length / 2)] : 85;
+    const median =
+      sortedTimes.length > 0
+        ? sortedTimes[Math.floor(sortedTimes.length / 2)]
+        : 85;
     const reasonableTimes = validTimes.filter((t) => t < median * 1.35);
 
-    const minT = reasonableTimes.length > 0 ? Math.min(...reasonableTimes) - 0.5 : (median - 2);
-    const maxT = reasonableTimes.length > 0 ? Math.max(...reasonableTimes) + 1.0 : (median + 5);
+    const minT =
+      reasonableTimes.length > 0
+        ? Math.min(...reasonableTimes) - 0.5
+        : median - 2;
+    const maxT =
+      reasonableTimes.length > 0
+        ? Math.max(...reasonableTimes) + 1.0
+        : median + 5;
 
     return {
       combinedLaps: combined,
@@ -147,7 +201,7 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
       minTime: minT,
       maxTime: maxT,
       actualPitLaps: actPits,
-      simulatedPitLaps: simPits
+      simulatedPitLaps: simPits,
     };
   }, [actual, simulated]);
 
@@ -161,26 +215,43 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
 
   const getX = (lap) => {
     if (maxLap === minLap) return padLeft;
-    return padLeft + ((lap - minLap) / (maxLap - minLap)) * (svgWidth - padLeft - padRight);
+    return (
+      padLeft +
+      ((lap - minLap) / (maxLap - minLap)) * (svgWidth - padLeft - padRight)
+    );
   };
 
   const getY = (time) => {
     if (!time || isNaN(time)) return svgHeight - padBottom;
     const clamped = Math.max(minTime, Math.min(maxTime, time));
-    return padTop + ((maxTime - clamped) / (maxTime - minTime)) * (svgHeight - padTop - padBottom);
+    return (
+      padTop +
+      ((maxTime - clamped) / (maxTime - minTime)) *
+        (svgHeight - padTop - padBottom)
+    );
   };
 
   // Build SVG path strings
   const actualPath = useMemo(() => {
     const pts = combinedLaps.filter((l) => l.actualTime !== null);
     if (pts.length === 0) return "";
-    return pts.map((p, i) => `${i === 0 ? "M" : "L"} ${getX(p.lap).toFixed(1)} ${getY(p.actualTime).toFixed(1)}`).join(" ");
+    return pts
+      .map(
+        (p, i) =>
+          `${i === 0 ? "M" : "L"} ${getX(p.lap).toFixed(1)} ${getY(p.actualTime).toFixed(1)}`,
+      )
+      .join(" ");
   }, [combinedLaps, minLap, maxLap, minTime, maxTime]);
 
   const simulatedPath = useMemo(() => {
     const pts = combinedLaps.filter((l) => l.simulatedTime !== null);
     if (pts.length === 0) return "";
-    return pts.map((p, i) => `${i === 0 ? "M" : "L"} ${getX(p.lap).toFixed(1)} ${getY(p.simulatedTime).toFixed(1)}`).join(" ");
+    return pts
+      .map(
+        (p, i) =>
+          `${i === 0 ? "M" : "L"} ${getX(p.lap).toFixed(1)} ${getY(p.simulatedTime).toFixed(1)}`,
+      )
+      .join(" ");
   }, [combinedLaps, minLap, maxLap, minTime, maxTime]);
 
   // Hovered lap data
@@ -190,25 +261,45 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
   }, [hoveredLap, combinedLaps]);
 
   // Key Side-by-Side Numbers
-  const actPos = actual.finish_position ? `P${actual.finish_position}` : "—";
-  const simPos = simulated.finish_position ? `P${simulated.finish_position}` : "—";
+  const actPos = actual.finish_position ? `P${actual.finish_position}` : ":";
+  const simPos = simulated.finish_position
+    ? `P${simulated.finish_position}`
+    : ":";
   const posChange = simulated.position_change ?? 0;
   const posChangeStr = posChange > 0 ? `+${posChange}` : `${posChange}`;
 
-  const actTimeTotal = actual.total_time_seconds ? `${actual.total_time_seconds.toFixed(2)}s` : "—";
-  const simTimeTotal = simulated.total_time_seconds ? `${simulated.total_time_seconds.toFixed(2)}s` : "—";
+  const actTimeTotal = actual.total_time_seconds
+    ? `${actual.total_time_seconds.toFixed(2)}s`
+    : ":";
+  const simTimeTotal = simulated.total_time_seconds
+    ? `${simulated.total_time_seconds.toFixed(2)}s`
+    : ":";
 
   const netDelta = simulated.net_time_delta_s ?? 0;
   const netDeltaSign = netDelta >= 0 ? "+" : "";
 
-  const actPitsStr = actualPitLaps.length > 0 ? actualPitLaps.map((l) => `Lap ${l}`).join(", ") : "None";
-  const simPitsStr = simulatedPitLaps.length > 0 ? simulatedPitLaps.map((l) => `Lap ${l}`).join(", ") : "None";
+  const actPitsStr =
+    actualPitLaps.length > 0
+      ? actualPitLaps.map((l) => `Lap ${l}`).join(", ")
+      : "None";
+  const simPitsStr =
+    simulatedPitLaps.length > 0
+      ? simulatedPitLaps.map((l) => `Lap ${l}`).join(", ")
+      : "None";
 
-  const actCompounds = Array.isArray(actual.compounds) ? actual.compounds.join(" ➔ ") : actual.compounds || "HARD";
-  const simCompounds = Array.isArray(simulated.compounds) ? simulated.compounds.join(" ➔ ") : simulated.compounds || "HARD";
+  const actCompounds = Array.isArray(actual.compounds)
+    ? actual.compounds.join(" → ")
+    : actual.compounds || "HARD";
+  const simCompounds = Array.isArray(simulated.compounds)
+    ? simulated.compounds.join(" → ")
+    : simulated.compounds || "HARD";
 
-  const actTraffic = actual.traffic_loss_s !== undefined ? `${actual.traffic_loss_s}s` : "—";
-  const simTraffic = simulated.traffic_loss_s !== undefined ? `${simulated.traffic_loss_s}s` : "—";
+  const actTraffic =
+    actual.traffic_loss_s !== undefined ? `${actual.traffic_loss_s}s` : ":";
+  const simTraffic =
+    simulated.traffic_loss_s !== undefined
+      ? `${simulated.traffic_loss_s}s`
+      : ":";
 
   return (
     <div className={cn("space-y-4 font-sans", className)}>
@@ -219,7 +310,9 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
             <span className="px-2 py-0.5 text-[10px] font-mono font-bold tracking-wider uppercase bg-accent-primary text-text-primary rounded-sm">
-              {mode === "analysis" ? "Suggested Strategy Comparison" : "Counterfactual Telemetry"}
+              {mode === "analysis"
+                ? "Suggested Strategy Comparison"
+                : "Counterfactual Telemetry"}
             </span>
             <span className="text-xs font-mono font-bold text-text-primary truncate">
               {scenario_label || `Pit Stop Timing Simulation • ${driver_name}`}
@@ -246,7 +339,8 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
               Lap-by-Lap Stint Pace Progression
             </span>
             <span className="type-tabular text-[10px]">
-              Range: Laps {minLap}–{maxLap} • Scale: {minTime.toFixed(1)}s–{maxTime.toFixed(1)}s
+              Range: Laps {minLap}–{maxLap} • Scale: {minTime.toFixed(1)}s–
+              {maxTime.toFixed(1)}s
             </span>
           </div>
 
@@ -284,29 +378,31 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
               })}
 
               {/* Vertical Grid Lines & Lap Markers */}
-              {[10, 20, 30, 40, 50, 60, 70].filter((l) => l >= minLap && l <= maxLap).map((lap) => {
-                const xVal = getX(lap);
-                return (
-                  <g key={lap}>
-                    <line
-                      x1={xVal}
-                      y1={padTop}
-                      x2={xVal}
-                      y2={svgHeight - padBottom}
-                      stroke="var(--border-subtle, rgba(255,255,255,0.04))"
-                      strokeWidth="1"
-                    />
-                    <text
-                      x={xVal}
-                      y={svgHeight - padBottom + 14}
-                      textAnchor="middle"
-                      className="text-[9px] font-mono fill-text-muted select-none"
-                    >
-                      L{lap}
-                    </text>
-                  </g>
-                );
-              })}
+              {[10, 20, 30, 40, 50, 60, 70]
+                .filter((l) => l >= minLap && l <= maxLap)
+                .map((lap) => {
+                  const xVal = getX(lap);
+                  return (
+                    <g key={lap}>
+                      <line
+                        x1={xVal}
+                        y1={padTop}
+                        x2={xVal}
+                        y2={svgHeight - padBottom}
+                        stroke="var(--border-subtle, rgba(255,255,255,0.04))"
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={xVal}
+                        y={svgHeight - padBottom + 14}
+                        textAnchor="middle"
+                        className="text-[9px] font-mono fill-text-muted select-none"
+                      >
+                        L{lap}
+                      </text>
+                    </g>
+                  );
+                })}
 
               {/* Actual Pit Stop Markers (Vertical Dashed White Lines) */}
               {actualPitLaps.map((pLap) => {
@@ -478,7 +574,9 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
               {/* Invisible Hover Rectangles along X-axis */}
               {combinedLaps.map((l) => {
                 const x = getX(l.lap);
-                const step = (svgWidth - padLeft - padRight) / Math.max(1, maxLap - minLap);
+                const step =
+                  (svgWidth - padLeft - padRight) /
+                  Math.max(1, maxLap - minLap);
                 return (
                   <rect
                     key={`hover-col-${l.lap}`}
@@ -500,9 +598,16 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
             {currentHover ? (
               <div className="flex flex-wrap items-center gap-3 w-full justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-text-primary">Lap {currentHover.lap}</span>
+                  <span className="font-bold text-text-primary">
+                    Lap {currentHover.lap}
+                  </span>
                   {currentHover.actualCompound && (
-                    <span className={cn("px-1.5 py-0.2 text-[9px] rounded font-bold border", getCompoundBadge(currentHover.actualCompound).className)}>
+                    <span
+                      className={cn(
+                        "px-1.5 py-0.2 text-[9px] rounded font-bold border",
+                        getCompoundBadge(currentHover.actualCompound).className,
+                      )}
+                    >
                       {getCompoundBadge(currentHover.actualCompound).label}
                     </span>
                   )}
@@ -511,24 +616,41 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
                 <div className="flex items-center gap-4 type-tabular">
                   <span>
                     <strong className="text-text-muted">Actual: </strong>
-                    <span className="text-text-primary font-bold">{formatLapTime(currentHover.actualTime)}</span>
+                    <span className="text-text-primary font-bold">
+                      {formatLapTime(currentHover.actualTime)}
+                    </span>
                   </span>
 
                   <span>
                     <strong className="text-accent-primary">Simulated: </strong>
-                    <span className="text-accent-primary font-bold">{formatLapTime(currentHover.simulatedTime)}</span>
+                    <span className="text-accent-primary font-bold">
+                      {formatLapTime(currentHover.simulatedTime)}
+                    </span>
                   </span>
 
                   {currentHover.delta !== null && (
-                    <span className={cn("font-bold", currentHover.delta > 0 ? "text-timing-green" : currentHover.delta < 0 ? "text-accent-danger" : "text-text-muted")}>
-                      Δ {currentHover.delta > 0 ? `+${currentHover.delta.toFixed(3)}s` : `${currentHover.delta.toFixed(3)}s`}
+                    <span
+                      className={cn(
+                        "font-bold",
+                        currentHover.delta > 0
+                          ? "text-timing-green"
+                          : currentHover.delta < 0
+                            ? "text-accent-danger"
+                            : "text-text-muted",
+                      )}
+                    >
+                      Δ{" "}
+                      {currentHover.delta > 0
+                        ? `+${currentHover.delta.toFixed(3)}s`
+                        : `${currentHover.delta.toFixed(3)}s`}
                     </span>
                   )}
                 </div>
               </div>
             ) : (
               <span className="text-text-muted text-[11px] italic">
-                Hover over the graph to inspect lap-by-lap timing deltas and tyre stint transitions.
+                Hover over the graph to inspect lap-by-lap timing deltas and
+                tyre stint transitions.
               </span>
             )}
           </div>
@@ -549,104 +671,180 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
             <table className="w-full text-left text-xs font-mono type-tabular">
               <thead className="bg-surface-raised border-b border-border-subtle text-[10px] text-text-muted uppercase">
                 <tr>
-                  <th className="py-2.5 px-3 font-semibold">Metric / Dimension</th>
-                  <th className="py-2.5 px-3 font-semibold text-text-primary">Actual Strategy (Baseline)</th>
-                  <th className="py-2.5 px-3 font-semibold text-accent-primary">Simulated Counterfactual</th>
-                  <th className="py-2.5 px-3 font-semibold text-right">Net Delta</th>
+                  <th className="py-2.5 px-3 font-semibold">
+                    Metric / Dimension
+                  </th>
+                  <th className="py-2.5 px-3 font-semibold text-text-primary">
+                    Actual Strategy (Baseline)
+                  </th>
+                  <th className="py-2.5 px-3 font-semibold text-accent-primary">
+                    Simulated Counterfactual
+                  </th>
+                  <th className="py-2.5 px-3 font-semibold text-right">
+                    Net Delta
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle/50 bg-surface-base">
                 {/* Finish Position */}
                 <tr>
-                  <td className="py-2.5 px-3 text-text-muted font-medium">Finishing Position</td>
-                  <td className="py-2.5 px-3 font-bold text-text-primary">{actPos}</td>
-                  <td className="py-2.5 px-3 font-bold text-accent-primary">{simPos}</td>
-                  <td className={cn(
-                    "py-2.5 px-3 font-bold text-right",
-                    posChange > 0 ? "text-timing-green" : posChange < 0 ? "text-accent-danger" : "text-text-muted"
-                  )}>
+                  <td className="py-2.5 px-3 text-text-muted font-medium">
+                    Finishing Position
+                  </td>
+                  <td className="py-2.5 px-3 font-bold text-text-primary">
+                    {actPos}
+                  </td>
+                  <td className="py-2.5 px-3 font-bold text-accent-primary">
+                    {simPos}
+                  </td>
+                  <td
+                    className={cn(
+                      "py-2.5 px-3 font-bold text-right",
+                      posChange > 0
+                        ? "text-timing-green"
+                        : posChange < 0
+                          ? "text-accent-danger"
+                          : "text-text-muted",
+                    )}
+                  >
                     {posChangeStr} places
                   </td>
                 </tr>
 
                 {/* Total Race Time */}
                 <tr>
-                  <td className="py-2.5 px-3 text-text-muted font-medium">Total Race Duration</td>
-                  <td className="py-2.5 px-3 font-medium text-text-primary">{actTimeTotal}</td>
-                  <td className="py-2.5 px-3 font-medium text-accent-primary">{simTimeTotal}</td>
-                  <td className={cn(
-                    "py-2.5 px-3 font-bold text-right",
-                    netDelta >= 0 ? "text-timing-green" : "text-accent-danger"
-                  )}>
-                    {netDeltaSign}{netDelta.toFixed(2)}s
+                  <td className="py-2.5 px-3 text-text-muted font-medium">
+                    Total Race Duration
+                  </td>
+                  <td className="py-2.5 px-3 font-medium text-text-primary">
+                    {actTimeTotal}
+                  </td>
+                  <td className="py-2.5 px-3 font-medium text-accent-primary">
+                    {simTimeTotal}
+                  </td>
+                  <td
+                    className={cn(
+                      "py-2.5 px-3 font-bold text-right",
+                      netDelta >= 0
+                        ? "text-timing-green"
+                        : "text-accent-danger",
+                    )}
+                  >
+                    {netDeltaSign}
+                    {netDelta.toFixed(2)}s
                   </td>
                 </tr>
 
                 {/* Pit Stop Timing */}
                 <tr>
-                  <td className="py-2.5 px-3 text-text-muted font-medium">Primary Pit Stop</td>
-                  <td className="py-2.5 px-3 text-text-secondary">{actPitsStr}</td>
-                  <td className="py-2.5 px-3 text-accent-primary font-bold">{simPitsStr}</td>
+                  <td className="py-2.5 px-3 text-text-muted font-medium">
+                    Primary Pit Stop
+                  </td>
+                  <td className="py-2.5 px-3 text-text-secondary">
+                    {actPitsStr}
+                  </td>
+                  <td className="py-2.5 px-3 text-accent-primary font-bold">
+                    {simPitsStr}
+                  </td>
                   <td className="py-2.5 px-3 text-right text-text-muted">
-                    {simulatedPitLaps[0] && actualPitLaps[0] ? (
-                      simulatedPitLaps[0] < actualPitLaps[0]
+                    {simulatedPitLaps[0] && actualPitLaps[0]
+                      ? simulatedPitLaps[0] < actualPitLaps[0]
                         ? `${actualPitLaps[0] - simulatedPitLaps[0]} laps earlier`
                         : simulatedPitLaps[0] > actualPitLaps[0]
-                        ? `${simulatedPitLaps[0] - actualPitLaps[0]} laps later`
-                        : "Identical lap"
-                    ) : "—"}
+                          ? `${simulatedPitLaps[0] - actualPitLaps[0]} laps later`
+                          : "Identical lap"
+                      : ":"}
                   </td>
                 </tr>
 
                 {/* Tyre Compounds */}
                 <tr>
-                  <td className="py-2.5 px-3 text-text-muted font-medium">Tyre Strategy</td>
-                  <td className="py-2.5 px-3 font-medium text-text-secondary">{actCompounds}</td>
-                  <td className="py-2.5 px-3 font-bold text-accent-primary">{simCompounds}</td>
+                  <td className="py-2.5 px-3 text-text-muted font-medium">
+                    Tyre Strategy
+                  </td>
+                  <td className="py-2.5 px-3 font-medium text-text-secondary">
+                    {actCompounds}
+                  </td>
+                  <td className="py-2.5 px-3 font-bold text-accent-primary">
+                    {simCompounds}
+                  </td>
                   <td className="py-2.5 px-3 text-right text-text-muted">
-                    {actCompounds === simCompounds ? "Same compounds" : "Alternative compound"}
+                    {actCompounds === simCompounds
+                      ? "Same compounds"
+                      : "Alternative compound"}
                   </td>
                 </tr>
 
                 {/* Traffic Bottleneck Loss */}
                 <tr>
-                  <td className="py-2.5 px-3 text-text-muted font-medium">Traffic Loss Delta</td>
-                  <td className="py-2.5 px-3 text-text-secondary">{actTraffic}</td>
-                  <td className="py-2.5 px-3 text-accent-primary">{simTraffic}</td>
+                  <td className="py-2.5 px-3 text-text-muted font-medium">
+                    Traffic Loss Delta
+                  </td>
+                  <td className="py-2.5 px-3 text-text-secondary">
+                    {actTraffic}
+                  </td>
+                  <td className="py-2.5 px-3 text-accent-primary">
+                    {simTraffic}
+                  </td>
                   <td className="py-2.5 px-3 text-right font-medium text-text-muted">
-                    {simulated.traffic_loss_s !== undefined ? `${simulated.traffic_loss_s}s traffic penalty` : "—"}
+                    {simulated.traffic_loss_s !== undefined
+                      ? `${simulated.traffic_loss_s}s traffic penalty`
+                      : ":"}
                   </td>
                 </tr>
 
                 {/* Undercut Delta */}
                 {simulated.undercut_gain_s !== undefined && (
                   <tr>
-                    <td className="py-2.5 px-3 text-text-muted font-medium">Undercut Advantage</td>
+                    <td className="py-2.5 px-3 text-text-muted font-medium">
+                      Undercut Advantage
+                    </td>
                     <td className="py-2.5 px-3 text-text-secondary">0.00s</td>
-                    <td className="py-2.5 px-3 text-accent-primary">{simulated.undercut_gain_s}s</td>
-                    <td className={cn(
-                      "py-2.5 px-3 font-bold text-right",
-                      simulated.undercut_gain_s >= 0 ? "text-timing-green" : "text-accent-danger"
-                    )}>
-                      {simulated.undercut_gain_s >= 0 ? `+${simulated.undercut_gain_s}s` : `${simulated.undercut_gain_s}s`}
+                    <td className="py-2.5 px-3 text-accent-primary">
+                      {simulated.undercut_gain_s}s
+                    </td>
+                    <td
+                      className={cn(
+                        "py-2.5 px-3 font-bold text-right",
+                        simulated.undercut_gain_s >= 0
+                          ? "text-timing-green"
+                          : "text-accent-danger",
+                      )}
+                    >
+                      {simulated.undercut_gain_s >= 0
+                        ? `+${simulated.undercut_gain_s}s`
+                        : `${simulated.undercut_gain_s}s`}
                     </td>
                   </tr>
                 )}
 
                 {/* Net Strategy Outcome */}
                 <tr className="bg-surface-raised/60">
-                  <td className="py-2.5 px-3 font-bold text-text-primary">Net Counterfactual Advantage</td>
-                  <td className="py-2.5 px-3 font-medium text-text-muted">Baseline</td>
-                  <td className={cn(
-                    "py-2.5 px-3 font-bold",
-                    netDelta >= 0 ? "text-timing-green" : "text-accent-danger"
-                  )}>
-                    {netDeltaSign}{netDelta.toFixed(2)}s
+                  <td className="py-2.5 px-3 font-bold text-text-primary">
+                    Net Counterfactual Advantage
                   </td>
-                  <td className={cn(
-                    "py-2.5 px-3 font-bold text-right",
-                    netDelta >= 0 ? "text-timing-green" : "text-accent-danger"
-                  )}>
+                  <td className="py-2.5 px-3 font-medium text-text-muted">
+                    Baseline
+                  </td>
+                  <td
+                    className={cn(
+                      "py-2.5 px-3 font-bold",
+                      netDelta >= 0
+                        ? "text-timing-green"
+                        : "text-accent-danger",
+                    )}
+                  >
+                    {netDeltaSign}
+                    {netDelta.toFixed(2)}s
+                  </td>
+                  <td
+                    className={cn(
+                      "py-2.5 px-3 font-bold text-right",
+                      netDelta >= 0
+                        ? "text-timing-green"
+                        : "text-accent-danger",
+                    )}
+                  >
                     {netDelta >= 0 ? "Net Advantage" : "Net Loss"}
                   </td>
                 </tr>
@@ -654,13 +852,13 @@ export function StrategyTelemetryComparison({ comparison, mode = "whatif", class
             </table>
           </div>
 
-          {/* Scoped Telemetry Protocol Disclaimer */}
           <div className="mt-2.5 flex items-center justify-between text-[10px] font-mono text-text-muted px-1">
             <span>
-              🔒 <strong>Scoped Telemetry Guarantee:</strong> Modeled exclusively on stint timelines, tyre degradation slopes, and pit loss.
+              <strong>Simulation basis:</strong> Stint length, tyre degradation
+              and pit-stop loss.
             </span>
             <span className="hidden sm:inline">
-              High-frequency throttle/brake traces excluded per simulation protocol.
+              Explore speed, throttle and braking in the investigation room.
             </span>
           </div>
         </div>

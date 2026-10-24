@@ -34,13 +34,13 @@ function NotificationToast({ notification, onDismiss }) {
     )}
   ><span className={cn("font-mono text-sm", COLORS[notification.type].split(" ")[0])}>{ICONS[notification.type]}</span><p className="text-sm text-text-primary flex-1">{notification.message}</p>{notification.action && <button
     onClick={notification.action.onClick}
-    className="text-mono-meta font-mono text-accent-primary hover:underline underline-offset-2"
+    className="text-mono-meta font-mono text-accent-primary  underline-offset-2"
   >{notification.action.label}</button>}<button
     onClick={() => onDismiss(notification.id)}
-    className="text-text-muted hover:text-text-secondary ml-1"
+    className="text-text-muted  ml-1"
     aria-label="Dismiss notification"
   >
-        ✕
+        ×
       </button></motion.div>;
 }
 export function NotificationContainer() {

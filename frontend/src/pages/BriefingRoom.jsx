@@ -1,726 +1,707 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { BriefingHeader } from "@/components/BriefingHeader";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { QuestionBar } from "@/components/QuestionBar";
-import { RaceStoryCard } from "@/components/RaceStoryCard";
-import { InsightCard } from "@/components/InsightCard";
 import { getCircuitByTrackName } from "@/lib/circuitTracks";
 import { generateId } from "@/lib/utils";
-import { fetchHistory, deleteHistory, fetchHeroCurrent, fetchEditorialCurrent } from "@/lib/api";
+import {
+  fetchHistory,
+  deleteHistory,
+  fetchHeroCurrent,
+  fetchEditorialCurrent,
+} from "@/lib/api";
 
-const DEFAULT_SUGGESTED = [
-  "Analyze top speed delta along the Neftchilar main straight at Baku City Circuit",
-  "Could Ferrari or McLaren win the Azerbaijan Grand Prix with an undercut strategy?",
-  "Compare tire degradation wear slopes between medium and hard compounds",
-  "Simulate a safety car pit window on lap 28"
+const QUESTIONS = [
+  "Compare Norris and Verstappen's fastest laps at the 2024 Dutch GP",
+  "Why did Hamilton win the 2024 British Grand Prix?",
+  "Analyze Leclerc's tyre degradation at the 2024 Italian GP",
 ];
+const PANELS = [
+  ["tools", "Race tools"],
+  ["recent", "Recent"],
+  ["saved", "Saved"],
+  ["news", "Paddock feed"],
+];
+const clean = (text) => {
+  const decoder = document.createElement("textarea");
+  decoder.innerHTML = String(text || "");
+  return decoder.value
+    .replace(/<[^>]*(?:>|$)/g, "")
+    .replace(/\u2014|\u0393\u00c7\u00f6/g, ":")
+    .trim();
+};
+const isStrategy = (item) =>
+  item.investigation_metadata?.type === "strategy" ||
+  item.session === "Strategy" ||
+  item.provider_used === "strategy-planner" ||
+  item.type === "strategy" ||
+  item.conversation_id?.startsWith("strat-");
+
+function RaceWeekend({ hero, loading, reload, now }) {
+  const circuit = hero
+    ? getCircuitByTrackName(hero.circuit_key, hero.location)
+    : null;
+  const track =
+    hero?.track_geometry || (circuit?.hasTelemetry ? circuit : null);
+  const nextSession = hero?.sessions?.find(
+    (session) => new Date(session.utc).getTime() > now,
+  );
+  const advertised = new Date(hero?.countdown_target).getTime();
+  const target =
+    advertised > now ? advertised : new Date(nextSession?.utc).getTime();
+  const seconds = Math.max(0, Math.floor((target - now) / 1000));
+  const countdown =
+    Number.isFinite(seconds) && seconds > 0
+      ? [
+          Math.floor(seconds / 86400),
+          Math.floor(seconds / 3600) % 24,
+          Math.floor(seconds / 60) % 60,
+          seconds % 60,
+        ]
+      : null;
+  return (
+    <section className="weekend-deck" aria-labelledby="weekend-heading">
+      {hero ? (
+        <>
+          <div className="weekend-deck-top">
+            <span className="eyebrow">THE CURRENT RACE WEEKEND</span>
+            <span className="eyebrow">
+              {hero.season} / ROUND {hero.round_number}
+            </span>
+          </div>
+          <div className="weekend-deck-main">
+            <div className="weekend-event">
+              <h2 id="weekend-heading">{hero.event_name}</h2>
+              <p>{hero.location}</p>
+              <div className="weekend-next">
+                <span>
+                  {nextSession ? `NEXT / ${nextSession.name}` : "RACE WEEKEND"}
+                </span>
+                {countdown ? (
+                  <strong
+                    aria-label="Time to next session"
+                    className="weekend-clock"
+                  >
+                    {countdown.map((value, i) => (
+                      <span key={i}>
+                        {String(value).padStart(2, "0")}
+                        <small>{["D", "H", "M", "S"][i]}</small>
+                      </span>
+                    ))}
+                  </strong>
+                ) : (
+                  <strong>
+                    {nextSession?.ist || "Follow the session timetable"}
+                  </strong>
+                )}
+              </div>
+            </div>
+            <div className="weekend-relief" aria-hidden="true">
+              {track?.trackPath ? (
+                <svg viewBox={track.viewBox || "0 0 480 260"} fill="none">
+                  <path d={track.trackPath} />
+                  <path
+                    className="relief-trace"
+                    d={track.trackPath}
+                    pathLength="100"
+                  />
+                </svg>
+              ) : (
+                <>
+                  <span>ROUND</span>
+                  <strong>
+                    {String(hero.round_number || "").padStart(2, "0")}
+                  </strong>
+                  <small>{hero.location?.split(",")[0]}</small>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="weekend-agenda" aria-label="Session timetable in IST">
+            {hero.sessions?.map((session, i) => (
+              <div
+                key={`${session.name}-${i}`}
+                className={session === nextSession ? "is-next" : ""}
+              >
+                <span>{session.name.replace("Practice ", "FP")}</span>
+                <time>{session.ist}</time>
+              </div>
+            ))}
+          </div>
+          <span className="weekend-timezone">
+            ALL TIMES IST
+            {nextSession?.local
+              ? ` / NEXT AT TRACK: ${nextSession.local}`
+              : " / OFFICIAL EVENT CALENDAR"}
+          </span>
+        </>
+      ) : (
+        <div className="weekend-unavailable">
+          <span className="eyebrow">THE CURRENT RACE WEEKEND</span>
+          <h2 id="weekend-heading">THE CALENDAR</h2>
+          <p role="status">
+            {loading
+              ? "Connecting to the race calendar…"
+              : "The race calendar is temporarily unavailable."}
+          </p>
+          <button onClick={reload} disabled={loading}>
+            {loading ? "CONNECTING" : "RETRY CONNECTION"} +
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RaceTools() {
+  return (
+    <div className="compact-tools">
+      <article className="compact-tool">
+        <div className="tool-caption">
+          <span className="eyebrow">02 / STRATEGY ENGINEER</span>
+          <span>WHAT IF?</span>
+        </div>
+        <div className="compact-tool-body">
+          <div>
+            <h3>
+              CHANGE THE CALL.
+              <br />
+              <em>SEE THE OUTCOME.</em>
+            </h3>
+            <p>
+              Move the pit stop. Switch the compound. Compare the projected
+              result with the race that happened.
+            </p>
+          </div>
+          <div className="strategy-relief" aria-hidden="true">
+            <div>
+              <span>ACTUAL</span>
+              <i />
+              <i />
+            </div>
+            <div>
+              <span>WHAT IF</span>
+              <i />
+              <i />
+            </div>
+            <strong>BOX.</strong>
+          </div>
+        </div>
+        <Link className="console-action" to="/strategy">
+          OPEN STRATEGY ENGINEER <span aria-hidden="true">↗</span>
+        </Link>
+      </article>
+      <article className="compact-tool">
+        <div className="tool-caption">
+          <span className="eyebrow">03 / GHOST BATTLE</span>
+          <span>LAP VS LAP</span>
+        </div>
+        <div className="compact-tool-body">
+          <div>
+            <h3>
+              SAME TRACK.
+              <br />
+              <em>DIFFERENT LIMITS.</em>
+            </h3>
+            <p>
+              Replay authentic laps together. Compare up to 22 drivers and find
+              where the difference is made.
+            </p>
+          </div>
+          <div className="ghost-relief" aria-hidden="true">
+            <span>3D</span>
+            <i />
+            <i />
+            <i />
+          </div>
+        </div>
+        <Link className="console-action" to="/ghost-battle">
+          ENTER GHOST BATTLE <span aria-hidden="true">↗</span>
+        </Link>
+      </article>
+    </div>
+  );
+}
+
+function PaddockFeed({ editorial, loading }) {
+  const news = [
+    ...(editorial?.featured_stories || []),
+    ...(editorial?.trending_insights || []),
+  ];
+  return (
+    <div className="compact-feed">
+      <div className="console-section-label">
+        <span>05 / FROM THE PADDOCK</span>
+        <a
+          href="https://www.formula1.com/en/latest"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          ALL F1 NEWS ↗
+        </a>
+      </div>
+      {news.length ? (
+        <div className="compact-news-list">
+          {news.map((item, index) => {
+            const title = clean(item.title || item.headline);
+            const sourceUrl = item.source_url || item.sourceUrl;
+            const href = /^https?:\/\//i.test(sourceUrl || "")
+              ? sourceUrl
+              : null;
+            return (
+              <article key={item.id || index}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <div>
+                  <small>
+                    {item.source_outlet || item.source || "FROM THE PADDOCK"}
+                  </small>
+                  <h3>
+                    {href ? (
+                      <a href={href} target="_blank" rel="noopener noreferrer">
+                        {title}
+                      </a>
+                    ) : (
+                      title
+                    )}
+                  </h3>
+                </div>
+                {href && (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Read ${title}`}
+                  >
+                    <span aria-hidden="true">↗</span>
+                  </a>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="console-message" role="status">
+          {loading
+            ? "Opening the editorial feed…"
+            : "The editorial feed is unavailable. Visit Formula 1 for the latest reporting."}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export function BriefingRoom() {
   const navigate = useNavigate();
-  const [sessionState, setSessionState] = useState("idle");
-  const [recentInvestigations, setRecentInvestigations] = useState([]);
-  const [savedInvestigations, setSavedInvestigations] = useState([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem("frontwing_token"));
-  const [prefillQuery, setPrefillQuery] = useState("");
-
-  // Live Hero State (Fix X & Fix Y)
-  const [heroData, setHeroData] = useState(null);
-  const [isLoadingHero, setIsLoadingHero] = useState(true);
-  const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-
-  // Live Editorial Pipeline State (Fix V & Fix AA)
-  const [editorialData, setEditorialData] = useState(null);
-  const [isLoadingEditorial, setIsLoadingEditorial] = useState(true);
-
-  // Load Real User History (Fix U)
-  const loadHistory = async () => {
-    const token = localStorage.getItem("frontwing_token");
-    setIsAuthenticated(!!token);
-    if (!token) {
-      setRecentInvestigations([]);
-      setSavedInvestigations([]);
-      setIsLoadingHistory(false);
+  const [recent, setRecent] = useState([]);
+  const [authenticated, setAuthenticated] = useState(
+    !!localStorage.getItem("frontwing_token"),
+  );
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [prefill, setPrefill] = useState(
+    new URLSearchParams(window.location.search).get("q") || "",
+  );
+  const [hero, setHero] = useState(null);
+  const [editorial, setEditorial] = useState(null);
+  const [feedLoading, setFeedLoading] = useState(true);
+  const [activePanel, setActivePanel] = useState("tools");
+  const panelTabs = useRef([]);
+  const [now, setNow] = useState(Date.now());
+  const [deleting, setDeleting] = useState(null);
+  const deleteDialog = useRef(null);
+  const loadHistory = useCallback(async () => {
+    const signedIn = !!localStorage.getItem("frontwing_token");
+    setAuthenticated(signedIn);
+    if (!signedIn) {
+      setRecent([]);
       return;
     }
-    setIsLoadingHistory(true);
+    setHistoryLoading(true);
+    setHistoryError("");
     try {
       const data = await fetchHistory({ limit: 10 });
-      if (data && Array.isArray(data.investigations)) {
-        setRecentInvestigations(data.investigations);
-        setSavedInvestigations(data.investigations.filter((i) => i.is_saved));
-      } else {
-        setRecentInvestigations([]);
-        setSavedInvestigations([]);
-      }
-    } catch (err) {
-      console.warn("[BriefingRoom] History fetch error:", err);
-      setRecentInvestigations([]);
-      setSavedInvestigations([]);
+      setRecent(data?.investigations || []);
+    } catch {
+      setHistoryError("Your archive could not be reached. Try again shortly.");
     } finally {
-      setIsLoadingHistory(false);
+      setHistoryLoading(false);
     }
-  };
-
-  // Fetch Hero & Editorial Data
-  const loadContentFeeds = async () => {
-    try {
-      setIsLoadingHero(true);
-      const hero = await fetchHeroCurrent();
-      if (hero) setHeroData(hero);
-    } catch (err) {
-      console.warn("[BriefingRoom] Hero load failed:", err);
-    } finally {
-      setIsLoadingHero(false);
-    }
-
-    try {
-      setIsLoadingEditorial(true);
-      const editorial = await fetchEditorialCurrent();
-      if (editorial) setEditorialData(editorial);
-    } catch (err) {
-      console.warn("[BriefingRoom] Editorial load failed:", err);
-    } finally {
-      setIsLoadingEditorial(false);
-    }
-  };
-
+  }, []);
+  const loadFeeds = useCallback(async () => {
+    setFeedLoading(true);
+    const [race, news] = await Promise.all([
+      fetchHeroCurrent(),
+      fetchEditorialCurrent(),
+    ]);
+    setHero(race?.event_name ? race : null);
+    setEditorial(news);
+    setFeedLoading(false);
+  }, []);
   useEffect(() => {
     loadHistory();
-    loadContentFeeds();
-
-    // Check for query param ?q=... to prefill console
-    const searchParams = new URLSearchParams(window.location.search);
-    const qParam = searchParams.get("q");
-    if (qParam) {
-      setPrefillQuery(qParam);
-    }
-
-    const handleAuthChange = () => {
-      loadHistory();
+    loadFeeds();
+    const prefillQuery = (event) => {
+      if (!event.detail?.query) return;
+      setPrefill(event.detail.query);
+      document
+        .getElementById("race-engineer")
+        ?.scrollIntoView({
+          behavior:
+            document.documentElement.dataset.motion === "paused" ||
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches
+              ? "auto"
+              : "smooth",
+        });
     };
-
-    const handlePrefill = (e) => {
-      if (e.detail?.query) {
-        setPrefillQuery(e.detail.query);
+    window.addEventListener("frontwing-auth-changed", loadHistory);
+    window.addEventListener("frontwing-auth-unauthorized", loadHistory);
+    window.addEventListener("frontwing-history-updated", loadHistory);
+    window.addEventListener("frontwing-prefill-query", prefillQuery);
+    const clock = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      clearInterval(clock);
+      window.removeEventListener("frontwing-auth-changed", loadHistory);
+      window.removeEventListener("frontwing-auth-unauthorized", loadHistory);
+      window.removeEventListener("frontwing-history-updated", loadHistory);
+      window.removeEventListener("frontwing-prefill-query", prefillQuery);
+    };
+  }, [loadHistory, loadFeeds]);
+  useEffect(() => {
+    if (!deleting) return;
+    const previous = document.activeElement;
+    deleteDialog.current?.querySelector("button")?.focus();
+    const onKey = (event) => {
+      if (event.key === "Escape") setDeleting(null);
+      if (event.key !== "Tab") return;
+      const buttons = deleteDialog.current.querySelectorAll("button");
+      if (event.shiftKey && document.activeElement === buttons[0]) {
+        event.preventDefault();
+        buttons[1].focus();
+      }
+      if (!event.shiftKey && document.activeElement === buttons[1]) {
+        event.preventDefault();
+        buttons[0].focus();
       }
     };
-
-    window.addEventListener("frontwing-auth-changed", handleAuthChange);
-    window.addEventListener("frontwing-auth-unauthorized", handleAuthChange);
-    window.addEventListener("frontwing-prefill-query", handlePrefill);
-
+    document.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("frontwing-auth-changed", handleAuthChange);
-      window.removeEventListener("frontwing-auth-unauthorized", handleAuthChange);
-      window.removeEventListener("frontwing-prefill-query", handlePrefill);
+      document.removeEventListener("keydown", onKey);
+      previous?.focus();
     };
-  }, []);
-
-  // Real Countdown Timer (Fix X)
-  useEffect(() => {
-    if (!heroData) return;
-    const targetStr = heroData.countdown_target || (heroData.sessions && heroData.sessions[0]?.utc);
-    if (!targetStr) return;
-
-    const targetTime = new Date(targetStr).getTime();
-
-    const updateCountdown = () => {
-      const now = Date.now();
-      const diff = Math.max(0, targetTime - now);
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-      const minutes = Math.floor((diff / (1000 * 60)) % 60);
-      const seconds = Math.floor((diff / 1000) % 60);
-      setCountdown({ days, hours, minutes, seconds });
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
-  }, [heroData]);
-
-  const handleQuestionSubmit = async (query) => {
-    if (sessionState === "loading" || !query.trim()) return;
-    setSessionState("loading");
-    const generatedId = generateId();
-    const newInvestigation = {
-      id: generatedId,
+  }, [deleting]);
+  const submit = (query) => {
+    if (!query.trim()) return;
+    const id = generateId();
+    const investigation = {
+      id,
       question: query,
       display_title: query,
       status: "loading",
       exchanges: [],
       timestamp: new Date().toISOString(),
       pinned: false,
-      group_id: null
+      group_id: null,
     };
-    localStorage.setItem(`frontwing_investigation_${generatedId}`, JSON.stringify(newInvestigation));
-    // Real-time sidebar update: optimistic insertion
-    window.dispatchEvent(
-      new CustomEvent("frontwing-chat-created", { detail: newInvestigation })
+    localStorage.setItem(
+      `frontwing_investigation_${id}`,
+      JSON.stringify(investigation),
     );
-    setSessionState("idle");
-    navigate(`/investigate/${generatedId}`);
+    window.dispatchEvent(
+      new CustomEvent("frontwing-chat-created", { detail: investigation }),
+    );
+    navigate(`/investigate/${id}`);
   };
-
-  const handleDeleteItem = async (e, id) => {
-    e.stopPropagation();
+  const remove = async () => {
+    if (!deleting) return;
     try {
-      await deleteHistory(id);
-    } catch (err) {
-      console.warn("[BriefingRoom] Delete history error:", err);
+      if (!(await deleteHistory(deleting.id))) throw new Error();
+      localStorage.removeItem(`frontwing_investigation_${deleting.id}`);
+      window.dispatchEvent(new CustomEvent("frontwing-history-updated"));
+      setDeleting(null);
+    } catch {
+      setHistoryError(
+        "The investigation could not be deleted. Please try again.",
+      );
+      setDeleting(null);
     }
-    localStorage.removeItem(`frontwing_investigation_${id}`);
-    loadHistory();
   };
-
-  const handleSearchTrigger = () => {
-    window.dispatchEvent(new CustomEvent("toggle-search-overlay"));
-  };
-
-  const openAuth = () => {
+  const visibleHistory =
+    activePanel === "saved" ? recent.filter((item) => item.is_saved) : recent;
+  const openAuth = () =>
     window.dispatchEvent(new CustomEvent("frontwing-open-auth-modal"));
-  };
-
-  // Resolve authentic circuit vector geometry from circuitTracks.js (Fix Y)
-  const circuitKey = heroData?.circuit_key || "baku";
-  const circuitLocation = heroData?.location || "";
-  const circuit = getCircuitByTrackName(circuitKey, circuitLocation);
-  const hasTelemetry = heroData?.has_telemetry || circuit.hasTelemetry;
-  const trackPath = heroData?.track_geometry?.trackPath || circuit.trackPath;
-  const viewBox = heroData?.track_geometry?.viewBox || circuit.viewBox || "0 0 480 260";
-  const startFinish = heroData?.track_geometry?.startFinish || circuit.startFinish;
-
-  const suggestedQuestions = heroData?.suggested_questions && heroData.suggested_questions.length > 0
-    ? heroData.suggested_questions
-    : DEFAULT_SUGGESTED;
-
-  const cleanSnippet = (text) => {
-    if (!text) return "";
-    return text.replace(/<[^>]*>?/gm, "").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
-  };
-
-  const featuredStories = (editorialData?.featured_stories || []).map((s) => ({
-    ...s,
-    summary: cleanSnippet(s.summary) || "Official Formula 1 Grand Prix strategic debrief and technical simulation analysis."
-  }));
-
-  const trendingInsights = (editorialData?.trending_insights || []).map((ins) => ({
-    ...ins,
-    headline: ins.headline || ins.title,
-    confidence: ins.confidence || "high",
-    source: ins.source_outlet || ins.source || "F1 Media",
-    metric: ins.metric || (ins.metrics ? {
-      value: ins.metrics.metric_value,
-      unit: ins.metrics.metric_unit,
-      context: ins.metrics.metric_context
-    } : { value: "+0.28s", unit: "/ LAP", context: "Tyre degradation delta" })
-  }));
 
   return (
-    <div className="min-h-screen bg-canvas text-text-secondary flex flex-col font-sans selection:bg-accent-primary/20 selection:text-accent-primary">
-      {/* Header */}
-      <BriefingHeader
-        breadcrumbs={[]}
-        sessionState={sessionState}
-        onSearchTrigger={handleSearchTrigger}
-        onLogoClick={() => navigate("/")}
-      />
-
-      {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 py-8 flex flex-col justify-between gap-12">
-        {/* Real Hero Section: NEXT UPCOMING RACE WEEKEND (Fix X) */}
-        <section className="flex flex-col lg:flex-row items-center justify-between gap-12 my-auto">
-          {/* Left Hero: Dynamic Event & Query Box */}
-          <div className="flex-1 flex flex-col gap-6 max-w-2xl w-full">
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="font-mono text-xs text-accent-primary font-bold tracking-wider flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent-primary animate-pulse" />
-                  Race Briefing • {heroData?.event_name || "Active Event"}
-                </span>
-
-                {countdown && (countdown.days > 0 || countdown.hours > 0 || countdown.minutes > 0) && (
-                  <span className="text-[10px] font-mono text-accent-primary px-2 py-0.5 rounded border border-accent-primary/30 bg-accent-primary/10 font-bold type-tabular">
-                    Starts in: {countdown.days}d {countdown.hours}h {countdown.minutes}m
-                  </span>
-                )}
-
-                {heroData?.last_updated && (
-                  <span className="text-[10px] font-mono text-text-muted/70 px-2 py-0.5 rounded border border-border-subtle bg-surface-raised/40">
-                    Updated {new Date(heroData.last_updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
-              </div>
-              <h1 className="font-heading font-black text-3xl sm:text-4xl lg:text-5xl tracking-tight text-text-primary leading-[1.05]">
-                {heroData?.hero_headline || "Can Ferrari conquer Neftchilar Avenue at the Azerbaijan Grand Prix?"}
-              </h1>
-              <p className="text-text-muted text-sm max-w-lg leading-relaxed font-sans">
-                {heroData?.hero_subheadline || "The AI Race Engineer models aerodynamic telemetry, high-speed braking stability across 20 turns, and projected stint degradation."}
-              </p>
-            </div>
-
-            {/* Query Console Input (Dedicated input surface - Fix AA) */}
-            <div className="w-full">
-              <QuestionBar
-                variant="hero"
-                placeholder="Ask about any driver, lap, tyre stint, or telemetry delta..."
-                suggestedQuestions={suggestedQuestions}
-                disabled={sessionState === "loading"}
-                onSubmit={handleQuestionSubmit}
-                prefillValue={prefillQuery}
-                contextLabel={heroData?.circuit_key ? heroData.circuit_key.toUpperCase() : "Live Telemetry"}
-              />
-            </div>
-
-            {/* Official Sessions Timetable with IST & Track Local Times */}
-            {heroData?.sessions && heroData.sessions.length > 0 && (
-              <div className="flex flex-col gap-2 p-3.5 rounded border border-border-subtle bg-surface-base/80 backdrop-blur-sm">
-                <div className="flex items-center justify-between font-mono text-xs text-text-muted">
-                  <span className="text-accent-primary font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-accent-primary animate-pulse" />
-                    Event Sessions • IST (UTC+5:30) & Local Time
-                  </span>
-                  <span className="type-tabular">ROUND {heroData.round_number || 15} • {heroData.season || 2026}</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 pt-1">
-                  {heroData.sessions.map((sess, idx) => (
-                    <div
-                      key={idx}
-                      className={`flex flex-col p-2 rounded border text-left transition-colors ${
-                        sess.name.toLowerCase().includes("race")
-                          ? "bg-accent-primary/10 border-accent-primary/40"
-                          : "bg-surface-raised border-border-subtle hover:border-border-strong"
-                      }`}
-                    >
-                      <span className="text-[11px] font-sans font-semibold text-text-primary truncate">
-                        {sess.name}
-                      </span>
-                      <span className="text-[11px] font-mono text-accent-primary font-bold mt-0.5 type-tabular">
-                        {sess.ist}
-                      </span>
-                      <span className="text-[9px] font-mono text-text-muted mt-0.5 truncate type-tabular">
-                        {sess.local}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+    <div className="briefing-page compact-briefing">
+      <section className="pitwall-overview" aria-labelledby="pitwall-heading">
+        <div className="pitwall-intro">
+          <span className="eyebrow">
+            FRONTWING / YOUR RACE INTELLIGENCE WORKSPACE
+          </span>
+          <h1 id="pitwall-heading">
+            UNDERSTAND
+            <br />
+            <em>THE RACE.</em>
+          </h1>
+          <p>
+            Ask what happened. Find out why. Explore the telemetry, test a
+            pit-wall decision, or compare laps in 3D.
+          </p>
+          <div className="pitwall-principles">
+            <span>REAL RACE DATA</span>
+            <span>EVIDENCE YOU CAN EXPLORE</span>
           </div>
+        </div>
+        <RaceWeekend
+          hero={hero}
+          loading={feedLoading}
+          reload={loadFeeds}
+          now={now}
+        />
+      </section>
 
-          {/* Right Hero: Real Track Geometry or Honest Placeholder (Fix Y) */}
-          <div className="w-full lg:w-[440px] flex items-center justify-center shrink-0 border border-border-subtle rounded p-6 bg-surface-base/80 relative overflow-hidden group">
-            {/* Grid background effect */}
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:24px_24px] opacity-10" />
-
-            <div className="relative flex flex-col items-center w-full">
-              <span className="absolute top-0 left-0 text-[10px] font-mono text-text-muted uppercase tracking-wider">
-                Circuit • {heroData?.circuit_name || circuit.name}
-              </span>
-              <span className="absolute top-0 right-0 text-[10px] font-mono text-text-muted type-tabular">
-                Length: {heroData?.track_length_km ? `${heroData.track_length_km} KM` : `${((circuit.lengthMeters || 6003) / 1000).toFixed(3)} KM`}
-              </span>
-
-              {/* Dynamic Track SVG or Honest Placeholder */}
-              {hasTelemetry && trackPath ? (
-                <div className="w-full h-[240px] flex items-center justify-center pt-5">
-                  <svg
-                    viewBox={viewBox}
-                    className="w-full h-full text-text-muted/50 group-hover:text-accent-primary/80 transition-colors duration-normal"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d={trackPath} />
-                    {startFinish && (
-                      <circle
-                        cx={startFinish.x}
-                        cy={startFinish.y}
-                        r="4"
-                        className="fill-accent-primary text-accent-primary"
-                      />
-                    )}
-                  </svg>
-                </div>
-              ) : (
-                <div className="w-full h-[240px] flex flex-col items-center justify-center border border-dashed border-border-subtle rounded bg-surface-raised/40 p-6 text-center my-3">
-                  <div className="w-9 h-9 rounded-full border border-accent-primary/30 flex items-center justify-center text-accent-primary mb-2.5 font-mono text-xs font-bold">
-                    ⌖
-                  </div>
-                  <span className="font-mono text-xs font-bold text-text-primary tracking-wider uppercase">
-                    Track Layout • Pending Telemetry Ingestion
-                  </span>
-                  <p className="font-mono text-[11px] text-text-muted mt-1 max-w-xs leading-relaxed">
-                    Authentic geometry will be extracted post-session from official telemetry. Synthetic or approximated layouts are disabled.
-                  </p>
-                </div>
-              )}
-
-              {/* Dynamic Track Specs */}
-              <div className="flex justify-between w-full mt-4 border-t border-border-subtle pt-4 font-mono text-xs">
-                <div>
-                  <span className="text-text-muted">Turns: </span>
-                  <span className="text-text-primary font-bold type-tabular">{heroData?.turns || circuit.turns || 20}</span>
-                </div>
-                <div>
-                  <span className="text-text-muted">DRS Zones: </span>
-                  <span className="text-text-primary font-bold type-tabular">{heroData?.drs_zones || circuit.drsZones || 2}</span>
-                </div>
-                <div>
-                  <span className="text-text-muted">Record: </span>
-                  <span className="text-text-primary font-bold type-tabular">{heroData?.lap_record || "1:43.009"}</span>
-                </div>
-              </div>
-            </div>
+      <section
+        className="engineer-section"
+        id="race-engineer"
+        aria-labelledby="engineer-heading"
+      >
+        <div className="compact-engineer-copy">
+          <span className="eyebrow">01 / THE INVESTIGATION ROOM</span>
+          <h2 id="engineer-heading">
+            GOOD QUESTIONS.
+            <br />
+            <em>RACE-WINNING INSIGHT.</em>
+          </h2>
+          <p>
+            Your direct line to the race engineer. Pick a driver, question a
+            decision, follow the evidence.
+          </p>
+          <button
+            className="compact-search"
+            onClick={() =>
+              window.dispatchEvent(new CustomEvent("toggle-search-overlay"))
+            }
+          >
+            SEARCH YOUR ARCHIVE <kbd>CTRL K</kbd>
+          </button>
+        </div>
+        <div className="engineer-workbench">
+          <div className="workbench-title">
+            <span>ASK THE RACE ENGINEER</span>
+            <span>RADIO / OPEN</span>
           </div>
-        </section>
-
-        {/* Dedicated Section: LAST RACE RESULTS // PODIUM & CLASSIFICATION (Fix X & Fix Y) */}
-        {heroData?.last_race_results && (
-          <section className="border border-border-subtle rounded-card bg-surface-base/90 p-6 shadow-sm flex flex-col gap-6 relative overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border-subtle pb-4">
-              <div className="flex flex-col gap-1">
-                <span className="font-mono text-xs text-accent-primary font-bold tracking-wider flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-accent-primary" />
-                  Last Race Results • Podium & Classification
-                </span>
-                <h2 className="font-heading font-black text-2xl text-text-primary tracking-tight">
-                  Round {heroData.last_race_results.round_number} — {heroData.last_race_results.event_name} • {heroData.last_race_results.location}
-                </h2>
-              </div>
-              <div className="flex items-center gap-2 font-mono text-xs text-text-muted">
-                <span className="px-2.5 py-1 rounded bg-surface-raised border border-border-subtle type-tabular">
-                  {heroData.last_race_results.date}
-                </span>
-                <span className="px-2.5 py-1 rounded bg-timing-green/10 border border-timing-green/30 text-timing-green font-bold">
-                  Session Completed
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
-              {/* Left Column: Podium Finishers & Fastest Lap */}
-              <div className="flex flex-col gap-3">
-                <span className="font-mono text-[11px] text-text-muted uppercase tracking-wider">
-                  Podium Finishers
-                </span>
-                <div className="flex flex-col gap-2">
-                  {heroData.last_race_results.podium?.map((pod) => (
-                    <div
-                      key={pod.position}
-                      className={`p-3 rounded border flex items-center justify-between ${
-                        pod.position === 1
-                          ? "bg-timing-yellow/10 border-timing-yellow/40 text-text-primary"
-                          : "bg-surface-raised border-border-subtle text-text-secondary"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className={`w-6 h-6 rounded-full flex items-center justify-center font-mono font-bold text-xs ${
-                          pod.position === 1 ? "bg-timing-yellow text-canvas" : "bg-surface-base text-text-muted border border-border-subtle"
-                        }`}>
-                          P{pod.position}
-                        </span>
-                        <div>
-                          <div className="font-sans font-bold text-sm text-text-primary">
-                            {pod.driver}
-                          </div>
-                          <div className="font-mono text-[10px] text-text-muted">
-                            {pod.team}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right font-mono text-xs type-tabular">
-                        <div className="text-accent-primary font-bold">{pod.time}</div>
-                        <div className="text-text-muted text-[10px]">+{pod.points} PTS</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {heroData.last_race_results.fastest_lap && (
-                  <div className="p-3 rounded border border-border-subtle bg-surface-raised flex items-center justify-between font-mono text-xs mt-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-timing-purple font-bold">⚡ Fastest Lap</span>
-                      <span className="text-text-primary font-bold">
-                        {heroData.last_race_results.fastest_lap.driver} ({heroData.last_race_results.fastest_lap.team})
-                      </span>
-                    </div>
-                    <span className="text-accent-primary font-bold type-tabular">
-                      {heroData.last_race_results.fastest_lap.lap_time}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Middle Column: Top 5 Classification Table */}
-              <div className="flex flex-col gap-3">
-                <span className="font-mono text-[11px] text-text-muted uppercase tracking-wider">
-                  Top 5 Classification
-                </span>
-                <div className="rounded border border-border-subtle overflow-hidden bg-surface-raised">
-                  <table className="w-full font-mono text-xs text-left">
-                    <thead className="bg-surface-base text-[10px] text-text-muted border-b border-border-subtle uppercase">
-                      <tr>
-                        <th className="py-2 px-3">Pos</th>
-                        <th className="py-2 px-3">Driver</th>
-                        <th className="py-2 px-3">Team</th>
-                        <th className="py-2 px-3 text-right">Gap / Time</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border-subtle">
-                      {heroData.last_race_results.top_finishers?.map((row) => (
-                        <tr key={row.position} className="hover:bg-surface-elevated/40 transition-colors">
-                          <td className="py-2 px-3 font-bold text-accent-primary type-tabular">
-                            {row.position}
-                          </td>
-                          <td className="py-2 px-3 font-semibold text-text-primary font-sans">
-                            {row.driver}
-                          </td>
-                          <td className="py-2 px-3 text-text-muted text-[11px] truncate max-w-[120px]">
-                            {row.team}
-                          </td>
-                          <td className="py-2 px-3 text-right text-text-primary type-tabular">
-                            {row.time}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Right Column: Real Madring (Madrid) Track Telemetry Geometry */}
-              <div className="flex flex-col gap-2 border border-border-subtle rounded p-4 bg-surface-raised relative overflow-hidden group">
-                <div className="flex justify-between items-center text-[10px] font-mono text-text-muted uppercase">
-                  <span>Circuit • {heroData.last_race_results.circuit_name}</span>
-                  <span className="type-tabular">{heroData.last_race_results.track_length_km} KM</span>
-                </div>
-
-                <div className="w-full h-[180px] flex items-center justify-center">
-                  {heroData.last_race_results.track_geometry?.trackPath ? (
-                    <svg
-                      viewBox={heroData.last_race_results.track_geometry.viewBox || "0 0 480 260"}
-                      className="w-full h-full text-text-muted/60 group-hover:text-accent-primary transition-colors duration-normal"
-                      stroke="currentColor"
-                      strokeWidth="1.75"
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d={heroData.last_race_results.track_geometry.trackPath} />
-                      {heroData.last_race_results.track_geometry.startFinish && (
-                        <circle
-                          cx={heroData.last_race_results.track_geometry.startFinish.x}
-                          cy={heroData.last_race_results.track_geometry.startFinish.y}
-                          r="4"
-                          className="fill-accent-primary text-accent-primary"
-                        />
-                      )}
-                    </svg>
-                  ) : (
-                    <span className="font-mono text-xs text-text-muted">REAL TRACK GEOMETRY CACHED</span>
-                  )}
-                </div>
-
-                <div className="flex justify-between items-center pt-2 border-t border-border-subtle font-mono text-[10px] text-text-muted">
-                  <span>Turns: <strong className="text-text-primary">{heroData.last_race_results.turns}</strong></span>
-                  <span className="text-timing-green font-semibold">Official Telemetry Verified</span>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* Real User Investigation History */}
-        <section className="flex flex-col gap-6 border-t border-border-subtle pt-8">
-          <div className="flex items-center justify-between font-mono text-xs">
-            <span className="text-accent-primary font-bold uppercase tracking-wider flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-accent-primary" />
-              Investigation History
-            </span>
-            <span className="text-text-muted type-tabular">
-              {isAuthenticated
-                ? `${recentInvestigations.length} Stored • ${savedInvestigations.length} Saved`
-                : "Guest Mode"}
-            </span>
-          </div>
-
-          {isLoadingHistory ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="h-28 rounded border border-border-subtle bg-surface-base/40 animate-pulse p-4 flex flex-col justify-between"
-                >
-                  <div className="h-3 w-1/3 bg-surface-raised rounded" />
-                  <div className="h-4 w-3/4 bg-surface-raised rounded" />
-                  <div className="h-3 w-1/2 bg-surface-raised rounded" />
-                </div>
-              ))}
-            </div>
-          ) : !isAuthenticated ? (
-            /* Honest Unauthenticated Guest State */
-            <div className="border border-border-subtle rounded p-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface-base/60 backdrop-blur-sm">
-              <div className="flex flex-col gap-1 text-left">
-                <span className="text-xs font-mono text-accent-primary font-bold uppercase tracking-wider">
-                  Authentication Required • Guest Session
-                </span>
-                <p className="text-xs text-text-muted max-w-lg">
-                  Sign in or register to automatically save your telemetry investigations, access multi-turn telemetry timelines, and sync your query history across sessions.
-                </p>
-              </div>
+          <QuestionBar
+            variant="hero"
+            placeholder="What do you want to know about the race?"
+            onSubmit={submit}
+            prefillValue={prefill}
+          />
+          <div className="question-examples">
+            <span>OR START HERE</span>
+            {QUESTIONS.map((question, i) => (
               <button
-                onClick={openAuth}
-                className="btn-f1-primary px-4 py-2 text-xs tracking-wider shrink-0"
+                key={question}
+                onClick={() => {
+                  setPrefill(question);
+                  window.dispatchEvent(
+                    new CustomEvent("frontwing-focus-input"),
+                  );
+                }}
               >
-                Sign In / Register
+                <small>0{i + 1}</small>
+                {question}
+                <span aria-hidden="true">+</span>
               </button>
-            </div>
-          ) : recentInvestigations.length === 0 ? (
-            /* Honest Empty State for Authenticated User with 0 Investigations */
-            <div className="border border-dashed border-border-subtle rounded p-8 flex flex-col items-center justify-center text-center gap-2 bg-surface-base/20">
-              <span className="text-xs font-mono text-text-muted uppercase tracking-wider">
-                Archive Empty • No Saved Debriefs
-              </span>
-              <p className="text-sm text-text-secondary max-w-md">
-                You have not run any telemetry investigations yet. Ask a question in the console above or pick a suggested scenario to generate your first technical debrief.
-              </p>
-            </div>
-          ) : (
-            /* Real User Investigations */
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {recentInvestigations.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => navigate(`/investigate/${item.id}`)}
-                  className="group cursor-pointer border border-border-subtle hover:border-accent-primary/50 bg-surface-base hover:bg-surface-raised p-4 rounded card-interactive flex flex-col justify-between gap-4 transition-all duration-fast"
-                >
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between text-[10px] font-mono text-text-muted">
-                      <span className="text-accent-primary font-bold">
-                        {item.session || item.grand_prix || "Active Session"}
-                      </span>
-                      <span className="type-tabular">
-                        {new Date(item.timestamp || item.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <h4 className="text-sm font-semibold text-text-primary group-hover:text-accent-primary transition-colors line-clamp-2">
-                      {item.display_title || item.question}
-                    </h4>
-                  </div>
-                  <div className="flex items-center justify-between border-t border-border-subtle pt-3 text-[10px] font-mono">
-                    <span className="text-text-muted">
-                      Telemetry Analysis
-                    </span>
-                    <button
-                      onClick={(e) => handleDeleteItem(e, item.id)}
-                      className="text-text-muted hover:text-accent-danger font-bold transition-colors"
-                      title="Delete Investigation"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Real Live Editorial Pipeline (Read-Only Links, No Click-Triggered Invocations - Fix AA) */}
-        <section className="grid grid-cols-1 xl:grid-cols-3 gap-8 border-t border-border-subtle pt-8">
-          {/* Featured Race Debriefs */}
-          <div className="xl:col-span-2 flex flex-col gap-4">
-            <div className="flex items-center justify-between font-mono text-xs">
-              <div className="flex items-center gap-2">
-                <span className="text-text-muted uppercase tracking-wider">
-                  Featured Debrief • Tactical Feed
-                </span>
-                {editorialData?.last_updated && (
-                  <span className="text-[10px] text-text-muted/70 px-1.5 py-0.5 rounded border border-border-subtle">
-                    Updated {new Date(editorialData.last_updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
-              </div>
-              <span className="text-accent-primary font-bold uppercase tracking-wider">
-                Real-Time F1 Analysis
-              </span>
-            </div>
-
-            {featuredStories.length > 0 ? (
-              featuredStories.map((story, idx) => (
-                <RaceStoryCard
-                  key={story.id || idx}
-                  title={story.title}
-                  summary={story.summary}
-                  sourceUrl={story.source_url}
-                  sourceOutlet={story.source_outlet}
-                  keyMoments={story.keyMoments || []}
-                  variant="featured"
-                />
-              ))
-            ) : (
-              <div className="p-8 border border-border-subtle rounded bg-surface-base/40 text-center">
-                <span className="text-xs font-mono text-text-muted uppercase">
-                  {isLoadingEditorial ? "Connecting to Formula 1 editorial pipeline..." : "No editorial feeds found"}
-                </span>
-              </div>
-            )}
+            ))}
           </div>
-
-          {/* Trending Tactical Insights */}
-          <div className="flex flex-col gap-4">
-            <span className="font-mono text-xs text-text-muted uppercase tracking-wider">
-              Trending Tactical Insights
-            </span>
-            <div className="flex flex-col sm:flex-row xl:flex-col gap-3">
-              {trendingInsights.length > 0 ? (
-                trendingInsights.map((insight, idx) => (
-                  <InsightCard
-                    key={idx}
-                    insight={insight}
-                    variant="featured"
-                  />
-                ))
-              ) : (
-                <div className="p-6 border border-border-subtle rounded bg-surface-base/40 text-center">
-                  <span className="text-xs font-mono text-text-muted">
-                    {isLoadingEditorial ? "Calculating tactical deltas..." : "No tactical deltas available"}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-      </main>
-
-      {/* Footer Info */}
-      <section aria-labelledby="about-frontwing" className="border-t border-border-subtle px-6 py-8">
-        <div className="max-w-[1440px] mx-auto text-sm leading-relaxed text-text-secondary">
-          <h2 id="about-frontwing" className="font-heading text-2xl font-bold text-text-primary mb-3">FrontWing: Formula 1 telemetry and race strategy</h2>
-          <p className="max-w-3xl">Explore telemetry, AI race investigations, pit-stop scenarios and 3D lap comparisons. Built by <a className="underline" href="https://www.pranavattarde.in/">Pranav Attarde</a>, a full stack developer, AI engineer and Formula 1 enthusiast. Check supporting evidence and simulation assumptions when interpreting an answer.</p>
-          <nav aria-label="FrontWing guides" className="flex flex-wrap gap-x-6 gap-y-3 mt-4 text-text-primary underline">
-            <a href="/about/">About FrontWing</a>
-            <a href="/guides/f1-telemetry/">Understanding F1 telemetry</a>
-            <a href="/guides/f1-strategy/">Understanding race strategy</a>
-            <a href="/strategy">Strategy Engineer</a>
-            <a href="/ghost-battle">3D Ghost Battle</a>
-          </nav>
         </div>
       </section>
-      <footer className="border-t border-border-subtle py-4 bg-surface-base/90 mt-auto">
-        <div className="max-w-[1440px] mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2 font-mono text-xs text-text-muted">
+
+      <section className="paddock-console" aria-labelledby="paddock-heading">
+        <div className="paddock-console-header">
           <div>
-            System Status: <span className="text-accent-primary font-bold">Active</span> • Telemetry Pipeline:{" "}
-            <span className="text-text-primary uppercase font-semibold">{heroData?.event_name || "Online"}</span>
+            <span className="eyebrow">YOUR NEXT MOVE</span>
+            <h2 id="paddock-heading">THE PIT WALL.</h2>
           </div>
-          <div>
-            © 2026 FrontWing • Formula 1 Strategy & Telemetry Intelligence
+          <div
+            className="paddock-tabs"
+            role="tablist"
+            aria-label="Pit wall workspace"
+          >
+            {PANELS.map(([id, label], index) => (
+              <button
+                key={id}
+                ref={(element) => {
+                  panelTabs.current[index] = element;
+                }}
+                id={`paddock-tab-${id}`}
+                role="tab"
+                aria-selected={activePanel === id}
+                aria-controls="paddock-panel"
+                tabIndex={activePanel === id ? 0 : -1}
+                onClick={() => setActivePanel(id)}
+                onKeyDown={(event) => {
+                  let next;
+                  if (event.key === "ArrowRight")
+                    next = (index + 1) % PANELS.length;
+                  else if (event.key === "ArrowLeft")
+                    next = (index + PANELS.length - 1) % PANELS.length;
+                  else if (event.key === "Home") next = 0;
+                  else if (event.key === "End") next = PANELS.length - 1;
+                  if (next !== undefined) {
+                    event.preventDefault();
+                    setActivePanel(PANELS[next][0]);
+                    panelTabs.current[next]?.focus();
+                  }
+                }}
+              >
+                {label}
+                {id === "saved" && authenticated && (
+                  <small>{recent.filter((item) => item.is_saved).length}</small>
+                )}
+              </button>
+            ))}
           </div>
         </div>
-      </footer>
+        <div
+          key={activePanel}
+          className="paddock-panel"
+          id="paddock-panel"
+          role="tabpanel"
+          aria-labelledby={`paddock-tab-${activePanel}`}
+          tabIndex={0}
+        >
+          {activePanel === "tools" ? (
+            <RaceTools />
+          ) : activePanel === "news" ? (
+            <PaddockFeed editorial={editorial} loading={feedLoading} />
+          ) : (
+            <div className="compact-history">
+              <div className="console-section-label">
+                <span>
+                  04 / YOUR {activePanel === "saved" ? "SAVED" : "RECENT"}{" "}
+                  INVESTIGATIONS
+                </span>
+                <button
+                  onClick={() =>
+                    window.dispatchEvent(
+                      new CustomEvent("frontwing-toggle-sidebar"),
+                    )
+                  }
+                >
+                  OPEN FULL ARCHIVE +
+                </button>
+              </div>
+              {!authenticated ? (
+                <div className="console-empty">
+                  <div>
+                    <h3>
+                      YOUR RACE HISTORY.
+                      <br />
+                      <em>READY WHEN YOU ARE.</em>
+                    </h3>
+                    <p>
+                      Sign in to save investigations, pin a question and pick up
+                      where you left off.
+                    </p>
+                  </div>
+                  <button className="console-action" onClick={openAuth}>
+                    SIGN IN TO YOUR PADDOCK <span aria-hidden="true">↗</span>
+                  </button>
+                </div>
+              ) : historyLoading ? (
+                <p className="console-message" role="status">
+                  Opening your archive…
+                </p>
+              ) : historyError ? (
+                <p className="console-message" role="alert">
+                  {historyError} <button onClick={loadHistory}>Retry</button>
+                </p>
+              ) : visibleHistory.length ? (
+                <div className="compact-history-list">
+                  {visibleHistory.map((item, index) => (
+                    <div key={item.id}>
+                      <span>{String(index + 1).padStart(2, "0")}</span>
+                      <button
+                        onClick={() =>
+                          navigate(
+                            isStrategy(item)
+                              ? `/strategy?id=${item.id}`
+                              : `/investigate/${item.id}`,
+                          )
+                        }
+                      >
+                        {item.display_title || item.question}
+                      </button>
+                      <time>
+                        {new Date(
+                          item.timestamp || item.created_at,
+                        ).toLocaleDateString("en-GB", {
+                          day: "2-digit",
+                          month: "short",
+                        })}
+                      </time>
+                      <button
+                        aria-label={`Delete ${item.display_title || item.question}`}
+                        onClick={() => setDeleting(item)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="console-empty">
+                  <div>
+                    <h3>
+                      START WITH
+                      <br />
+                      <em>A QUESTION.</em>
+                    </h3>
+                    <p>
+                      {activePanel === "saved"
+                        ? "Save an investigation to find it here."
+                        : "Your first investigation starts with the race engineer above."}
+                    </p>
+                  </div>
+                  <a className="console-action" href="#race-engineer">
+                    ASK THE RACE ENGINEER <span aria-hidden="true">↗</span>
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="console-bottom">
+          <span>ONE WORKSPACE. EVERY ANGLE OF THE RACE.</span>
+          <span>TELEMETRY / STRATEGY / 3D REPLAY</span>
+        </div>
+      </section>
+      {deleting && (
+        <div className="confirmation-backdrop">
+          <section
+            ref={deleteDialog}
+            className="confirmation-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-title"
+          >
+            <span className="eyebrow">YOUR ARCHIVE</span>
+            <h2 id="delete-title">Delete investigation?</h2>
+            <p>{deleting.display_title || deleting.question}</p>
+            <p>This will permanently remove this investigation.</p>
+            <div>
+              <button
+                className="race-button race-button-outline"
+                onClick={() => setDeleting(null)}
+              >
+                CANCEL
+              </button>
+              <button className="race-button" onClick={remove}>
+                DELETE
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

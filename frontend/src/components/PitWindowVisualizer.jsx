@@ -52,13 +52,13 @@ export function PitWindowVisualizer({
                   "flex-1 flex justify-between items-center px-3 py-2 border rounded transition-all",
                   isDirty
                     ? "border-accent-danger/30 bg-accent-danger/10 text-accent-danger"
-                    : "border-border-subtle bg-surface-raised/40 hover:border-border-medium text-text-primary"
+                    : "border-border-subtle bg-surface-raised/40  text-text-primary"
                 )}
                 style={
                   isDirty
                     ? {
                         backgroundImage:
-                          "repeating-linear-gradient(45deg, rgba(225, 6, 0, 0.08) 0px, rgba(225, 6, 0, 0.08) 2px, transparent 2px, transparent 8px)"
+                          "none"
                       }
                     : {}
                 }
@@ -89,7 +89,7 @@ export function PitWindowVisualizer({
         {/* Highlight the pitting driver marker in the middle */}
         <div className="flex items-center gap-4 pl-4 relative my-1 z-10">
           <div className="w-2.5 h-2.5 rounded-full bg-accent-primary border-2 border-canvas ml-4 shrink-0 shadow-[0_0_8px_rgba(225,6,0,0.6)]" />
-          <div className="flex-1 flex justify-between items-center px-4 py-2.5 border border-accent-primary/40 bg-accent-primary/10 rounded font-mono border-l-2 border-l-accent-primary">
+          <div className="flex-1 flex justify-between items-center px-4 py-2.5 border border-accent-primary/40 bg-accent-primary/10 rounded font-mono ">
             <div className="flex items-center gap-2">
               <span className="text-xs text-accent-primary font-bold">Pit Exit</span>
               <span className="text-sm font-bold text-text-primary">{pittingDriver.code}</span>

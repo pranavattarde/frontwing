@@ -13,7 +13,7 @@ export function TeamCard({
     onClick={onClick}
     className={cn(
       "evidence-card relative flex flex-col justify-between hover-lift transition-all duration-[80ms]",
-      onClick && "cursor-pointer hover:border-border-strong",
+      onClick && "cursor-pointer ",
       isExpanded ? "p-5 w-full sm:w-[360px]" : "p-3 w-full"
     )}
     initial={{ opacity: 0, y: 12 }}
@@ -32,7 +32,7 @@ export function TeamCard({
       e.stopPropagation();
       onDriverClick?.(d.code);
     }}
-    className="font-mono text-mono-meta text-text-muted hover:text-accent-primary hover:underline transition-colors"
+    className="font-mono text-mono-meta text-text-muted   transition-colors"
   >{d.code}</button>)}</div></div><div className="flex items-center gap-2"><span className="font-mono text-[9px] text-text-muted">Strategy Grade</span><span className="font-data text-base font-semibold text-timing-green type-tabular">{strategyGrade}</span></div></div>{
     /* Content Body */
   }{isExpanded ? <div className="flex flex-col gap-4 border-t border-border-subtle pt-3"><div className="grid grid-cols-2 gap-4"><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">Pit Crew Rank</span><span className="text-xs font-mono text-text-secondary type-tabular">P{pitCrewRank}</span></div><div className="flex flex-col"><span className="text-[9px] font-mono text-text-muted">Tire Wear Slope</span><span className="text-xs font-mono text-text-secondary type-tabular">{avgWearSlope.toFixed(3)} s/lap</span></div></div>{

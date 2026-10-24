@@ -529,3 +529,10 @@ All tests under `ai_services/tests/` are organized into 8 domain-focused modules
 - **RULE:** Never rely solely on external network requests (such as FastF1 fetching Ergast/Jolpica endpoints at `api.jolpi.ca`) inside service methods or integration tests without a robust database-first or database-fallback mechanism.
 - **Gotcha:** FastF1's `session.load(telemetry=False, laps=False, weather=False)` calls `api.jolpi.ca` under the hood. During automated CI pipeline execution, external API latency spikes cause `urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='api.jolpi.ca', port=443): Read timed out. (read timeout=5.0)`, crashing `test_ghost_battle_service.py` with `ValueError: No results found for session ...`.
 - **Protocol:** In `get_drivers_teams(session_id)`, wrap `session.load()` in a `try...except` block. If FastF1 fails to load the session due to a network timeout or API outage, fall back to querying the local PostgreSQL database (`race_results` joined with `drivers` and `constructors`), which contains the authentic grid and telemetry data. This guarantees deterministic CI test passes even when upstream F1 data mirrors are experiencing downtime or rate limits.
+
+---
+
+## Entry 031 -- 2026-10-24 -- Generated Replay URL State and WebGL Resource Use
+
+- When Ghost Battle publishes its generated selection through `setSearchParams`, setup effects must recognize that state as already loaded. Re-fetching the roster in response to the same URL update clears `battleData` and makes a successful replay disappear. Preserve the generated selection guard and clear it for actual account/selection changes.
+- Team selection thumbnails should remain static SVGs. Mounting one Canvas per team unnecessarily allocates ten extra WebGL contexts. Keep the actual replay in one lazy-loaded, demand-rendered Canvas, with camera framing derived from authentic track bounds and viewport aspect ratio.

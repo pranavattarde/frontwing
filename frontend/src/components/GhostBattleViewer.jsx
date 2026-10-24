@@ -67,7 +67,7 @@ export function GhostBattleViewer({
       onClick={() => setActiveCornerIdx(idx)}
       className={cn(
         "border rounded-card p-4 transition-all duration-[150ms] cursor-pointer relative overflow-hidden",
-        isActive ? "border-accent-primary bg-surface-raised shadow-card" : "border-border-subtle bg-surface-base hover:bg-surface-raised"
+        isActive ? "border-accent-primary bg-surface-raised shadow-card" : "border-border-subtle bg-surface-base "
       )}
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}

@@ -72,10 +72,10 @@ export function MarkdownContent({ content, className }) {
     if (!text) return null;
 
     // First replace winner badges with styled spans
-    // e.g. 🏆 NORRIS FASTER (-0.935s) or 🏆 VERSTAPPEN FASTER
+    // e.g. # NORRIS FASTER (-0.935s) or # VERSTAPPEN FASTER
     const parts = [];
     // Regex for inline callouts [text|type] or bold **text** or badges
-    const regex = /(\*\*([^*]+)\*\*|\[([^\]]+)\]|(🏆\s*[^()\n]+(?:\([^)]+\))?))/g;
+    const regex = /(\*\*([^*]+)\*\*|\[([^\]]+)\]|(#\s*[^()\n]+(?:\([^)]+\))?))/g;
     let lastIdx = 0;
     let match;
 
@@ -174,7 +174,7 @@ export function MarkdownContent({ content, className }) {
                 </thead>
                 <tbody>
                   {rows.map((row, rIdx) => (
-                    <tr key={rIdx} className="hover:bg-white/[0.02] transition-colors">
+                    <tr key={rIdx} className=" transition-colors">
                       {row.map((cell, cIdx) => (
                         <td
                           key={cIdx}

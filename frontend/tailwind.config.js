@@ -11,7 +11,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Surfaces — Official F1 Broadcast Carbon Theme
+        // Surfaces : Official F1 Broadcast Carbon Theme
         canvas: 'var(--surface-canvas)',
         'surface-canvas': 'var(--surface-canvas)',
         'surface-base': 'var(--surface-base)',
@@ -77,11 +77,11 @@ export default {
         'tire-wet': 'var(--tyre-wet)',
       },
       fontFamily: {
-        display: ['Barlow Condensed', 'Titillium Web', 'Outfit', 'sans-serif'],
-        f1: ['Barlow Condensed', 'Titillium Web', 'Outfit', 'sans-serif'],
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
-        body: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Roboto Mono', 'monospace'],
+        display: ['Racing Display', 'Arial Narrow', 'Impact', 'sans-serif'],
+        f1: ['Racing Display', 'Arial Narrow', 'Impact', 'sans-serif'],
+        sans: ['DM Sans', 'Arial', 'sans-serif'],
+        body: ['DM Sans', 'Arial', 'sans-serif'],
+        mono: ['Consolas', 'Liberation Mono', 'monospace'],
       },
       fontSize: {
         'display': ['32px', { lineHeight: '1.2', letterSpacing: '-0.02em', fontWeight: '700' }],
@@ -101,8 +101,8 @@ export default {
         'xxl': '48px',
       },
       borderRadius: {
-        'card': '6px',
-        'button': '4px',
+        'card': '0px',
+        'button': '0px',
       },
       maxWidth: {
         'thread': '100%',
@@ -120,10 +120,6 @@ export default {
         'trace-draw': {
           from: { strokeDashoffset: '1000' },
           to: { strokeDashoffset: '0' },
-        },
-        'skeleton-shimmer': {
-          '0%': { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition: '200% 0' },
         },
         'slide-up': {
           from: { opacity: '0', transform: 'translateY(8px)' },
@@ -145,7 +141,6 @@ export default {
       animation: {
         'cursor-pulse': 'cursor-pulse 1s infinite',
         'trace-draw': 'trace-draw 800ms ease forwards',
-        'skeleton': 'skeleton-shimmer 1.5s linear infinite',
         'slide-up': 'slide-up 150ms cubic-bezier(0.16, 1, 0.3, 1)',
         'slide-in-right': 'slide-in-right 150ms cubic-bezier(0.16, 1, 0.3, 1)',
         'fade-in': 'fade-in 150ms ease',

@@ -23,7 +23,7 @@ export function StrategyTimeline({
             <div
               key={idx}
               onClick={() => onStintClick?.(idx, isSim)}
-              className="h-full cursor-pointer hover:brightness-110 active:brightness-95 border-r border-canvas/20 last:border-r-0 flex items-center justify-center font-mono text-xs transition-all relative group"
+              className="h-full cursor-pointer  active:brightness-95 border-r border-canvas/20 last:border-r-0 flex items-center justify-center font-mono text-xs transition-all relative group"
               style={{
                 width: `${widthPct}%`,
                 backgroundColor: tireColor,
@@ -36,7 +36,7 @@ export function StrategyTimeline({
               </span>
 
               {/* Stint details popover on hover */}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:flex flex-col items-center z-50">
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden  flex-col items-center z-50">
                 <div className="bg-surface-raised border border-border-medium rounded p-2 text-text-primary text-[10px] leading-tight shadow-lg pointer-events-none whitespace-nowrap">
                   <p className="font-bold capitalize text-timing-yellow">{stint.compound} Compound</p>
                   <p className="type-tabular">Laps: {stint.startLap} - {stint.endLap} ({stintLaps} laps)</p>

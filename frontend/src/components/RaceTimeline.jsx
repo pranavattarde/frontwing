@@ -46,7 +46,7 @@ export function RaceTimeline({
       /><div
         className={cn(
           "flex-1 border rounded-card p-3 transition-all duration-[150ms]",
-          isActive ? "border-accent-primary bg-surface-raised shadow-card" : "border-border-subtle bg-surface-base group-hover:bg-surface-raised",
+          isActive ? "border-accent-primary bg-surface-raised shadow-card" : "border-border-subtle bg-surface-base ",
           TYPE_COLORS[phase.type]
         )}
       ><div className="flex justify-between items-baseline mb-1 text-mono-meta font-mono"><span className="font-semibold tracking-wider text-[10px]">{TYPE_LABELS[phase?.type] || String(phase?.type || "Phase")}</span><span className="text-text-muted type-tabular">
@@ -59,8 +59,8 @@ export function RaceTimeline({
             </span><div className="flex flex-col gap-2">{incidents.map((inc, i) => <div
       key={i}
       onClick={() => onIncidentClick?.(i)}
-      className="border border-accent-danger/30 bg-accent-danger/5 rounded-card p-3 text-xs leading-normal cursor-pointer hover:bg-accent-danger/10 transition-colors"
-    ><div className="flex justify-between font-mono text-[10px] text-accent-danger mb-1"><span>⚠ Incident Log</span><span className="type-tabular">Lap {inc.lap}</span></div><p className="text-text-secondary">{inc.description}</p><div className="flex gap-2 mt-2">{inc.drivers.map((d) => <span key={d} className="font-mono text-[9px] bg-accent-danger/15 text-accent-danger px-1.5 py-0.5 border border-accent-danger/30 rounded-badge">{d}</span>)}</div></div>)}</div></div>}</div>;
+      className="border border-accent-danger/30 bg-accent-danger/5 rounded-card p-3 text-xs leading-normal cursor-pointer  transition-colors"
+    ><div className="flex justify-between font-mono text-[10px] text-accent-danger mb-1"><span>! Incident Log</span><span className="type-tabular">Lap {inc.lap}</span></div><p className="text-text-secondary">{inc.description}</p><div className="flex gap-2 mt-2">{inc.drivers.map((d) => <span key={d} className="font-mono text-[9px] bg-accent-danger/15 text-accent-danger px-1.5 py-0.5 border border-accent-danger/30 rounded-badge">{d}</span>)}</div></div>)}</div></div>}</div>;
   }
   return <div className="w-full bg-surface-base border border-border-subtle rounded-card p-3 select-none overflow-x-auto"><div className="min-w-[760px] flex items-center justify-between gap-1 relative before:absolute before:left-2 before:right-2 before:h-0.5 before:bg-border-subtle">{phases.map((phase, idx) => {
     const isActive = activePhaseIndex === idx;
@@ -75,10 +75,10 @@ export function RaceTimeline({
       /* Dot */
     }<div
       className={cn(
-        "absolute top-[-3px] w-2 h-2 rounded-full bg-canvas border border-border-subtle group-hover:border-text-primary z-10 transition-all",
+        "absolute top-[-3px] w-2 h-2 rounded-full bg-canvas border border-border-subtle  z-10 transition-all",
         isActive ? "bg-accent-primary border-accent-primary scale-125" : "",
         phase.type === "incident" ? "border-accent-danger" : ""
       )}
-    /><span className="font-mono text-[9px] mt-1 font-semibold type-tabular">L{phase.startLap}-{phase.endLap}</span><span className="text-[10px] text-center truncate max-w-[120px] text-text-secondary mt-1 group-hover:text-text-primary transition-colors">{phase.description}</span></div>;
+    /><span className="font-mono text-[9px] mt-1 font-semibold type-tabular">L{phase.startLap}-{phase.endLap}</span><span className="text-[10px] text-center truncate max-w-[120px] text-text-secondary mt-1  transition-colors">{phase.description}</span></div>;
   })}</div></div>;
 }

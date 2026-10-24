@@ -367,7 +367,7 @@ export async function submitStrategyQuery(question, conversationId = null, conte
 export async function fetchHeroCurrent() {
   const backendUrl = getBackendUrl();
   try {
-    const response = await fetch(`${backendUrl}/api/hero/current`);
+    const response = await fetch(`${backendUrl}/api/hero/current`, { signal: AbortSignal.timeout(10000) });
     if (!response.ok) return null;
     return await response.json();
   } catch (err) {
@@ -379,7 +379,7 @@ export async function fetchHeroCurrent() {
 export async function fetchEditorialCurrent() {
   const backendUrl = getBackendUrl();
   try {
-    const response = await fetch(`${backendUrl}/api/editorial/current`);
+    const response = await fetch(`${backendUrl}/api/editorial/current`, { signal: AbortSignal.timeout(10000) });
     if (!response.ok) return null;
     return await response.json();
   } catch (err) {

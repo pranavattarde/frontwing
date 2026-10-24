@@ -13,12 +13,19 @@ import {
   registerUser,
   logoutUser,
   getCurrentUser,
-  getMe
+  getMe,
 } from "@/lib/api";
 import { FrontWingLogo } from "./FrontWingLogo";
 
-export function Sidebar({ className }) {
-  const navigate = useNavigate();
+export function Sidebar({ className, onNavigate }) {
+  const routerNavigate = useNavigate();
+  const navigate = useCallback(
+    (...args) => {
+      routerNavigate(...args);
+      onNavigate?.();
+    },
+    [routerNavigate, onNavigate],
+  );
   const location = useLocation();
 
   const [user, setUser] = useState(getCurrentUser());
@@ -52,13 +59,7 @@ export function Sidebar({ className }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   // Collapsible Sidebar preference (persisted across sessions via localStorage)
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem("frontwing_sidebar_collapsed") === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const toggleCollapse = useCallback(() => {
     setIsCollapsed((prev) => {
@@ -113,7 +114,7 @@ export function Sidebar({ className }) {
     try {
       const [histData, grpData] = await Promise.all([
         fetchHistory({ limit: 50 }),
-        fetchGroups()
+        fetchGroups(),
       ]);
       if (histData && Array.isArray(histData.investigations)) {
         setHistoryItems(sortHistory(histData.investigations));
@@ -197,7 +198,9 @@ export function Sidebar({ className }) {
       const { tempId, realItem } = e.detail || {};
       if (!realItem) return;
       setHistoryItems((prev) => {
-        const idx = prev.findIndex((it) => it.id === tempId || it.id === realItem.id);
+        const idx = prev.findIndex(
+          (it) => it.id === tempId || it.id === realItem.id,
+        );
         if (idx >= 0) {
           const next = [...prev];
           next[idx] = { ...next[idx], ...realItem };
@@ -223,11 +226,17 @@ export function Sidebar({ className }) {
     return () => {
       isMounted = false;
       window.removeEventListener("frontwing-auth-changed", handleAuthChanged);
-      window.removeEventListener("frontwing-auth-unauthorized", handleUnauthorized);
+      window.removeEventListener(
+        "frontwing-auth-unauthorized",
+        handleUnauthorized,
+      );
       window.removeEventListener("frontwing-open-auth-modal", handleOpenAuth);
       window.removeEventListener("frontwing-chat-created", handleChatCreated);
       window.removeEventListener("frontwing-chat-synced", handleChatSynced);
-      window.removeEventListener("frontwing-history-updated", handleHistoryUpdated);
+      window.removeEventListener(
+        "frontwing-history-updated",
+        handleHistoryUpdated,
+      );
     };
   }, [loadUserHistory, sortHistory, loadGroups]);
 
@@ -245,17 +254,14 @@ export function Sidebar({ className }) {
 
   // Keyboard shortcut Ctrl+B / Cmd+B to toggle sidebar, Ctrl+N / Cmd+N for new investigation, and custom events
   useEffect(() => {
-    const handleToggle = () => toggleCollapse();
+    const handleToggle = () => setIsCollapsed(false);
     const handleOpenMobile = () => setIsMobileOpen((prev) => !prev);
     window.addEventListener("frontwing-toggle-sidebar", handleToggle);
     window.addEventListener("toggle-sidebar", handleOpenMobile);
 
     const handleKeyDown = (e) => {
       if (["INPUT", "TEXTAREA"].includes(e.target?.tagName)) return;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
-        e.preventDefault();
-        toggleCollapse();
-      }
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
         navigate("/");
@@ -319,7 +325,11 @@ export function Sidebar({ className }) {
 
     // Optimistic UI update
     setHistoryItems((prev) =>
-      sortHistory(prev.map((it) => (it.id === item.id ? { ...it, pinned: nextPinned } : it)))
+      sortHistory(
+        prev.map((it) =>
+          it.id === item.id ? { ...it, pinned: nextPinned } : it,
+        ),
+      ),
     );
 
     try {
@@ -347,7 +357,9 @@ export function Sidebar({ className }) {
 
     // Optimistic UI update
     setHistoryItems((prev) =>
-      prev.map((it) => (it.id === item.id ? { ...it, display_title: clean } : it))
+      prev.map((it) =>
+        it.id === item.id ? { ...it, display_title: clean } : it,
+      ),
     );
     setEditingId(null);
 
@@ -399,10 +411,10 @@ export function Sidebar({ className }) {
           ? {
               ...it,
               group_id: targetGroupId || null,
-              group_name: targetGroup ? targetGroup.name : null
+              group_name: targetGroup ? targetGroup.name : null,
             }
-          : it
-      )
+          : it,
+      ),
     );
 
     try {
@@ -423,7 +435,9 @@ export function Sidebar({ className }) {
       const created = await createGroup(trimmed);
       setNewGroupName("");
       setIsCreatingGroup(false);
-      setGroups((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setGroups((prev) =>
+        [...prev, created].sort((a, b) => a.name.localeCompare(b.name)),
+      );
 
       if (item) {
         await handleMoveToGroup(e, item, created.id);
@@ -438,7 +452,7 @@ export function Sidebar({ className }) {
   const handleToggleGroupCollapse = (groupId) => {
     setCollapsedGroups((prev) => ({
       ...prev,
-      [groupId]: !prev[groupId]
+      [groupId]: !prev[groupId],
     }));
   };
 
@@ -448,7 +462,9 @@ export function Sidebar({ className }) {
 
     // Optimistic: unassign group from local items and remove group
     setHistoryItems((prev) =>
-      prev.map((it) => (it.group_id === id ? { ...it, group_id: null, group_name: null } : it))
+      prev.map((it) =>
+        it.group_id === id ? { ...it, group_id: null, group_name: null } : it,
+      ),
     );
     setGroups((prev) => prev.filter((g) => g.id !== id));
     setDeletingGroupItem(null);
@@ -469,7 +485,7 @@ export function Sidebar({ className }) {
     }
 
     setGroups((prev) =>
-      prev.map((g) => (g.id === groupId ? { ...g, name: clean } : g))
+      prev.map((g) => (g.id === groupId ? { ...g, name: clean } : g)),
     );
     setEditingGroupId(null);
 
@@ -504,16 +520,19 @@ export function Sidebar({ className }) {
 
   // Render an individual history item
   const renderHistoryItem = (item) => {
-    const isStrategy = 
-      item.investigation_metadata?.type === 'strategy' || 
-      item.session === 'Strategy' || 
-      item.provider_used === 'strategy-planner';
-    const isSelected = location.pathname === `/investigate/${item.id}` || 
-      (location.pathname === `/strategy` && location.search.includes(`id=${item.id}`));
+    const isStrategy =
+      item.investigation_metadata?.type === "strategy" ||
+      item.session === "Strategy" ||
+      item.provider_used === "strategy-planner";
+    const isSelected =
+      location.pathname === `/investigate/${item.id}` ||
+      (location.pathname === `/strategy` &&
+        location.search.includes(`id=${item.id}`));
     const isEditing = editingId === item.id;
     const isMenuOpen = activeMenuId === item.id;
     const isMoving = movingItemId === item.id;
-    const displayTitle = item.display_title || item.question || "Race telemetry investigation";
+    const displayTitle =
+      item.display_title || item.question || "Race telemetry investigation";
 
     return (
       <div
@@ -534,8 +553,8 @@ export function Sidebar({ className }) {
           className={cn(
             "flex items-center justify-between p-2.5 rounded border text-xs font-mono cursor-pointer transition-all duration-100",
             isSelected
-              ? "border-accent-primary/50 bg-accent-primary/10 text-text-primary border-l-2 border-l-accent-primary font-semibold"
-              : "border-border-subtle bg-surface-canvas hover:bg-surface-raised hover:border-border-medium text-text-secondary hover:text-text-primary"
+              ? "border-accent-primary/50 bg-accent-primary/10 text-text-primary  font-semibold"
+              : "border-border-subtle bg-surface-canvas   text-text-secondary ",
           )}
         >
           <div className="flex flex-col min-w-0 pr-2 flex-1">
@@ -558,24 +577,27 @@ export function Sidebar({ className }) {
                 <button
                   onClick={(e) => handleSaveRename(e, item)}
                   title="Save title"
-                  className="px-1.5 py-0.5 rounded bg-accent-primary text-white text-[10px] hover:bg-accent-primary/80"
+                  className="px-1.5 py-0.5 rounded bg-accent-primary text-white text-[10px] "
                 >
-                  ✓
+                  +
                 </button>
                 <button
                   onClick={handleCancelRename}
                   title="Cancel"
-                  className="px-1.5 py-0.5 rounded border border-border-subtle text-text-muted text-[10px] hover:text-text-primary"
+                  className="px-1.5 py-0.5 rounded border border-border-subtle text-text-muted text-[10px] "
                 >
-                  ✕
+                  ×
                 </button>
               </div>
             ) : (
               <>
                 <div className="flex items-center gap-1.5 min-w-0">
                   {item.pinned && (
-                    <span className="text-[10px] text-accent-primary shrink-0" title="Pinned to top">
-                      📌
+                    <span
+                      className="text-[10px] text-accent-primary shrink-0"
+                      title="Pinned to top"
+                    >
+                      P
                     </span>
                   )}
                   <span className="truncate text-[11px] leading-tight font-medium text-text-primary">
@@ -586,11 +608,13 @@ export function Sidebar({ className }) {
                   {item.timestamp
                     ? new Date(item.timestamp).toLocaleDateString(undefined, {
                         month: "short",
-                        day: "numeric"
+                        day: "numeric",
                       })
                     : "Recent"}
                   {item.session ? ` • ${item.session}` : ""}
-                  {item.group_name && !item.pinned ? ` • 📁 ${item.group_name}` : ""}
+                  {item.group_name && !item.pinned
+                    ? ` • + ${item.group_name}`
+                    : ""}
                 </span>
               </>
             )}
@@ -606,8 +630,10 @@ export function Sidebar({ className }) {
               }}
               title="Chat Options"
               className={cn(
-                "p-1 rounded text-text-muted hover:text-text-primary hover:bg-surface-raised transition-colors shrink-0 text-sm font-bold",
-                isMenuOpen ? "opacity-100 text-text-primary bg-surface-raised" : "opacity-0 group-hover:opacity-100"
+                "p-1 rounded text-text-muted   transition-colors shrink-0 text-sm font-bold",
+                isMenuOpen
+                  ? "opacity-100 text-text-primary bg-surface-raised"
+                  : "opacity-0 ",
               )}
             >
               ⋮
@@ -625,18 +651,18 @@ export function Sidebar({ className }) {
             {/* Pin / Unpin */}
             <button
               onClick={(e) => handleTogglePin(e, item)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-text-secondary hover:text-text-primary hover:bg-surface-canvas transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-text-secondary   transition-colors"
             >
-              <span>{item.pinned ? "📌" : "📍"}</span>
+              <span>{item.pinned ? "P" : "P"}</span>
               <span>{item.pinned ? "Unpin Chat" : "Pin to Top"}</span>
             </button>
 
             {/* Rename */}
             <button
               onClick={(e) => handleStartRename(e, item)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-text-secondary hover:text-text-primary hover:bg-surface-canvas transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-text-secondary   transition-colors"
             >
-              <span>✏️</span>
+              <span>EDIT</span>
               <span>Rename</span>
             </button>
 
@@ -647,10 +673,10 @@ export function Sidebar({ className }) {
                   e.stopPropagation();
                   setMovingItemId(isMoving ? null : item.id);
                 }}
-                className="w-full flex items-center justify-between px-3 py-1.5 text-left text-text-secondary hover:text-text-primary hover:bg-surface-canvas transition-colors"
+                className="w-full flex items-center justify-between px-3 py-1.5 text-left text-text-secondary   transition-colors"
               >
                 <div className="flex items-center gap-2">
-                  <span>📁</span>
+                  <span>+</span>
                   <span>Move to Group</span>
                 </div>
                 <span className="text-[9px] text-text-muted">▶</span>
@@ -667,9 +693,9 @@ export function Sidebar({ className }) {
                   {item.group_id && (
                     <button
                       onClick={(e) => handleMoveToGroup(e, item, null)}
-                      className="text-left text-[11px] px-2 py-1 rounded text-text-muted hover:text-text-primary hover:bg-surface-raised transition-colors"
+                      className="text-left text-[11px] px-2 py-1 rounded text-text-muted   transition-colors"
                     >
-                      ✕ Remove from group
+                      × Remove from group
                     </button>
                   )}
 
@@ -682,11 +708,11 @@ export function Sidebar({ className }) {
                         "text-left text-[11px] px-2 py-1 rounded transition-colors flex items-center justify-between",
                         item.group_id === grp.id
                           ? "bg-accent-primary/10 text-accent-primary font-bold"
-                          : "text-text-secondary hover:text-text-primary hover:bg-surface-raised"
+                          : "text-text-secondary  ",
                       )}
                     >
-                      <span className="truncate">📁 {grp.name}</span>
-                      {item.group_id === grp.id && <span>✓</span>}
+                      <span className="truncate">+ {grp.name}</span>
+                      {item.group_id === grp.id && <span>+</span>}
                     </button>
                   ))}
 
@@ -702,7 +728,8 @@ export function Sidebar({ className }) {
                         value={newGroupName}
                         onChange={(e) => setNewGroupName(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") handleCreateGroupAndMove(e, item);
+                          if (e.key === "Enter")
+                            handleCreateGroupAndMove(e, item);
                           if (e.key === "Escape") setIsCreatingGroup(false);
                         }}
                         autoFocus
@@ -712,7 +739,7 @@ export function Sidebar({ className }) {
                         onClick={(e) => handleCreateGroupAndMove(e, item)}
                         className="px-1.5 py-0.5 rounded bg-accent-primary text-white text-[10px]"
                       >
-                        ✓
+                        +
                       </button>
                     </div>
                   ) : (
@@ -721,7 +748,7 @@ export function Sidebar({ className }) {
                         e.stopPropagation();
                         setIsCreatingGroup(true);
                       }}
-                      className="text-left text-[10px] text-accent-primary font-semibold hover:underline px-2 py-1 mt-1 border-t border-border-subtle"
+                      className="text-left text-[10px] text-accent-primary font-semibold  px-2 py-1 mt-1 border-t border-border-subtle"
                     >
                       + New Group...
                     </button>
@@ -739,9 +766,9 @@ export function Sidebar({ className }) {
                 setActiveMenuId(null);
                 setDeletingItem(item);
               }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-accent-danger hover:bg-accent-danger/10 transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-accent-danger  transition-colors"
             >
-              <span>🗑️</span>
+              <span>×</span>
               <span>Delete</span>
             </button>
           </div>
@@ -752,23 +779,6 @@ export function Sidebar({ className }) {
 
   return (
     <>
-      {/* Mobile Backdrop */}
-      {isMobileOpen && (
-        <div
-          onClick={() => setIsMobileOpen(false)}
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden animate-fade-in"
-        />
-      )}
-
-      {/* Mobile Toggle Button */}
-      <button
-        onClick={() => setIsMobileOpen(!isMobileOpen)}
-        className="md:hidden fixed top-3 left-3 z-50 p-2 rounded-sm bg-surface-raised border border-border-subtle text-text-primary shadow-md"
-        aria-label="Toggle Navigation"
-      >
-        <span className="text-sm">☰</span>
-      </button>
-
       {/* Main Sidebar Shell */}
       <aside
         className={cn(
@@ -776,8 +786,10 @@ export function Sidebar({ className }) {
           "transition-[width] duration-[240ms] [transition-timing-function:cubic-bezier(0.2,0,0,1)] select-none",
           "fixed top-0 left-0 md:static md:translate-x-0",
           isCollapsed ? "w-16" : "w-64",
-          isMobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full md:translate-x-0",
-          className
+          isMobileOpen
+            ? "translate-x-0 shadow-2xl"
+            : "-translate-x-full md:translate-x-0",
+          className,
         )}
       >
         {isCollapsed ? (
@@ -789,7 +801,7 @@ export function Sidebar({ className }) {
               <button
                 onClick={() => navigate("/")}
                 title="FrontWing Home"
-                className="p-1.5 rounded hover:bg-surface-raised transition-colors group"
+                className="p-1.5 rounded  transition-colors group"
                 aria-label="FrontWing Home"
               >
                 <FrontWingLogo variant="mark" size={24} />
@@ -799,11 +811,21 @@ export function Sidebar({ className }) {
               <button
                 onClick={toggleCollapse}
                 title="Expand Sidebar (Ctrl+B)"
-                className="p-1.5 rounded hover:bg-surface-raised text-text-muted hover:text-text-primary transition-colors"
+                className="p-1.5 rounded  text-text-muted  transition-colors"
                 aria-label="Expand Sidebar"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M13 5l7 7-7 7M5 5l7 7-7 7"
+                  />
                 </svg>
               </button>
 
@@ -813,10 +835,12 @@ export function Sidebar({ className }) {
               <button
                 onClick={() => {
                   navigate("/");
-                  window.dispatchEvent(new CustomEvent("frontwing-focus-input"));
+                  window.dispatchEvent(
+                    new CustomEvent("frontwing-focus-input"),
+                  );
                 }}
                 title="New Investigation (Ctrl+N)"
-                className="w-10 h-10 rounded flex items-center justify-center text-accent-primary hover:bg-surface-raised border border-border-subtle/50 hover:border-accent-primary/50 transition-colors shadow-xs"
+                className="w-10 h-10 rounded flex items-center justify-center text-accent-primary  border border-border-subtle/50  transition-colors shadow-xs"
                 aria-label="New Investigation"
               >
                 <span className="text-base font-bold leading-none">＋</span>
@@ -824,12 +848,14 @@ export function Sidebar({ className }) {
 
               {/* Search Icon Button */}
               <button
-                onClick={() => window.dispatchEvent(new CustomEvent("toggle-search-overlay"))}
+                onClick={() =>
+                  window.dispatchEvent(new CustomEvent("toggle-search-overlay"))
+                }
                 title="Search Investigations (Ctrl+K)"
-                className="w-10 h-10 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-raised transition-colors text-sm"
+                className="w-10 h-10 rounded flex items-center justify-center text-text-muted   transition-colors text-sm"
                 aria-label="Search Investigations"
               >
-                <span>🔍</span>
+                <span>/</span>
               </button>
 
               <div className="w-8 h-[1px] bg-border-subtle my-0.5" />
@@ -841,12 +867,12 @@ export function Sidebar({ className }) {
                 className={cn(
                   "w-10 h-10 rounded flex items-center justify-center transition-colors text-base relative",
                   isCurrentRoute("/")
-                    ? "bg-surface-raised text-accent-primary border-l-2 border-accent-primary shadow-sm"
-                    : "text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
+                    ? "bg-surface-raised text-accent-primary  shadow-sm"
+                    : "text-text-muted  ",
                 )}
                 aria-label="Briefing Room"
               >
-                <span>🏁</span>
+                <span>01</span>
               </button>
 
               <button
@@ -855,12 +881,12 @@ export function Sidebar({ className }) {
                 className={cn(
                   "w-10 h-10 rounded flex items-center justify-center transition-colors text-base relative",
                   isCurrentRoute("/strategy")
-                    ? "bg-surface-raised text-accent-primary border-l-2 border-accent-primary shadow-sm"
-                    : "text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
+                    ? "bg-surface-raised text-accent-primary  shadow-sm"
+                    : "text-text-muted  ",
                 )}
                 aria-label="Strategy Engineer"
               >
-                <span>📊</span>
+                <span>02</span>
               </button>
 
               <button
@@ -869,12 +895,12 @@ export function Sidebar({ className }) {
                 className={cn(
                   "w-10 h-10 rounded flex items-center justify-center transition-colors text-base relative",
                   isCurrentRoute("/ghost-battle")
-                    ? "bg-surface-raised text-accent-primary border-l-2 border-accent-primary shadow-sm"
-                    : "text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
+                    ? "bg-surface-raised text-accent-primary  shadow-sm"
+                    : "text-text-muted  ",
                 )}
                 aria-label="Ghost Battle"
               >
-                <span>⚡</span>
+                <span>03</span>
               </button>
             </div>
 
@@ -887,21 +913,21 @@ export function Sidebar({ className }) {
                     <button
                       key={item.id}
                       onClick={() => {
-                        const isStrategy = 
-                          item.investigation_metadata?.type === 'strategy' || 
-                          item.session === 'Strategy' || 
-                          item.provider_used === 'strategy-planner';
+                        const isStrategy =
+                          item.investigation_metadata?.type === "strategy" ||
+                          item.session === "Strategy" ||
+                          item.provider_used === "strategy-planner";
                         if (isStrategy) {
                           navigate(`/strategy?id=${item.id}`);
                         } else {
                           navigate(`/investigate/${item.id}`);
                         }
                       }}
-                      title={`📌 ${item.display_title || item.question}`}
-                      className="w-10 h-8 rounded flex items-center justify-center text-accent-primary hover:bg-surface-raised transition-colors text-xs"
+                      title={`P ${item.display_title || item.question}`}
+                      className="w-10 h-8 rounded flex items-center justify-center text-accent-primary  transition-colors text-xs"
                       aria-label={`Pinned Investigation: ${item.display_title || item.question}`}
                     >
-                      <span>📌</span>
+                      <span>P</span>
                     </button>
                   ))}
                 </>
@@ -917,14 +943,22 @@ export function Sidebar({ className }) {
                   }
                   toggleCollapse();
                 }}
-                title={user ? `${user.name || "Pit Wall Engineer"} • ${user.email} (Click to expand)` : "Sign In / Register"}
-                className="w-9 h-9 rounded-full bg-accent-primary/20 border border-accent-primary/50 text-accent-primary font-mono font-bold flex items-center justify-center text-xs hover:border-accent-primary hover:scale-105 transition-all shadow-sm"
+                title={
+                  user
+                    ? `${user.name || "Pit Wall Engineer"} • ${user.email} (Click to expand)`
+                    : "Sign In / Register"
+                }
+                className="w-9 h-9 rounded-full bg-accent-primary/20 border border-accent-primary/50 text-accent-primary font-mono font-bold flex items-center justify-center text-xs   transition-all shadow-sm"
                 aria-label="User Profile"
               >
                 {user ? (
-                  user.name ? user.name.slice(0, 2).toUpperCase() : user.email.slice(0, 2).toUpperCase()
+                  user.name ? (
+                    user.name.slice(0, 2).toUpperCase()
+                  ) : (
+                    user.email.slice(0, 2).toUpperCase()
+                  )
                 ) : (
-                  <span>🔑</span>
+                  <span>+</span>
                 )}
               </button>
             </div>
@@ -946,19 +980,29 @@ export function Sidebar({ className }) {
                   <button
                     onClick={toggleCollapse}
                     title="Collapse Sidebar (Ctrl+B)"
-                    className="p-1.5 rounded hover:bg-surface-raised text-text-muted hover:text-text-primary transition-colors"
+                    className="p-1.5 rounded  text-text-muted  transition-colors"
                     aria-label="Collapse Sidebar"
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
+                      />
                     </svg>
                   </button>
                   <button
                     onClick={() => setIsMobileOpen(false)}
-                    className="md:hidden text-text-muted hover:text-text-primary p-1"
+                    className="md:hidden text-text-muted  p-1"
                     aria-label="Close Mobile Sidebar"
                   >
-                    ✕
+                    ×
                   </button>
                 </div>
               </div>
@@ -969,13 +1013,19 @@ export function Sidebar({ className }) {
                   onClick={() => {
                     navigate("/");
                     setIsMobileOpen(false);
-                    window.dispatchEvent(new CustomEvent("frontwing-focus-input"));
+                    window.dispatchEvent(
+                      new CustomEvent("frontwing-focus-input"),
+                    );
                   }}
-                  className="flex items-center justify-between px-3 py-1.5 rounded bg-surface-canvas hover:bg-surface-raised border border-border-subtle text-text-primary transition-colors group shadow-xs"
+                  className="flex items-center justify-between px-3 py-1.5 rounded bg-surface-canvas  border border-border-subtle text-text-primary transition-colors group shadow-xs"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-accent-primary font-bold text-sm">＋</span>
-                    <span className="font-semibold text-[11px]">New Investigation</span>
+                    <span className="text-accent-primary font-bold text-sm">
+                      ＋
+                    </span>
+                    <span className="font-semibold text-[11px]">
+                      New Investigation
+                    </span>
                   </div>
                   <span className="text-[10px] text-text-muted">Ctrl+N</span>
                 </button>
@@ -983,15 +1033,19 @@ export function Sidebar({ className }) {
                 <button
                   onClick={() => {
                     setIsMobileOpen(false);
-                    window.dispatchEvent(new CustomEvent("toggle-search-overlay"));
+                    window.dispatchEvent(
+                      new CustomEvent("toggle-search-overlay"),
+                    );
                   }}
-                  className="flex items-center justify-between px-3 py-1.5 rounded bg-surface-canvas hover:bg-surface-raised border border-border-subtle text-text-muted hover:text-text-primary transition-colors"
+                  className="flex items-center justify-between px-3 py-1.5 rounded bg-surface-canvas  border border-border-subtle text-text-muted  transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-xs">🔍</span>
+                    <span className="text-xs">/</span>
                     <span className="text-[11px]">Search</span>
                   </div>
-                  <kbd className="text-[9px] bg-surface-base px-1.5 py-0.5 rounded border border-border-subtle">Ctrl+K</kbd>
+                  <kbd className="text-[9px] bg-surface-base px-1.5 py-0.5 rounded border border-border-subtle">
+                    Ctrl+K
+                  </kbd>
                 </button>
               </div>
 
@@ -1005,11 +1059,11 @@ export function Sidebar({ className }) {
                   className={cn(
                     "flex items-center gap-2.5 px-3 py-2 rounded-sm transition-colors text-left",
                     isCurrentRoute("/")
-                      ? "bg-surface-raised text-text-primary border-l-2 border-accent-primary font-bold shadow-sm"
-                      : "text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
+                      ? "bg-surface-raised text-text-primary  font-bold shadow-sm"
+                      : "text-text-muted  ",
                   )}
                 >
-                  <span>🏁</span>
+                  <span>01</span>
                   <span>Briefing Room</span>
                 </button>
 
@@ -1021,11 +1075,11 @@ export function Sidebar({ className }) {
                   className={cn(
                     "flex items-center gap-2.5 px-3 py-2 rounded-sm transition-colors text-left",
                     isCurrentRoute("/strategy")
-                      ? "bg-surface-raised text-text-primary border-l-2 border-accent-primary font-bold shadow-sm"
-                      : "text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
+                      ? "bg-surface-raised text-text-primary  font-bold shadow-sm"
+                      : "text-text-muted  ",
                   )}
                 >
-                  <span>📊</span>
+                  <span>02</span>
                   <span>Strategy Engineer</span>
                 </button>
 
@@ -1037,11 +1091,11 @@ export function Sidebar({ className }) {
                   className={cn(
                     "flex items-center gap-2.5 px-3 py-2 rounded-sm transition-colors text-left",
                     isCurrentRoute("/ghost-battle")
-                      ? "bg-surface-raised text-text-primary border-l-2 border-accent-primary font-bold shadow-sm"
-                      : "text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
+                      ? "bg-surface-raised text-text-primary  font-bold shadow-sm"
+                      : "text-text-muted  ",
                   )}
                 >
-                  <span>⚡</span>
+                  <span>03</span>
                   <span>Ghost Battle</span>
                 </button>
               </div>
@@ -1062,7 +1116,7 @@ export function Sidebar({ className }) {
                   <button
                     onClick={() => setIsCreatingGroup(!isCreatingGroup)}
                     title="Create Group"
-                    className="hover:text-text-primary text-[10px] px-1.5 py-0.5 rounded border border-border-subtle bg-surface-canvas hover:bg-surface-raised transition-colors"
+                    className=" text-[10px] px-1.5 py-0.5 rounded border border-border-subtle bg-surface-canvas  transition-colors"
                   >
                     + Group
                   </button>
@@ -1072,7 +1126,9 @@ export function Sidebar({ className }) {
               {/* Inline Create Group Box */}
               {isCreatingGroup && (
                 <div className="p-2 border border-border-subtle rounded bg-surface-raised flex flex-col gap-1.5 mb-1 font-mono text-xs animate-slide-down">
-                  <span className="text-[10px] font-bold text-text-secondary">New Group</span>
+                  <span className="text-[10px] font-bold text-text-secondary">
+                    New Group
+                  </span>
                   <div className="flex items-center gap-1.5">
                     <input
                       type="text"
@@ -1080,7 +1136,8 @@ export function Sidebar({ className }) {
                       value={newGroupName}
                       onChange={(e) => setNewGroupName(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") handleCreateGroupAndMove(e, null);
+                        if (e.key === "Enter")
+                          handleCreateGroupAndMove(e, null);
                         if (e.key === "Escape") setIsCreatingGroup(false);
                       }}
                       autoFocus
@@ -1088,15 +1145,15 @@ export function Sidebar({ className }) {
                     />
                     <button
                       onClick={(e) => handleCreateGroupAndMove(e, null)}
-                      className="px-2 py-1 rounded bg-accent-primary text-white text-[11px] font-semibold hover:bg-accent-primary/80"
+                      className="px-2 py-1 rounded bg-accent-primary text-white text-[11px] font-semibold "
                     >
                       Create
                     </button>
                     <button
                       onClick={() => setIsCreatingGroup(false)}
-                      className="px-2 py-1 rounded border border-border-subtle text-text-muted hover:text-text-primary text-[11px]"
+                      className="px-2 py-1 rounded border border-border-subtle text-text-muted  text-[11px]"
                     >
-                      ✕
+                      ×
                     </button>
                   </div>
                 </div>
@@ -1104,13 +1161,17 @@ export function Sidebar({ className }) {
 
               {!user ? (
                 <div className="p-3 rounded-md border border-border-subtle bg-surface-canvas text-center font-mono text-[11px] text-text-muted flex flex-col gap-2 my-auto">
-                  <span className="text-accent-primary font-bold">🔒 Sign In Required</span>
+                  <span className="text-accent-primary font-bold">
+                    {" "}
+                    Sign In Required
+                  </span>
                   <p className="text-[10px] leading-relaxed text-text-secondary">
-                    Sign in to save and access your telemetry investigations, pin queries, and organize into groups.
+                    Sign in to save and access your telemetry investigations,
+                    pin queries, and organize into groups.
                   </p>
                   <button
                     onClick={() => setIsAuthOpen(true)}
-                    className="text-[10px] text-accent-primary underline font-bold hover:text-text-primary"
+                    className="text-[10px] text-accent-primary underline font-bold "
                   >
                     Sign In / Register Below ↓
                   </button>
@@ -1120,7 +1181,9 @@ export function Sidebar({ className }) {
                   {isLoadingHistory ? (
                     <span>Loading investigation logs...</span>
                   ) : (
-                    <span className="italic">// No investigations recorded yet</span>
+                    <span className="italic">
+                      // No investigations recorded yet
+                    </span>
                   )}
                 </div>
               ) : (
@@ -1129,9 +1192,11 @@ export function Sidebar({ className }) {
                   {pinnedItems.length > 0 && (
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-1.5 text-[10px] font-mono text-accent-primary uppercase tracking-wider font-semibold px-1">
-                        <span>📌</span>
+                        <span>P</span>
                         <span>Pinned Chats</span>
-                        <span className="text-[9px] text-text-muted font-normal">({pinnedItems.length})</span>
+                        <span className="text-[9px] text-text-muted font-normal">
+                          ({pinnedItems.length})
+                        </span>
                       </div>
                       <div className="flex flex-col gap-1">
                         {pinnedItems.map(renderHistoryItem)}
@@ -1148,17 +1213,22 @@ export function Sidebar({ className }) {
                         const isEditingGroup = editingGroupId === group.id;
 
                         return (
-                          <div key={group.id} className="flex flex-col rounded border border-border-subtle/70 bg-surface-canvas/50">
+                          <div
+                            key={group.id}
+                            className="flex flex-col rounded border border-border-subtle/70 bg-surface-canvas/50"
+                          >
                             {/* Group Header */}
                             <div
-                              onClick={() => handleToggleGroupCollapse(group.id)}
-                              className="flex items-center justify-between p-2 cursor-pointer hover:bg-surface-raised rounded-t transition-colors text-xs font-mono"
+                              onClick={() =>
+                                handleToggleGroupCollapse(group.id)
+                              }
+                              className="flex items-center justify-between p-2 cursor-pointer  rounded-t transition-colors text-xs font-mono"
                             >
                               <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                 <span className="text-[9px] text-text-muted transition-transform">
                                   {isCollapsedGroup ? "▶" : "▼"}
                                 </span>
-                                <span className="text-xs">📁</span>
+                                <span className="text-xs">+</span>
                                 {isEditingGroup ? (
                                   <div
                                     className="flex items-center gap-1 flex-1"
@@ -1167,25 +1237,31 @@ export function Sidebar({ className }) {
                                     <input
                                       type="text"
                                       value={editingGroupName}
-                                      onChange={(e) => setEditingGroupName(e.target.value)}
+                                      onChange={(e) =>
+                                        setEditingGroupName(e.target.value)
+                                      }
                                       onKeyDown={(e) => {
-                                        if (e.key === "Enter") handleSaveRenameGroup(group.id);
-                                        if (e.key === "Escape") setEditingGroupId(null);
+                                        if (e.key === "Enter")
+                                          handleSaveRenameGroup(group.id);
+                                        if (e.key === "Escape")
+                                          setEditingGroupId(null);
                                       }}
                                       autoFocus
                                       className="bg-surface-base border border-accent-primary text-text-primary text-[11px] px-1.5 py-0.5 rounded w-full outline-none"
                                     />
                                     <button
-                                      onClick={() => handleSaveRenameGroup(group.id)}
+                                      onClick={() =>
+                                        handleSaveRenameGroup(group.id)
+                                      }
                                       className="text-[10px] px-1 py-0.5 bg-accent-primary text-white rounded"
                                     >
-                                      ✓
+                                      +
                                     </button>
                                     <button
                                       onClick={() => setEditingGroupId(null)}
                                       className="text-[10px] px-1 py-0.5 border border-border-subtle rounded text-text-muted"
                                     >
-                                      ✕
+                                      ×
                                     </button>
                                   </div>
                                 ) : (
@@ -1209,16 +1285,16 @@ export function Sidebar({ className }) {
                                       setEditingGroupName(group.name);
                                     }}
                                     title="Rename group"
-                                    className="opacity-0 group-hover:opacity-100 hover:text-text-primary text-[10px] text-text-muted px-1"
+                                    className="opacity-0   text-[10px] text-text-muted px-1"
                                   >
-                                    ✏️
+                                    EDIT
                                   </button>
                                   <button
                                     onClick={() => setDeletingGroupItem(group)}
                                     title="Delete group (ungroups chats)"
-                                    className="hover:text-accent-danger text-[10px] text-text-muted px-1"
+                                    className=" text-[10px] text-text-muted px-1"
                                   >
-                                    ✕
+                                    ×
                                   </button>
                                 </div>
                               )}
@@ -1247,9 +1323,11 @@ export function Sidebar({ className }) {
                     <div className="flex flex-col gap-1">
                       {groups.length > 0 && (
                         <div className="flex items-center gap-1.5 text-[10px] font-mono text-text-muted uppercase tracking-wider font-semibold px-1 pt-1">
-                          <span>📂</span>
+                          <span>+</span>
                           <span>Ungrouped</span>
-                          <span className="text-[9px] font-normal">({ungroupedItems.length})</span>
+                          <span className="text-[9px] font-normal">
+                            ({ungroupedItems.length})
+                          </span>
                         </div>
                       )}
                       <div className="flex flex-col gap-1">
@@ -1268,7 +1346,9 @@ export function Sidebar({ className }) {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-8 h-8 rounded-full bg-accent-primary/20 border border-accent-primary/50 text-accent-primary font-mono font-bold flex items-center justify-center shrink-0 text-xs">
-                      {user.name ? user.name.slice(0, 2).toUpperCase() : user.email.slice(0, 2).toUpperCase()}
+                      {user.name
+                        ? user.name.slice(0, 2).toUpperCase()
+                        : user.email.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="flex flex-col min-w-0">
                       <span className="text-xs font-semibold text-text-primary truncate">
@@ -1283,7 +1363,7 @@ export function Sidebar({ className }) {
                   <button
                     onClick={handleLogout}
                     title="Sign Out"
-                    className="p-1.5 rounded border border-border-subtle text-text-muted hover:text-accent-danger hover:border-accent-danger/40 transition-colors text-xs font-mono"
+                    className="p-1.5 rounded border border-border-subtle text-text-muted   transition-colors text-xs font-mono"
                   >
                     Sign Out
                   </button>
@@ -1295,9 +1375,11 @@ export function Sidebar({ className }) {
                     onClick={() => setIsAuthOpen(!isAuthOpen)}
                     className="btn-f1-primary w-full py-2 text-xs font-mono font-bold tracking-wider flex items-center justify-center gap-2"
                   >
-                    <span>🔑</span>
+                    <span>+</span>
                     <span>Sign In / Register</span>
-                    <span className="text-[10px] ml-auto">{isAuthOpen ? "▲" : "▼"}</span>
+                    <span className="text-[10px] ml-auto">
+                      {isAuthOpen ? "▲" : "▼"}
+                    </span>
                   </button>
 
                   {isAuthOpen && (
@@ -1307,17 +1389,23 @@ export function Sidebar({ className }) {
                     >
                       <div className="flex items-center justify-between pb-1 border-b border-border-subtle">
                         <span className="text-[10px] uppercase tracking-wider text-text-muted font-bold">
-                          {authMode === "login" ? "Account Sign In" : "New Account"}
+                          {authMode === "login"
+                            ? "Account Sign In"
+                            : "New Account"}
                         </span>
                         <button
                           type="button"
                           onClick={() => {
-                            setAuthMode(authMode === "login" ? "register" : "login");
+                            setAuthMode(
+                              authMode === "login" ? "register" : "login",
+                            );
                             setAuthError("");
                           }}
-                          className="text-[10px] text-accent-primary underline hover:text-text-primary"
+                          className="text-[10px] text-accent-primary underline "
                         >
-                          {authMode === "login" ? "Need account?" : "Already registered?"}
+                          {authMode === "login"
+                            ? "Need account?"
+                            : "Already registered?"}
                         </button>
                       </div>
 
@@ -1331,6 +1419,8 @@ export function Sidebar({ className }) {
                         <input
                           type="text"
                           placeholder="Engineer Name"
+                          aria-label="Engineer name"
+                          autoComplete="name"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           className="bg-surface-base border border-border-subtle text-text-primary text-[11px] px-2 py-1 rounded outline-none focus:border-accent-primary"
@@ -1340,6 +1430,8 @@ export function Sidebar({ className }) {
                       <input
                         type="email"
                         placeholder="Email address"
+                        aria-label="Email address"
+                        autoComplete="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
@@ -1349,6 +1441,13 @@ export function Sidebar({ className }) {
                       <input
                         type="password"
                         placeholder="Password (min 6 chars)"
+                        aria-label="Password"
+                        minLength={authMode === "register" ? 6 : undefined}
+                        autoComplete={
+                          authMode === "register"
+                            ? "new-password"
+                            : "current-password"
+                        }
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
@@ -1358,9 +1457,13 @@ export function Sidebar({ className }) {
                       <button
                         type="submit"
                         disabled={isSubmittingAuth}
-                        className="w-full mt-1 py-1.5 rounded bg-accent-primary text-white text-[11px] font-bold tracking-wider hover:bg-accent-primary/90 transition-colors disabled:opacity-50"
+                        className="w-full mt-1 py-1.5 rounded bg-accent-primary text-white text-[11px] font-bold tracking-wider  transition-colors disabled:opacity-50"
                       >
-                        {isSubmittingAuth ? "Processing..." : authMode === "login" ? "Sign In" : "Register"}
+                        {isSubmittingAuth
+                          ? "Processing..."
+                          : authMode === "login"
+                            ? "Sign In"
+                            : "Register"}
                       </button>
                     </form>
                   )}
@@ -1382,11 +1485,12 @@ export function Sidebar({ className }) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 text-accent-danger font-bold text-sm">
-              <span>⚠️</span>
+              <span>!</span>
               <span>Confirm Deletion</span>
             </div>
             <p className="text-xs text-text-secondary leading-relaxed">
-              Are you sure you want to delete this investigation? This action cannot be undone.
+              Are you sure you want to delete this investigation? This action
+              cannot be undone.
             </p>
             <div className="p-2.5 rounded bg-surface-base border border-border-subtle text-xs text-text-primary line-clamp-2 italic">
               "{deletingItem.display_title || deletingItem.question}"
@@ -1394,13 +1498,13 @@ export function Sidebar({ className }) {
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-subtle">
               <button
                 onClick={() => setDeletingItem(null)}
-                className="px-3 py-1.5 rounded text-xs text-text-secondary hover:text-text-primary border border-border-subtle hover:bg-surface-canvas transition-colors"
+                className="px-3 py-1.5 rounded text-xs text-text-secondary  border border-border-subtle  transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmDelete}
-                className="px-3 py-1.5 rounded text-xs bg-accent-danger text-white hover:bg-accent-danger/80 transition-colors font-bold"
+                className="px-3 py-1.5 rounded text-xs bg-accent-danger text-white  transition-colors font-bold"
               >
                 Delete Investigation
               </button>
@@ -1420,22 +1524,27 @@ export function Sidebar({ className }) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 text-accent-danger font-bold text-sm">
-              <span>⚠️</span>
+              <span>!</span>
               <span>Delete Group</span>
             </div>
             <p className="text-xs text-text-secondary leading-relaxed">
-              Delete group <strong className="text-text-primary">"{deletingGroupItem.name}"</strong>? Chats inside will not be deleted; they will be moved to Ungrouped.
+              Delete group{" "}
+              <strong className="text-text-primary">
+                "{deletingGroupItem.name}"
+              </strong>
+              ? Chats inside will not be deleted; they will be moved to
+              Ungrouped.
             </p>
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-subtle">
               <button
                 onClick={() => setDeletingGroupItem(null)}
-                className="px-3 py-1.5 rounded text-xs text-text-secondary hover:text-text-primary border border-border-subtle hover:bg-surface-canvas transition-colors"
+                className="px-3 py-1.5 rounded text-xs text-text-secondary  border border-border-subtle  transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmDeleteGroup}
-                className="px-3 py-1.5 rounded text-xs bg-accent-danger text-white hover:bg-accent-danger/80 transition-colors font-bold"
+                className="px-3 py-1.5 rounded text-xs bg-accent-danger text-white  transition-colors font-bold"
               >
                 Delete Group
               </button>

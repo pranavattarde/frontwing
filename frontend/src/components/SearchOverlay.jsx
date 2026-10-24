@@ -1,128 +1,235 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-export function SearchOverlay({
-  isOpen,
-  onClose,
-  recentSearches = [],
-  trending = [],
-  onResultClick
-}) {
-  const [value, setValue] = useState("");
-  const filteredSuggestions = trending.filter(
-    (item) => item.toLowerCase().includes(value.toLowerCase())
-  );
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-[200] flex items-start justify-center p-4 pt-[10vh]">
-          {/* Backdrop */}
-          <motion.div
-            className="absolute inset-0 bg-canvas/80 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    exit={{ opacity: 0 }}
-    onClick={onClose}
-  />{
-    /* Search Panel Container */
-  }<motion.div
-    role="search"
-    aria-label="Ask the AI Race Engineer"
-    className="w-full max-w-[560px] bg-surface-raised border border-border-strong rounded-card shadow-2xl relative z-10 overflow-hidden flex flex-col"
-    initial={{ opacity: 0, scale: 0.97, y: -8 }}
-    animate={{ opacity: 1, scale: 1, y: 0 }}
-    exit={{ opacity: 0, scale: 0.97, y: -8 }}
-    transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
-  >{
-    /* Input Row */
-  }<div className="flex items-center px-4 py-3 border-b border-border-subtle bg-surface-base/60"><svg className="w-4 h-4 text-text-muted mr-3 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg><input
-    type="text"
-    value={value}
-    onChange={(e) => setValue(e.target.value)}
-    placeholder="Search GP races, strategic debates, or telemetry nodes..."
-    className="flex-1 bg-transparent outline-none placeholder:text-text-muted text-text-primary text-sm font-sans"
-    autoFocus
-  /><button
-    onClick={onClose}
-    className="text-text-muted hover:text-text-secondary text-xs font-mono shrink-0 pl-3 border-l border-border-subtle"
-  >
-                [Esc]
-              </button>
-            </div>
-            {/* Results / Suggestion Lists */}
-            <div className="p-4 flex flex-col gap-5 max-h-[320px] overflow-y-auto">
-              {value.trim() === "" ? (
-                <>
-                  {/* Recent Searches */}
-                  {recentSearches.length > 0 && (
-                    <div className="flex flex-col gap-2">
-                      <span className="text-[9px] font-mono text-text-muted tracking-wide">
-                        Recent Investigations
-                      </span>
-                      <div className="flex flex-col gap-1">
-                        {recentSearches.map((rec) => (
-                          <button
-                            key={rec}
-                            onClick={() => onResultClick?.(rec)}
-                            className="text-left py-1.5 px-2.5 rounded-badge text-xs text-text-secondary hover:bg-surface-overlay hover:text-text-primary transition-colors truncate"
-                          >
-                            {rec}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { fetchHistory } from "@/lib/api";
 
-                  {/* Trending Queries */}
-                  {trending.length > 0 && (
-                    <div className="flex flex-col gap-2">
-                      <span className="text-[9px] font-mono text-text-muted tracking-wide">
-                        Suggested Analyses
-                      </span>
-                      <div className="flex flex-col gap-1">
-                        {trending.map((trend) => (
-                          <button
-                            key={trend}
-                            onClick={() => onResultClick?.(trend)}
-                            className="text-left py-1.5 px-2.5 rounded-badge text-xs text-text-secondary hover:bg-surface-overlay hover:text-text-primary transition-colors flex items-center gap-2"
-                          >
-                            <span className="text-accent-primary font-mono text-[9px]">◆</span>
-                            <span className="truncate">{trend}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                /* Filtered Options */
-                <div className="flex flex-col gap-2">
-                  <span className="text-[9px] font-mono text-text-muted tracking-wide">
-                    Matching Queries
-                  </span>
-                  <div className="flex flex-col gap-1">
-                    {filteredSuggestions.length > 0 ? (
-                      filteredSuggestions.map((item) => (
-                        <button
-                          key={item}
-                          onClick={() => onResultClick?.(item)}
-                          className="text-left py-1.5 px-2.5 rounded-badge text-xs text-text-secondary hover:bg-surface-overlay hover:text-text-primary transition-colors flex items-center justify-between"
-                        >
-                          <span className="truncate">{item}</span>
-                          <span className="font-mono text-[9px] text-text-muted">[Select]</span>
-                        </button>
-                      ))
-                    ) : (
-                      <span className="text-xs text-text-muted p-2">
-                        No matching queries found
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </motion.div>
+const navigation = [
+  {
+    label: "The briefing",
+    detail: "Race engineer & investigations",
+    path: "/",
+  },
+  {
+    label: "Strategy engineer",
+    detail: "Pit stops, tyre choices & what-if simulations",
+    path: "/strategy",
+  },
+  {
+    label: "Ghost battle",
+    detail: "Compare authentic flying laps in 3D",
+    path: "/ghost-battle",
+  },
+];
+const questions = [
+  "Why did Hamilton win the 2024 British Grand Prix?",
+  "Compare Norris and Verstappen at the 2024 Dutch GP",
+];
+
+export function SearchOverlay({ isOpen, onClose }) {
+  const navigate = useNavigate();
+  const panel = useRef(null);
+  const input = useRef(null);
+  const [value, setValue] = useState("");
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [historyError, setHistoryError] = useState(false);
+  const [active, setActive] = useState(0);
+  const signedIn = !!localStorage.getItem("frontwing_token");
+  const query = value.trim().toLowerCase();
+  const entries = [
+    ...navigation.filter((item) =>
+      `${item.label} ${item.detail}`.toLowerCase().includes(query),
+    ),
+    ...history
+      .filter((item) =>
+        `${item.display_title || item.question}`.toLowerCase().includes(query),
+      )
+      .map((item) => ({
+        label: item.display_title || item.question,
+        detail: "Your investigation",
+        path:
+          item.investigation_metadata?.type === "strategy" ||
+          item.session === "Strategy" ||
+          item.provider_used === "strategy-planner" ||
+          item.type === "strategy" ||
+          item.conversation_id?.startsWith("strat-")
+            ? `/strategy?id=${item.id}`
+            : `/investigate/${item.id}`,
+      })),
+  ];
+  const ask = (question) => {
+    onClose();
+    navigate(`/?q=${encodeURIComponent(question)}`);
+    window.dispatchEvent(
+      new CustomEvent("frontwing-prefill-query", {
+        detail: { query: question },
+      }),
+    );
+  };
+  const open = (entry) => {
+    onClose();
+    navigate(entry.path);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.activeElement;
+    setValue("");
+    setActive(0);
+    setHistory([]);
+    setHistoryError(false);
+    input.current?.focus();
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    let mounted = true;
+    if (signedIn) {
+      setLoading(true);
+      fetchHistory({ limit: 50 })
+        .then((data) => {
+          if (mounted) setHistory(data?.investigations || []);
+        })
+        .catch(() => {
+          if (mounted) setHistoryError(true);
+        })
+        .finally(() => {
+          if (mounted) setLoading(false);
+        });
+    }
+    const key = (event) => {
+      if (event.key === "Escape") onClose();
+      if (event.key !== "Tab") return;
+      const focusable = [
+        ...panel.current.querySelectorAll("button, input, a[href]"),
+      ].filter((el) => !el.disabled);
+      const first = focusable[0],
+        last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      }
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener("keydown", key);
+    return () => {
+      mounted = false;
+      document.body.style.overflow = overflow;
+      document.removeEventListener("keydown", key);
+      previous?.focus();
+    };
+  }, [isOpen, signedIn, onClose]);
+
+  if (!isOpen) return null;
+  return (
+    <div className="search-layer">
+      <button
+        className="search-backdrop"
+        aria-label="Close search"
+        tabIndex={-1}
+        onClick={onClose}
+      />
+      <section
+        ref={panel}
+        className="search-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="search-heading"
+      >
+        <div className="search-panel-header">
+          <h2 id="search-heading">FIND YOUR NEXT INSIGHT.</h2>
+          <button onClick={onClose} aria-label="Close search dialog">
+            ESC ×
+          </button>
         </div>
-      )}
-    </AnimatePresence>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (entries[active]) open(entries[active]);
+            else if (value.trim()) ask(value.trim());
+          }}
+        >
+          <label htmlFor="paddock-search" className="sr-only">
+            Search pages and investigations
+          </label>
+          <input
+            id="paddock-search"
+            ref={input}
+            value={value}
+            onChange={(event) => {
+              setValue(event.target.value);
+              setActive(0);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                setActive((i) => (i + 1) % Math.max(1, entries.length));
+              }
+              if (event.key === "ArrowUp") {
+                event.preventDefault();
+                setActive(
+                  (i) =>
+                    (i - 1 + Math.max(1, entries.length)) %
+                    Math.max(1, entries.length),
+                );
+              }
+            }}
+            placeholder="Search pages, investigations or ask a question…"
+            autoComplete="off"
+          />
+        </form>
+        <div className="search-results">
+          <span className="eyebrow">
+            {value ? "MATCHING RESULTS" : "GO STRAIGHT TO"}
+          </span>
+          {entries.map((entry, i) => (
+            <button
+              key={entry.path}
+              className={i === active ? "active" : ""}
+              onClick={() => open(entry)}
+            >
+              <span>
+                <strong>{entry.label}</strong>
+                <small>{entry.detail}</small>
+              </span>
+              <span aria-hidden="true">↗</span>
+            </button>
+          ))}
+          {!entries.length && <p>No matching pages or saved investigations.</p>}
+          {value.trim() && (
+            <button className="search-ask" onClick={() => ask(value.trim())}>
+              <span>
+                <strong>Ask the race engineer</strong>
+                <small>{value}</small>
+              </span>
+              <span aria-hidden="true">+</span>
+            </button>
+          )}
+          {loading && <p role="status">Opening your investigation archive…</p>}
+          {historyError && (
+            <p role="status">Your saved archive is currently unavailable.</p>
+          )}
+          {!query && (
+            <>
+              <span className="eyebrow search-suggestions-label">
+                QUESTIONS TO EXPLORE
+              </span>
+              {questions.map((question) => (
+                <button key={question} onClick={() => ask(question)}>
+                  <span>
+                    <small>{question}</small>
+                  </span>
+                  <span aria-hidden="true">+</span>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+        <div className="search-panel-footer">
+          <span>↑ ↓ TO NAVIGATE / ENTER TO OPEN</span>
+          <span>FRONTWING / PADDOCK SEARCH</span>
+        </div>
+      </section>
+    </div>
   );
 }
