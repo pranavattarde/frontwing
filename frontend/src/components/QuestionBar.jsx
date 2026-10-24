@@ -10,6 +10,8 @@ export function QuestionBar({
   onSubmit,
   onSuggestionClick,
   prefillValue = "",
+  submitLabel = null,
+  inputId,
 }) {
   const [value, setValue] = useState("");
   const input = useRef(null);
@@ -79,6 +81,7 @@ export function QuestionBar({
         )}
         <input
           ref={input}
+          id={inputId}
           type="text"
           value={value}
           onChange={(event) => setValue(event.target.value)}
@@ -89,28 +92,32 @@ export function QuestionBar({
             }
           }}
           placeholder={disabled ? "Analyzing the race…" : placeholder}
-          aria-label="Your race question"
+          aria-label={inputId ? undefined : "Your race question"}
           disabled={disabled}
           maxLength={2000}
           className="flex-1 min-w-0 bg-transparent text-sm text-text-primary placeholder:text-text-muted py-3"
         />
         <button
           type="submit"
-          aria-label="Submit question"
+          aria-label={submitLabel || "Submit question"}
           disabled={disabled || !value.trim()}
           className="ml-3 p-2 text-accent-primary disabled:opacity-40"
         >
-          <svg
-            width="21"
-            height="21"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            aria-hidden="true"
-          >
-            <path d="M5 19 19 5M5 5h14v14" />
-          </svg>
+          {submitLabel ? (
+            <span>{submitLabel}</span>
+          ) : (
+            <svg
+              width="21"
+              height="21"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              aria-hidden="true"
+            >
+              <path d="M5 19 19 5M5 5h14v14" />
+            </svg>
+          )}
         </button>
       </form>
       {value.length > 1800 && (

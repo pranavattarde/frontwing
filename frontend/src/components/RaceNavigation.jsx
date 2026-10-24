@@ -106,7 +106,7 @@ export function RaceNavigation() {
       <a className="skip-content" href="#main-content">
         Skip to content
       </a>
-      <header className="race-navigation">
+      <header className="race-navigation" data-home={location.pathname === "/"}>
         <NavLink className="brand-link" to="/" aria-label="FrontWing home">
           <FrontWingLogo size={32} />
         </NavLink>

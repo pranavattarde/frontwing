@@ -1,5 +1,14 @@
 # FrontWing UI redesign
 
+## Homepage UX rebuild, 24 October 2026
+
+The compact revision below is superseded. The homepage now follows a task hierarchy: one labelled investigation field and explicit Investigate action; race context beside it; dedicated strategy/replay entry points; and on-demand timetable and news. History remains in the existing archive with its pin/group/rename/delete controls. Returning users can continue their most recent investigation.
+
+The goal is a readable product interface, not a fixed number of screens. Main copy uses 18 px on desktop and 17 px on phones, inputs at least 16 px, metadata at least 12 px and interactive targets at least 44 px. The enabled primary action has a measured 4.90:1 text contrast ratio. Mobile keeps a concise race summary and unfolds the full schedule at readable sizes. Dialogs trap focus, close on Escape, restore focus and support motion preferences. Race and news loading are independent; no timetable or editorial facts were fabricated.
+
+Verified the production bundle at normal zoom on 1280 x 720 and 390 x 844: no horizontal overflow, five actual sessions, five source-linked articles, deliberate suggestion prefill, both tool destinations and modal keyboard behavior. Build passed (1,045 modules) and targeted ESLint returned zero errors. No new runtime dependencies. Review images use the `ux-` prefix in `docs/ui-redesign/`.
+
+
 ## Compact homepage revision, 24 October 2026
 
 The homepage now acts as a product workspace. The team-branded car and full-screen promotional hero are removed. A concise product introduction sits beside the current race weekend, next-session countdown and full IST timetable. The investigation room remains prominent immediately below.

@@ -1,3 +1,13 @@
+## Session 055 -- 2026-10-24 -- Rebuild homepage around the investigation workflow
+> Source branch: `codex/homepage-ux-rebuild`.
+
+- Replaced the rejected compressed layout with one primary question workspace, supporting race context, two clear tool destinations and on-demand schedule/news panels.
+- Restored readable type, normal touch targets, purposeful spacing and a clear Investigate CTA. Preserved intent prefill, canonical archive functions and latest-investigation routing.
+- Added accessible modal focus handling, Escape/return behavior and independent race/editorial loading. Removed duplicate hero and dense mixed-content tabs. No new runtime dependency.
+- Verified desktop/phone layouts, real timetable/news, 4.90:1 enabled CTA contrast, keyboard interaction, pause behavior and tool navigation. Production build and targeted lint passed.
+- Added UX review screenshots and replaced PROJECT_STATE with current acceptance criteria. Literal screen-count optimization is no longer the design criterion.
+
+---
 ## Session 054 -- 2026-10-24 -- Compact product homepage and production release
 > Source branch: `codex/frontwing-race-ui`; user authorized merge and deployment to both custom domains.
 
